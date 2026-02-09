@@ -148,6 +148,6 @@ input::placeholder {
     50% { transform: translateY(-10px); }
 }
 
-.login-container:hover {
+.login-container{
     animation: float 3s ease-in-out infinite;
 }
