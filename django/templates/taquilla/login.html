@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rutas Baja Express — Acceso</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --azul:    #1181c3;
+      --azul-d:  #0a5a8a;
+      --naranja: #ed7237;
+      --nar-d:   #c75a22;
+      --bg:      #0d1b2a;
+      --surface: #112236;
+      --border:  #1e3a52;
+      --text:    #e8edf2;
+      --muted:   #6b8fa8;
+    }
+
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; overflow: hidden; }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        repeating-linear-gradient(90deg, transparent 0px, transparent 58px, rgba(255,255,255,.03) 58px, rgba(255,255,255,.03) 60px),
+        repeating-linear-gradient(180deg, transparent 0px, transparent 38px, rgba(255,255,255,.02) 38px, rgba(255,255,255,.02) 40px);
+      pointer-events: none; z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      top: -200px; left: 50%;
+      transform: translateX(-50%);
+      width: 800px; height: 400px;
+      background: radial-gradient(ellipse, rgba(17,129,195,.18) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+    }
+
+    .page {
+      position: relative; z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 480px;
+      height: 100vh;
+    }
+
+    /* ── Panel izquierdo ── */
+    .brand-panel {
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 60px 70px;
+      border-right: 1px solid var(--border);
+    }
+
+    .brand-tag {
+      font-size: 11px; font-weight: 600; letter-spacing: .22em; text-transform: uppercase;
+      color: var(--naranja); margin-bottom: 24px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .brand-tag::before { content: ''; display: inline-block; width: 28px; height: 2px; background: var(--naranja); }
+
+    .brand-name {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(52px, 7vw, 90px);
+      line-height: .92; color: var(--text); margin-bottom: 28px;
+    }
+    .brand-name span { color: var(--azul); }
+
+    .brand-divider { width: 48px; height: 3px; background: linear-gradient(90deg, var(--naranja), var(--azul)); margin: 36px 0; border-radius: 2px; }
+
+    .brand-desc { font-size: 15px; font-weight: 300; color: var(--muted); line-height: 1.7; max-width: 340px; }
+
+    .ruta-visual { display: flex; align-items: center; margin-top: 40px; }
+    .ruta-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--naranja); flex-shrink: 0; }
+    .ruta-dot.dest { background: var(--azul); }
+    .ruta-line { flex: 1; height: 2px; background: repeating-linear-gradient(90deg, var(--border) 0, var(--border) 8px, transparent 8px, transparent 14px); position: relative; }
+    .ruta-bus { position: absolute; top: 50%; left: 30%; transform: translateY(-50%); font-size: 18px; animation: driveBus 5s linear infinite; }
+    @keyframes driveBus { from { left: 5%; } to { left: 90%; } }
+    .ruta-labels { display: flex; justify-content: space-between; margin-top: 10px; font-size: 11px; color: var(--muted); letter-spacing: .08em; }
+
+    /* ── Panel derecho ── */
+    .form-panel {
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 60px 50px;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+    }
+
+    .form-header { margin-bottom: 30px; }
+    .form-header h2 { font-size: 24px; font-weight: 600; margin-bottom: 6px; }
+    .form-header p { font-size: 13px; color: var(--muted); }
+
+    /* Tabs */
+    .tabs { display: flex; gap: 4px; background: rgba(0,0,0,.25); border-radius: 8px; padding: 4px; margin-bottom: 28px; }
+    .tab-btn {
+      flex: 1; padding: 9px; border: none; border-radius: 6px;
+      background: transparent; color: var(--muted);
+      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+      letter-spacing: .05em; cursor: pointer; transition: all .2s;
+    }
+    .tab-btn.active { background: var(--azul); color: #fff; }
+
+    .form-section { display: none; }
+    .form-section.active { display: block; }
+
+    .field { margin-bottom: 16px; }
+    label { display: block; font-size: 11px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
+    input, select {
+      width: 100%; padding: 12px 16px;
+      background: rgba(0,0,0,.3); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text);
+      font-family: 'DM Sans', sans-serif; font-size: 14px;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+      -webkit-appearance: none;
+    }
+    input::placeholder { color: #3a5870; }
+    input:focus, select:focus { border-color: var(--azul); box-shadow: 0 0 0 3px rgba(17,129,195,.15); }
+    select option { background: #112236; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+    .checkbox-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; cursor: pointer; }
+    .checkbox-row input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--naranja); cursor: pointer; }
+    .checkbox-row span { font-size: 13px; color: var(--muted); }
+
+    .btn-primary {
+      width: 100%; padding: 14px; border: none; border-radius: 8px;
+      background: linear-gradient(135deg, var(--azul) 0%, var(--azul-d) 100%);
+      color: #fff; font-family: 'DM Sans', sans-serif;
+      font-size: 14px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+      cursor: pointer; transition: opacity .2s, transform .1s;
+    }
+    .btn-primary:hover { opacity: .88; }
+    .btn-primary:active { transform: scale(.98); }
+    .btn-primary.naranja { background: linear-gradient(135deg, var(--naranja) 0%, var(--nar-d) 100%); }
+
+    /* Mensajes de error/éxito de Django */
+    .messages { margin-bottom: 16px; }
+    .msg {
+      padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 8px;
+    }
+    .msg.error { background: rgba(192,57,43,.15); border: 1px solid #c0392b; color: #e74c3c; }
+    .msg.success { background: rgba(39,174,96,.15); border: 1px solid #27ae60; color: #2ecc71; }
+
+    /* Modal clave maestra */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); backdrop-filter: blur(6px); z-index: 100; display: none; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal-box { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 40px; width: 360px; animation: modalIn .25s ease; }
+    @keyframes modalIn { from { opacity: 0; transform: scale(.92) translateY(12px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    .modal-box h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+    .modal-box p { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .modal-box .field { margin-bottom: 20px; }
+    .modal-actions { display: flex; gap: 10px; }
+    .btn-ghost { flex: 1; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color .2s; }
+    .btn-ghost:hover { border-color: var(--azul); color: var(--text); }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ── Panel izquierdo ── -->
+  <div class="brand-panel">
+    <div class="brand-tag">Sistema de Taquilla</div>
+    <div class="brand-name">Rutas<br><span>Baja</span><br>Express</div>
+    <div class="brand-divider"></div>
+    <p class="brand-desc">Plataforma interna de gestión de viajes, tickets y operaciones para taquilleros y administradores.</p>
+    <div>
+      <div class="ruta-visual">
+        <div class="ruta-dot"></div>
+        <div class="ruta-line"><span class="ruta-bus">🚌</span></div>
+        <div class="ruta-dot dest"></div>
+      </div>
+      <div class="ruta-labels"><span>Tijuana</span><span>La Paz</span></div>
+    </div>
+  </div>
+
+  <!-- ── Panel derecho ── -->
+  <div class="form-panel">
+    <div class="form-header">
+      <h2>Bienvenido de nuevo</h2>
+      <p>Accede con tus credenciales de taquillero</p>
+    </div>
+
+    <!-- Mensajes Django -->
+    {% if messages %}
+    <div class="messages">
+      {% for message in messages %}
+      <div class="msg {{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('login', this)">Iniciar sesión</button>
+      <button class="tab-btn" onclick="abrirModalClave(this)">Registrarse</button>
+    </div>
+
+    <!-- ── LOGIN ── -->
+    <div class="form-section active" id="tab-login">
+      <form method="POST" action="{% url 'login' %}">
+        {% csrf_token %}
+        <div class="field">
+          <label>Usuario</label>
+          <input type="text" name="usuario" placeholder="tu_usuario" autocomplete="username" required />
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <input type="password" name="contrasena" placeholder="••••••••" autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="btn-primary">Acceder</button>
+      </form>
+    </div>
+
+    <!-- ── REGISTRO ── -->
+    <div class="form-section" id="tab-registro">
+      <form method="POST" action="{% url 'registro' %}">
+        {% csrf_token %}
+        <input type="hidden" name="clave_maestra" id="clave-hidden" />
+        <div class="grid-2">
+          <div class="field">
+            <label>Nombre *</label>
+            <input type="text" name="nombre" placeholder="María" required />
+          </div>
+          <div class="field">
+            <label>Primer apellido *</label>
+            <input type="text" name="primer_apellido" placeholder="García" required />
+          </div>
+        </div>
+        <div class="field">
+          <label>Segundo apellido</label>
+          <input type="text" name="segundo_apellido" placeholder="Opcional" />
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label>Usuario *</label>
+            <input type="text" name="usuario" placeholder="m.garcia" required />
+          </div>
+          <div class="field">
+            <label>Contraseña *</label>
+            <input type="password" name="contrasena" placeholder="••••••••" required />
+          </div>
+        </div>
+        <div class="field">
+          <label>Terminal</label>
+          <select name="terminal">
+            {% for terminal in terminales %}
+            <option value="{{ terminal.numero }}">{{ terminal.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" name="supervisa" />
+          <span>Registrar como supervisor</span>
+        </label>
+        <button type="submit" class="btn-primary naranja">Registrar taquillero</button>
+      </form>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── Modal clave maestra ── -->
+<div class="modal-overlay" id="modal-clave">
+  <div class="modal-box">
+    <h3>🔐 Verificación requerida</h3>
+    <p>Solo el administrador puede registrar nuevos taquilleros. Ingresa la clave maestra para continuar.</p>
+    <div class="field">
+      <label>Clave maestra</label>
+      <input type="password" id="clave-input" placeholder="••••••••" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-primary" onclick="confirmarClave()">Verificar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function switchTab(tab, btn) {
+    document.querySelectorAll('.form-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    if (btn) btn.classList.add('active');
+  }
+
+  function abrirModalClave(btn) {
+    window._tabBtn = btn;
+    document.getElementById('clave-input').value = '';
+    document.getElementById('modal-clave').classList.add('open');
+    setTimeout(() => document.getElementById('clave-input').focus(), 100);
+  }
+
+  function cerrarModal() {
+    document.getElementById('modal-clave').classList.remove('open');
+  }
+
+  function confirmarClave() {
+    const clave = document.getElementById('clave-input').value;
+    if (!clave) return;
+    document.getElementById('clave-hidden').value = clave;
+    cerrarModal();
+    switchTab('registro', window._tabBtn);
+    if (window._tabBtn) window._tabBtn.classList.add('active');
+  }
+
+  document.getElementById('clave-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') confirmarClave();
+    if (e.key === 'Escape') cerrarModal();
+  });
+
+  document.getElementById('modal-clave').addEventListener('click', e => {
+    if (e.target === e.currentTarget) cerrarModal();
+  });
+
+  // Si hay error, mostrar tab correspondiente
+  {% if messages %}
+  {% for message in messages %}
+  {% if 'maestra' in message.message or 'Clave' in message.message %}
+  switchTab('registro', document.querySelectorAll('.tab-btn')[1]);
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+</script>
+</body>
+</html>
