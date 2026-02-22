@@ -1,0 +1,2 @@
+activar entorno virtual:
+source venv/bin/activate
