@@ -18,7 +18,7 @@ def login_view(request):
             request.session['supervisa'] = bool(taquillero.supervisa)
 
             if taquillero.supervisa:
-                return redirect('panel_admin')
+                return redirect('dashboard')
             else:
                 return redirect('panel_principal')
 
@@ -88,3 +88,7 @@ def panel_admin(request):
 def logout_view(request):
     request.session.flush()
     return redirect('login')
+
+@login_requerido
+def dashboard(request):
+    return render(request, 'taquilla/dash.html')

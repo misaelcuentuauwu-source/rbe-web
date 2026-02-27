@@ -79,6 +79,7 @@ USE_TZ = True
 # ── Archivos estáticos ─────────────────────────────────────────
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
+    BASE_DIR / 'static',
     BASE_DIR.parent / 'css',
     BASE_DIR.parent / 'imagenes',
 ]
