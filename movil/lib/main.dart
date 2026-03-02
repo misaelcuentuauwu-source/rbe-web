@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
+import 'screens/home_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -14,7 +15,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Rutas Baja Express',
       debugShowCheckedModeBanner: false,
-      home: const HomeScreen(),
+      home: const HomeNavigationScreen(),
     );
   }
 }
@@ -87,7 +88,7 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(height: screenHeight * 0.37), // 45% de la pantalla
+            SizedBox(height: screenHeight * 0.37),
             _buildLogo(),
             const SizedBox(height: 24),
             _buildTitle(),
