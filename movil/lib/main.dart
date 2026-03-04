@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'screens/login_screen.dart';
 import 'screens/signup_screen.dart';
 import 'screens/home_screen.dart';
+import 'screens/seat_selection_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -15,7 +16,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Rutas Baja Express',
       debugShowCheckedModeBanner: false,
-      home: const HomeNavigationScreen(),
+      home: const SeatSelectionScreen(viajeId: 17),
     );
   }
 }
