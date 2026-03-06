@@ -1,7 +1,10 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from .models import Taquillero, Terminal
+from .models import Taquillero, Terminal, Viaje
 from datetime import date
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from .serializers import ViajeSerializer
 
 CLAVE_MAESTRA = "RutasBaja2024"
 
@@ -95,3 +98,18 @@ def dashboard(request):
 
 def salidas(request):
     return render(request, 'taquilla/salidas.html')
+
+@api_view(['GET'])
+def api_viajes(request):
+    viajes = Viaje.objects.filter(estado=1)  # Solo viajes disponibles
+    serializer = ViajeSerializer(viajes, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+def api_viaje_detalle(request, id):
+    try:
+        viaje = Viaje.objects.get(numero=id)
+        serializer = ViajeSerializer(viaje)
+        return Response(serializer.data)
+    except Viaje.DoesNotExist:
+        return Response({'error': 'Viaje no encontrado'}, status=404)

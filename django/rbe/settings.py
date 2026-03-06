@@ -10,7 +10,7 @@ SECRET_KEY = 'django-insecure-p&co780gt&ojpgq0er7-9q%t^arrei=qtfp=3&j9+%6dt=r_=q
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['10.0.2.2', '127.0.0.1', 'localhost']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'taquilla',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
