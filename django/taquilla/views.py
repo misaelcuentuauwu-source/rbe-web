@@ -92,3 +92,6 @@ def logout_view(request):
 @login_requerido
 def dashboard(request):
     return render(request, 'taquilla/dash.html')
+
+def salidas(request):
+    return render(request, 'taquilla/salidas.html')
