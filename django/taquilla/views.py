@@ -97,6 +97,10 @@ def dashboard(request):
     return render(request, 'taquilla/dash.html')
 
 
+def salidas(request):
+    return render(request, 'taquilla/salidas.html')
+
+
 @api_view(['GET'])
 def api_viajes(request):
     viajes = Viaje.objects.filter(estado=1)
