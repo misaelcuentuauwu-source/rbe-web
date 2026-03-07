@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
+import 'dart:async';
+import '../config.dart';
 
 class SeatSelectionScreen extends StatefulWidget {
   final int viajeId;
@@ -28,23 +30,30 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
   }
 
   Future<void> cargarAsientos() async {
-    final response = await http.get(
-      Uri.parse('http://10.0.2.2:8000/api/viajes/${widget.viajeId}/'),
-    );
-    if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      final lista = List<dynamic>.from(data['asientos']);
-      lista.sort((a, b) {
-        final aTipo = a['asiento']['tipo']['codigo'];
-        final bTipo = b['asiento']['tipo']['codigo'];
-        if (aTipo == 'DIS' && bTipo != 'DIS') return -1;
-        if (aTipo != 'DIS' && bTipo == 'DIS') return 1;
-        return 0;
-      });
-      setState(() {
-        asientos = lista;
-        cargando = false;
-      });
+    try {
+      final response = await http
+          .get(Uri.parse('${Config.baseUrl}/api/viajes/${widget.viajeId}/'))
+          .timeout(const Duration(seconds: 10));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final lista = List<dynamic>.from(data['asientos']);
+        lista.sort((a, b) {
+          final aTipo = a['asiento']['tipo']['codigo'];
+          final bTipo = b['asiento']['tipo']['codigo'];
+          if (aTipo == 'DIS' && bTipo != 'DIS') return -1;
+          if (aTipo != 'DIS' && bTipo == 'DIS') return 1;
+          return 0;
+        });
+        setState(() {
+          asientos = lista;
+          cargando = false;
+        });
+      } else {
+        setState(() => cargando = false);
+      }
+    } catch (e) {
+      debugPrint('Error cargando asientos: $e');
+      setState(() => cargando = false);
     }
   }
 

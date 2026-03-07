@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import 'inicio_screen.dart';
 
 class HomeNavigationScreen extends StatefulWidget {
   const HomeNavigationScreen({super.key});
@@ -14,12 +14,17 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen> {
   static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
 
-  final List<Widget> _pages = [
-    const _PlaceholderPage('Inicio'),
-    const _PlaceholderPage('Escaneo'),
-    const _PlaceholderPage('Historial'),
-    const _PlaceholderPage('Perfil'),
-  ];
+  late final List<Widget> _pages;
+
+  @override
+  void initState() {
+    super.initState();
+    _pages = [
+      const InicioScreen(),
+      const _PlaceholderPage('Historial'),
+      const _PlaceholderPage('Perfil'),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,9 +51,8 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _buildNavItem(0, Icons.home_rounded, 'Inicio'),
-                _buildNavItem(1, Icons.qr_code_scanner_rounded, 'Escaneo'),
-                _buildNavItem(2, Icons.history_rounded, 'Historial'),
-                _buildNavItem(3, Icons.person_rounded, 'Perfil'),
+                _buildNavItem(1, Icons.history_rounded, 'Historial'),
+                _buildNavItem(2, Icons.person_rounded, 'Perfil'),
               ],
             ),
           ),
