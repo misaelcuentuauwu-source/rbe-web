@@ -1,10 +1,10 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from .models import Taquillero, Terminal, Viaje
-from datetime import date
+from datetime import date, datetime, timedelta
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .serializers import ViajeSerializer
+from .serializers import ViajeSerializer, ViajeListSerializer, TerminalSerializer
 
 CLAVE_MAESTRA = "RutasBaja2024"
 
@@ -66,8 +66,8 @@ def registro_view(request):
 
     return redirect('login')
 
+
 def login_requerido(view_func):
-    """Decorador simple para verificar sesión activa."""
     def wrapper(request, *args, **kwargs):
         if not request.session.get('usuario_id'):
             return redirect('login')
@@ -82,7 +82,6 @@ def panel_principal(request):
 
 @login_requerido
 def panel_admin(request):
-    # Solo supervisores pueden entrar
     if not request.session.get('supervisa'):
         return redirect('panel_principal')
     return render(request, 'taquilla/panel_admin.html')
@@ -92,15 +91,35 @@ def logout_view(request):
     request.session.flush()
     return redirect('login')
 
+
 @login_requerido
 def dashboard(request):
     return render(request, 'taquilla/dash.html')
 
+
 @api_view(['GET'])
 def api_viajes(request):
-    viajes = Viaje.objects.filter(estado=1)  # Solo viajes disponibles
-    serializer = ViajeSerializer(viajes, many=True)
+    viajes = Viaje.objects.filter(estado=1)
+
+    origen = request.GET.get('origen')
+    destino = request.GET.get('destino')
+    fecha = request.GET.get('fecha')
+
+    if origen:
+        viajes = viajes.filter(ruta__origen__numero=origen)
+    if destino:
+        viajes = viajes.filter(ruta__destino__numero=destino)
+    if fecha:
+        fecha_dt = datetime.strptime(fecha, '%Y-%m-%d')
+        fecha_fin = fecha_dt + timedelta(days=1)
+        viajes = viajes.filter(
+            fechorasalida__gte=fecha_dt,
+            fechorasalida__lt=fecha_fin
+        )
+
+    serializer = ViajeListSerializer(viajes, many=True)
     return Response(serializer.data)
+
 
 @api_view(['GET'])
 def api_viaje_detalle(request, id):
@@ -110,3 +129,10 @@ def api_viaje_detalle(request, id):
         return Response(serializer.data)
     except Viaje.DoesNotExist:
         return Response({'error': 'Viaje no encontrado'}, status=404)
+
+
+@api_view(['GET'])
+def api_terminales(request):
+    terminales = Terminal.objects.all()
+    serializer = TerminalSerializer(terminales, many=True)
+    return Response(serializer.data)

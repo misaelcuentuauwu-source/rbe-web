@@ -10,7 +10,7 @@ SECRET_KEY = 'django-insecure-p&co780gt&ojpgq0er7-9q%t^arrei=qtfp=3&j9+%6dt=r_=q
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['10.0.2.2', '127.0.0.1', 'localhost']
+ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -75,7 +75,7 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = 'es-mx'
 TIME_ZONE = 'America/Tijuana'
 USE_I18N = True
-USE_TZ = True
+USE_TZ = False
 
 # ── Archivos estáticos ─────────────────────────────────────────
 STATIC_URL = '/static/'
