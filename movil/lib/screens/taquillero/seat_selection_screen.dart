@@ -3,11 +3,28 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import 'dart:async';
-import '../config.dart';
+import '../../config.dart';
+import 'pago_screen.dart';
 
 class SeatSelectionScreen extends StatefulWidget {
   final int viajeId;
-  const SeatSelectionScreen({super.key, required this.viajeId});
+  final List<Map<String, dynamic>> pasajeros;
+  final String origenNombre;
+  final String destinoNombre;
+  final String horaSalida;
+  final double precioPorPasajero;
+  final int vendedorId;
+
+  const SeatSelectionScreen({
+    super.key,
+    required this.viajeId,
+    required this.pasajeros,
+    required this.origenNombre,
+    required this.destinoNombre,
+    required this.horaSalida,
+    required this.precioPorPasajero,
+    required this.vendedorId,
+  });
 
   @override
   State<SeatSelectionScreen> createState() => _SeatSelectionScreenState();
@@ -70,11 +87,27 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
   void _toggleAsiento(Map asiento) {
     final numero = asiento['asiento']['numero'];
     if (asiento['ocupado'] == 1) return;
+    final totalPasajeros = widget.pasajeros.length;
     setState(() {
       if (seleccionados.contains(numero)) {
         seleccionados.remove(numero);
       } else {
-        seleccionados.add(numero);
+        if (seleccionados.length < totalPasajeros) {
+          seleccionados.add(numero);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Solo puedes seleccionar $totalPasajeros asiento(s)',
+              ),
+              backgroundColor: Colors.red.shade400,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
       }
     });
   }
@@ -323,6 +356,9 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
   }
 
   Widget _buildBotonConfirmar() {
+    final totalPasajeros = widget.pasajeros.length;
+    final listos = seleccionados.length == totalPasajeros;
+
     return Container(
       padding: const EdgeInsets.all(16),
       color: Colors.white,
@@ -330,7 +366,47 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
         width: double.infinity,
         height: 48,
         child: ElevatedButton(
-          onPressed: seleccionados.isEmpty ? null : () {},
+          onPressed: listos
+              ? () {
+                  final pasajerosConAsiento = widget.pasajeros
+                      .asMap()
+                      .entries
+                      .map((e) {
+                        final p = Map<String, dynamic>.from(e.value);
+                        p['asiento_id'] = seleccionados[e.key];
+                        return p;
+                      })
+                      .toList();
+
+                  double montoTotal = 0;
+                  final descuentos = {
+                    'Adulto': 0,
+                    'Estudiante': 25,
+                    'INAPAM': 30,
+                    'Discapacidad': 15,
+                  };
+                  for (final p in pasajerosConAsiento) {
+                    final descuento = descuentos[p['tipo']] ?? 0;
+                    montoTotal +=
+                        widget.precioPorPasajero * (1 - descuento / 100);
+                  }
+
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PagoScreen(
+                        viajeId: widget.viajeId,
+                        pasajeros: pasajerosConAsiento,
+                        origenNombre: widget.origenNombre,
+                        destinoNombre: widget.destinoNombre,
+                        horaSalida: widget.horaSalida,
+                        montoTotal: montoTotal,
+                        vendedorId: widget.vendedorId,
+                      ),
+                    ),
+                  );
+                }
+              : null,
           style: ElevatedButton.styleFrom(
             backgroundColor: naranja,
             disabledBackgroundColor: gris,
@@ -341,8 +417,10 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
           ),
           child: Text(
             seleccionados.isEmpty
-                ? 'Selecciona un asiento'
-                : 'Confirmar ${seleccionados.length} asiento(s)',
+                ? 'Selecciona $totalPasajeros asiento(s)'
+                : listos
+                ? 'Confirmar ${seleccionados.length} asiento(s)'
+                : 'Faltan ${totalPasajeros - seleccionados.length} asiento(s)',
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
           ),
         ),
@@ -397,7 +475,6 @@ class BusPainter extends CustomPainter {
     final frontWheelY = cabinHeight * 0.65;
     final innerR = w * 0.04;
 
-    // ── Espejos retrovisores ──
     final mirrorArmStartX = w * 0.13;
     final mirrorArmStartY = cabinHeight * 0.30;
     final mirrorArmEndX = w * 0.05;
@@ -440,7 +517,6 @@ class BusPainter extends CustomPainter {
       paintDarkGray,
     );
 
-    // ── Cuerpo principal ──
     final bodyR = w * 0.07;
     final body = RRect.fromRectAndCorners(
       Rect.fromLTRB(w * 0.08, w * 0.04, w * 0.92, h * 0.97),
@@ -452,7 +528,6 @@ class BusPainter extends CustomPainter {
     canvas.drawRRect(body, paintGray);
     canvas.drawRRect(body, paintBorder);
 
-    // ── Interior blanco ──
     canvas.drawRRect(
       RRect.fromRectAndCorners(
         Rect.fromLTRB(w * 0.13, w * 0.07, w * 0.87, h * 0.94),
@@ -464,7 +539,6 @@ class BusPainter extends CustomPainter {
       paintWhite,
     );
 
-    // ── Ruedas delanteras ──
     for (final x in [w * 0.02, w * 0.89]) {
       canvas.drawRRect(
         RRect.fromRectAndRadius(
@@ -475,7 +549,6 @@ class BusPainter extends CustomPainter {
       );
     }
 
-    // ── Ruedas traseras dobles ──
     final rearY = h * 0.83;
     final rearH = wheelH * 1.15;
     final rearW = wheelW * 1.1;
@@ -497,7 +570,6 @@ class BusPainter extends CustomPainter {
       );
     }
 
-    // ── Cabina conductor ──
     canvas.drawRRect(
       RRect.fromRectAndCorners(
         Rect.fromLTRB(w * 0.13, w * 0.07, w * 0.87, cabinHeight),
@@ -507,8 +579,6 @@ class BusPainter extends CustomPainter {
       Paint()..color = const Color(0xFF888888),
     );
 
-    // ── Detalles frente (panel superior de la cabina) ──
-    // Rectángulo izquierdo
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(w * 0.16, w * 0.055, w * 0.10, w * 0.025),
@@ -516,7 +586,6 @@ class BusPainter extends CustomPainter {
       ),
       Paint()..color = const Color(0xFF555555),
     );
-    // Rectángulo derecho
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(w * 0.74, w * 0.055, w * 0.10, w * 0.025),
@@ -524,7 +593,6 @@ class BusPainter extends CustomPainter {
       ),
       Paint()..color = const Color(0xFF555555),
     );
-    // Sensor/cámara central
     canvas.drawCircle(
       Offset(w * 0.42, w * 0.068),
       w * 0.018,
@@ -536,7 +604,6 @@ class BusPainter extends CustomPainter {
       Paint()..color = const Color(0xFF666666),
     );
 
-    // ── Volante centrado en la cabina ──
     final steerX = w * 0.67;
     final steerY = (w * 0.07 + cabinHeight) / 2;
     final steerR = min(cabinHeight * 0.38, w * 0.14);
@@ -582,7 +649,6 @@ class BusPainter extends CustomPainter {
       Paint()..color = const Color(0xFF777777),
     );
 
-    // ── Asiento conductor amarillo ──
     final seatW = w * 0.20;
     final seatH = cabinHeight * 0.20;
     final seatLeft = steerX - seatW / 2;
@@ -597,7 +663,6 @@ class BusPainter extends CustomPainter {
       );
     }
 
-    // ── Línea separadora cabina ──
     canvas.drawLine(
       Offset(w * 0.13, cabinHeight),
       Offset(w * 0.87, cabinHeight),
@@ -606,7 +671,6 @@ class BusPainter extends CustomPainter {
         ..strokeWidth = w * 0.008,
     );
 
-    // ── Parachoques trasero ──
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(w * 0.18, h * 0.93, w * 0.64, w * 0.03),

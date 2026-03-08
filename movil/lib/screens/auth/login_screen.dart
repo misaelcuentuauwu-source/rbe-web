@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../../config.dart';
+import '../taquillero/home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usuarioController = TextEditingController();
   final _contrasenaController = TextEditingController();
   bool _obscurePassword = true;
+  bool _cargando = false;
 
   static const azul = Color(0xFF2C7FB1);
 
@@ -19,6 +24,59 @@ class _LoginScreenState extends State<LoginScreen> {
     _usuarioController.dispose();
     _contrasenaController.dispose();
     super.dispose();
+  }
+
+  Future<void> _login() async {
+    final usuario = _usuarioController.text.trim();
+    final contrasena = _contrasenaController.text.trim();
+
+    if (usuario.isEmpty || contrasena.isEmpty) {
+      _mostrarError('Completa todos los campos');
+      return;
+    }
+
+    setState(() => _cargando = true);
+
+    try {
+      final response = await http
+          .post(
+            Uri.parse('${Config.baseUrl}/api/login/'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'usuario': usuario, 'contrasena': contrasena}),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['tipo'] == 'taquillero') {
+        if (mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(
+              builder: (_) => HomeNavigationScreen(taquillero: data),
+            ),
+            (route) => false,
+          );
+        }
+      } else {
+        _mostrarError(data['error'] ?? 'Credenciales incorrectas');
+      }
+    } catch (e) {
+      _mostrarError('Error de conexión');
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
+  }
+
+  void _mostrarError(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: Colors.red.shade400,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override
@@ -78,18 +136,31 @@ class _LoginScreenState extends State<LoginScreen> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: _cargando ? null : _login,
               style: ElevatedButton.styleFrom(
                 backgroundColor: azul,
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade300,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: const Text(
-                'INICIAR SESIÓN',
-                style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
-              ),
+              child: _cargando
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : const Text(
+                      'INICIAR SESIÓN',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(height: 16),
@@ -125,11 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(color: Color(0xFFB0BEC5)),
-            prefixIcon: const Icon(
-              Icons.person_outline,
-              color: Color(0xFF6B8FA8),
-              size: 20,
-            ),
+            prefixIcon: Icon(icon, color: const Color(0xFF6B8FA8), size: 20),
             suffixIcon: isPassword
                 ? IconButton(
                     icon: Icon(

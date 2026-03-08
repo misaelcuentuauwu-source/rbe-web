@@ -9,6 +9,7 @@ class DatosBoletoScreen extends StatefulWidget {
   final String destinoNombre;
   final String horaSalida;
   final String precio;
+  final int vendedorId;
 
   const DatosBoletoScreen({
     super.key,
@@ -18,6 +19,7 @@ class DatosBoletoScreen extends StatefulWidget {
     required this.destinoNombre,
     required this.horaSalida,
     required this.precio,
+    required this.vendedorId,
   });
 
   @override
@@ -41,27 +43,18 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
   void _generarPasajeros() {
     pasajerosList = [];
 
-    // Primero el contacto (adulto)
     if (widget.pasajeros['adultos']! > 0) {
       pasajerosList.add(_crearPasajero('Adulto', esContacto: true));
     }
-
-    // Resto de adultos
     for (int i = 1; i < (widget.pasajeros['adultos'] ?? 0); i++) {
       pasajerosList.add(_crearPasajero('Adulto'));
     }
-
-    // Estudiantes
     for (int i = 0; i < (widget.pasajeros['estudiantes'] ?? 0); i++) {
       pasajerosList.add(_crearPasajero('Estudiante'));
     }
-
-    // INAPAM
     for (int i = 0; i < (widget.pasajeros['inapam'] ?? 0); i++) {
       pasajerosList.add(_crearPasajero('INAPAM'));
     }
-
-    // Discapacidad
     for (int i = 0; i < (widget.pasajeros['discapacidad'] ?? 0); i++) {
       pasajerosList.add(_crearPasajero('Discapacidad'));
     }
@@ -76,6 +69,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       'apMaternoCtrl': TextEditingController(),
       'edadCtrl': TextEditingController(),
       'telefonoCtrl': TextEditingController(),
+      'correoCtrl': TextEditingController(),
     };
   }
 
@@ -87,16 +81,47 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       p['apMaternoCtrl'].dispose();
       p['edadCtrl'].dispose();
       p['telefonoCtrl'].dispose();
+      p['correoCtrl'].dispose();
     }
     super.dispose();
   }
 
   void _continuar() {
     if (_formKey.currentState!.validate()) {
+      final pasajerosData = pasajerosList
+          .map(
+            (p) => {
+              'nombre': (p['nombreCtrl'] as TextEditingController).text.trim(),
+              'primer_apellido': (p['apPaternoCtrl'] as TextEditingController)
+                  .text
+                  .trim(),
+              'segundo_apellido': (p['apMaternoCtrl'] as TextEditingController)
+                  .text
+                  .trim(),
+              'edad': int.parse(
+                (p['edadCtrl'] as TextEditingController).text.trim(),
+              ),
+              'tipo': p['tipo'],
+              'esContacto': p['esContacto'],
+              'telefono': (p['telefonoCtrl'] as TextEditingController).text
+                  .trim(),
+              'correo': (p['correoCtrl'] as TextEditingController).text.trim(),
+            },
+          )
+          .toList();
+
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => SeatSelectionScreen(viajeId: widget.viajeId),
+          builder: (_) => SeatSelectionScreen(
+            viajeId: widget.viajeId,
+            pasajeros: pasajerosData,
+            origenNombre: widget.origenNombre,
+            destinoNombre: widget.destinoNombre,
+            horaSalida: widget.horaSalida,
+            precioPorPasajero: double.parse(widget.precio),
+            vendedorId: widget.vendedorId,
+          ),
         ),
       );
     }
@@ -223,7 +248,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     final tipo = pasajero['tipo'] as String;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 12, top: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -240,7 +265,6 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header tarjeta
             Row(
               children: [
                 Container(
@@ -304,8 +328,6 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
               ],
             ),
             const SizedBox(height: 14),
-
-            // Nombre y Primer apellido
             Row(
               children: [
                 Expanded(
@@ -328,8 +350,6 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
               ],
             ),
             const SizedBox(height: 10),
-
-            // Segundo apellido y Edad
             Row(
               children: [
                 Expanded(
@@ -352,8 +372,6 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                 ),
               ],
             ),
-
-            // Teléfono solo para contacto
             if (esContacto) ...[
               const SizedBox(height: 10),
               _buildCampo(
@@ -362,6 +380,14 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                 icono: Icons.phone_outlined,
                 requerido: true,
                 soloNumeros: true,
+              ),
+              const SizedBox(height: 10),
+              _buildCampo(
+                ctrl: pasajero['correoCtrl'],
+                label: 'Correo electrónico',
+                icono: Icons.email_outlined,
+                requerido: true,
+                esCorreo: true,
               ),
             ],
           ],
@@ -376,10 +402,15 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     required IconData icono,
     required bool requerido,
     bool soloNumeros = false,
+    bool esCorreo = false,
   }) {
     return TextFormField(
       controller: ctrl,
-      keyboardType: soloNumeros ? TextInputType.number : TextInputType.text,
+      keyboardType: esCorreo
+          ? TextInputType.emailAddress
+          : soloNumeros
+          ? TextInputType.number
+          : TextInputType.text,
       inputFormatters: soloNumeros
           ? [FilteringTextInputFormatter.digitsOnly]
           : null,
@@ -405,14 +436,12 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       ),
       validator: requerido
           ? (val) {
-              if (val == null || val.trim().isEmpty) {
-                return 'Requerido';
-              }
+              if (val == null || val.trim().isEmpty) return 'Requerido';
+              if (esCorreo && !val.contains('@')) return 'Correo inválido';
               if (label == 'Edad') {
                 final edad = int.tryParse(val);
-                if (edad == null || edad < 1 || edad > 120) {
+                if (edad == null || edad < 1 || edad > 120)
                   return 'Edad inválida';
-                }
               }
               if (label == 'Teléfono de contacto' && val.length < 10) {
                 return 'Mín. 10 dígitos';

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
-import '../config.dart';
+import '../../config.dart';
 import 'seat_selection_screen.dart';
 import 'datos_boleto_screen.dart';
 
@@ -13,6 +13,7 @@ class ResultadosScreen extends StatefulWidget {
   final String destinoNombre;
   final DateTime fecha;
   final Map<String, int> pasajeros;
+  final int vendedorId;
 
   const ResultadosScreen({
     super.key,
@@ -22,6 +23,7 @@ class ResultadosScreen extends StatefulWidget {
     required this.destinoNombre,
     required this.fecha,
     required this.pasajeros,
+    required this.vendedorId,
   });
 
   @override
@@ -490,6 +492,7 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
                                 destinoNombre: widget.destinoNombre,
                                 horaSalida: _formatHora(viaje['fechorasalida']),
                                 precio: ruta['precio'],
+                                vendedorId: widget.vendedorId,
                               ),
                             ),
                           );

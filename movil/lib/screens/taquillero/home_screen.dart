@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'inicio_screen.dart';
+import 'perfil_screen.dart';
+import 'historial_screen.dart';
+import 'buscar_boleto_screen.dart';
 
 class HomeNavigationScreen extends StatefulWidget {
-  const HomeNavigationScreen({super.key});
+  final Map<String, dynamic> taquillero;
+
+  const HomeNavigationScreen({super.key, required this.taquillero});
 
   @override
   State<HomeNavigationScreen> createState() => _HomeNavigationScreenState();
@@ -20,28 +25,29 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen> {
   void initState() {
     super.initState();
     _pages = [
-      const InicioScreen(),
-      const _PlaceholderPage('Historial'),
-      const _PlaceholderPage('Perfil'),
+      InicioScreen(vendedorId: widget.taquillero['registro']),
+      HistorialScreen(vendedorId: widget.taquillero['registro']),
+      const BuscarBoletoScreen(),
+      PerfilScreen(taquillero: widget.taquillero),
     ];
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF008FD4),
+      backgroundColor: const Color(0xFFF4F6F9),
       body: _pages[_selectedIndex],
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.only(left: 16, right: 16, bottom: 24),
         child: Container(
           decoration: BoxDecoration(
-            color: Colors.black87,
+            color: Colors.white,
             borderRadius: BorderRadius.circular(30),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withOpacity(0.12),
                 blurRadius: 20,
-                offset: const Offset(0, 10),
+                offset: const Offset(0, 8),
               ),
             ],
           ),
@@ -52,7 +58,8 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen> {
               children: [
                 _buildNavItem(0, Icons.home_rounded, 'Inicio'),
                 _buildNavItem(1, Icons.history_rounded, 'Historial'),
-                _buildNavItem(2, Icons.person_rounded, 'Perfil'),
+                _buildNavItem(2, Icons.search_rounded, 'Buscar'),
+                _buildNavItem(3, Icons.person_rounded, 'Perfil'),
               ],
             ),
           ),
@@ -69,14 +76,14 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? azul : Colors.transparent,
+          color: isSelected ? naranja.withOpacity(0.08) : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
           children: [
             Icon(
               icon,
-              color: isSelected ? Colors.white : Colors.white54,
+              color: isSelected ? naranja : Colors.grey.shade400,
               size: 22,
             ),
             if (isSelected) ...[
@@ -84,7 +91,7 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen> {
               Text(
                 label,
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: naranja,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),

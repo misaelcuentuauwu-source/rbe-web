@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
-import '../config.dart';
+import '../../config.dart';
 import 'resultados_screen.dart';
 
 class InicioScreen extends StatefulWidget {
-  const InicioScreen({super.key});
+  final int vendedorId;
+  const InicioScreen({super.key, required this.vendedorId});
 
   @override
   State<InicioScreen> createState() => _InicioScreenState();
@@ -15,7 +16,9 @@ class InicioScreen extends StatefulWidget {
 class _InicioScreenState extends State<InicioScreen> {
   static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
-  static const fondo = Color(0xFF008FD4);
+  static const fondo = Color(0xFFF4F6F9);
+  static const textoPrincipal = Color(0xFF1C2D3A);
+  static const textoSecundario = Color(0xFF6B8FA8);
 
   String? origenSeleccionado;
   String? destinoSeleccionado;
@@ -64,6 +67,19 @@ class _InicioScreenState extends State<InicioScreen> {
       firstDate: DateTime(2026, 1, 1),
       lastDate: DateTime(2026, 12, 31),
       locale: const Locale('es'),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: azul,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: textoPrincipal,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (fecha != null) setState(() => fechaSeleccionada = fecha);
   }
@@ -113,7 +129,6 @@ class _InicioScreenState extends State<InicioScreen> {
       return;
     }
 
-    // Obtener nombres de terminales seleccionadas
     final origenNombre = terminales.firstWhere(
       (t) => t['numero'].toString() == origenSeleccionado,
     )['ciudad']['nombre'];
@@ -136,6 +151,7 @@ class _InicioScreenState extends State<InicioScreen> {
             'inapam': inapam,
             'discapacidad': discapacidad,
           },
+          vendedorId: widget.vendedorId,
         ),
       ),
     );
@@ -169,17 +185,22 @@ class _InicioScreenState extends State<InicioScreen> {
 
   Widget _buildPortrait() {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeader(),
-          const SizedBox(height: 24),
-          _buildRutaFecha(),
-          const SizedBox(height: 16),
-          _buildPasajerosCard(),
-          const SizedBox(height: 20),
-          _buildBotonBuscar(),
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                _buildRutaFecha(),
+                const SizedBox(height: 16),
+                _buildPasajerosCard(),
+                const SizedBox(height: 20),
+                _buildBotonBuscar(),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -190,18 +211,19 @@ class _InicioScreenState extends State<InicioScreen> {
       children: [
         Expanded(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(),
-                const SizedBox(height: 16),
-                _buildRutaFecha(),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: _buildRutaFecha(),
+                ),
               ],
             ),
           ),
         ),
-        const VerticalDivider(width: 1, color: Colors.white24),
+        const VerticalDivider(width: 1, color: Color(0xFFE0E0E0)),
         Expanded(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(20),
@@ -219,52 +241,68 @@ class _InicioScreenState extends State<InicioScreen> {
   }
 
   Widget _buildHeader() {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.white24,
-            borderRadius: BorderRadius.circular(14),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      decoration: BoxDecoration(
+        color: azul,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-          child: const Icon(
-            Icons.directions_bus_rounded,
-            color: Colors.white,
-            size: 30,
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.directions_bus_rounded,
+              color: Colors.white,
+              size: 28,
+            ),
           ),
-        ),
-        const SizedBox(width: 12),
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Rutas Baja Express',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+          const SizedBox(width: 14),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Rutas Baja Express',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.3,
+                ),
               ),
-            ),
-            Text(
-              '¿A dónde viajas hoy?',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-          ],
-        ),
-      ],
+              SizedBox(height: 2),
+              Text(
+                '¿A dónde viajas hoy?',
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildRutaFecha() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -273,17 +311,34 @@ class _InicioScreenState extends State<InicioScreen> {
           ? const Center(
               child: Padding(
                 padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(),
+                child: CircularProgressIndicator(color: azul),
               ),
             )
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Ruta',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: azul,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Ruta',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: textoPrincipal,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 14),
                 _buildDropdown(
                   valor: origenSeleccionado,
                   hint: 'Origen',
@@ -295,7 +350,7 @@ class _InicioScreenState extends State<InicioScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: azul.withOpacity(0.1),
+                      color: azul.withOpacity(0.08),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(
@@ -312,12 +367,29 @@ class _InicioScreenState extends State<InicioScreen> {
                   icono: Icons.location_on_rounded,
                   onChanged: (val) => setState(() => destinoSeleccionado = val),
                 ),
-                const SizedBox(height: 16),
-                const Divider(),
-                const SizedBox(height: 12),
-                const Text(
-                  'Fecha de viaje',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                const SizedBox(height: 18),
+                Divider(color: Colors.grey.shade100, height: 1),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: naranja,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Fecha de viaje',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: textoPrincipal,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 GestureDetector(
@@ -331,18 +403,21 @@ class _InicioScreenState extends State<InicioScreen> {
                       border: Border.all(
                         color: fechaSeleccionada != null
                             ? azul
-                            : Colors.grey.shade300,
+                            : Colors.grey.shade200,
+                        width: fechaSeleccionada != null ? 1.5 : 1,
                       ),
                       borderRadius: BorderRadius.circular(12),
                       color: fechaSeleccionada != null
-                          ? azul.withOpacity(0.05)
+                          ? azul.withOpacity(0.04)
                           : Colors.grey.shade50,
                     ),
                     child: Row(
                       children: [
                         Icon(
                           Icons.calendar_month_rounded,
-                          color: fechaSeleccionada != null ? azul : Colors.grey,
+                          color: fechaSeleccionada != null
+                              ? azul
+                              : textoSecundario,
                           size: 20,
                         ),
                         const SizedBox(width: 12),
@@ -353,8 +428,8 @@ class _InicioScreenState extends State<InicioScreen> {
                           style: TextStyle(
                             fontSize: 14,
                             color: fechaSeleccionada != null
-                                ? Colors.black87
-                                : Colors.grey.shade500,
+                                ? textoPrincipal
+                                : textoSecundario,
                           ),
                         ),
                         const Spacer(),
@@ -362,9 +437,9 @@ class _InicioScreenState extends State<InicioScreen> {
                           GestureDetector(
                             onTap: () =>
                                 setState(() => fechaSeleccionada = null),
-                            child: const Icon(
+                            child: Icon(
                               Icons.close_rounded,
-                              color: Colors.grey,
+                              color: Colors.grey.shade400,
                               size: 18,
                             ),
                           ),
@@ -387,7 +462,7 @@ class _InicioScreenState extends State<InicioScreen> {
       value: valor,
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+        hintStyle: TextStyle(color: textoSecundario, fontSize: 14),
         prefixIcon: Icon(icono, color: azul, size: 20),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
@@ -395,11 +470,11 @@ class _InicioScreenState extends State<InicioScreen> {
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -414,29 +489,26 @@ class _InicioScreenState extends State<InicioScreen> {
               value: t['numero'].toString(),
               child: Text(
                 t['ciudad']['nombre'],
-                style: const TextStyle(fontSize: 14),
+                style: const TextStyle(fontSize: 14, color: textoPrincipal),
               ),
             ),
           )
           .toList(),
       onChanged: onChanged,
-      hint: Text(
-        hint,
-        style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
-      ),
+      hint: Text(hint, style: TextStyle(color: textoSecundario, fontSize: 14)),
     );
   }
 
   Widget _buildPasajerosCard() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -446,9 +518,22 @@ class _InicioScreenState extends State<InicioScreen> {
         children: [
           Row(
             children: [
+              Container(
+                width: 4,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: azul,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
               const Text(
                 'Pasajeros',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: textoPrincipal,
+                ),
               ),
               const Spacer(),
               Container(
@@ -459,7 +544,7 @@ class _InicioScreenState extends State<InicioScreen> {
                 decoration: BoxDecoration(
                   color: totalPasajeros >= 5
                       ? Colors.red.shade50
-                      : azul.withOpacity(0.1),
+                      : azul.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -475,16 +560,16 @@ class _InicioScreenState extends State<InicioScreen> {
           ),
           const SizedBox(height: 16),
           _buildContador('Adulto', 'adultos', adultos, Icons.person_rounded),
-          const Divider(height: 20),
+          Divider(height: 20, color: Colors.grey.shade100),
           _buildContador(
             'Estudiante',
             'estudiantes',
             estudiantes,
             Icons.school_rounded,
           ),
-          const Divider(height: 20),
+          Divider(height: 20, color: Colors.grey.shade100),
           _buildContador('INAPAM', 'inapam', inapam, Icons.elderly_rounded),
-          const Divider(height: 20),
+          Divider(height: 20, color: Colors.grey.shade100),
           _buildContador(
             'Discapacidad',
             'discapacidad',
@@ -509,7 +594,14 @@ class _InicioScreenState extends State<InicioScreen> {
 
     return Row(
       children: [
-        Icon(icono, color: azul, size: 22),
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: azul.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icono, color: azul, size: 18),
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -520,12 +612,13 @@ class _InicioScreenState extends State<InicioScreen> {
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
+                  color: textoPrincipal,
                 ),
               ),
               if (tipo == 'discapacidad')
                 Text(
                   'Máx. 2 por viaje',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 11, color: textoSecundario),
                 ),
             ],
           ),
@@ -539,9 +632,9 @@ class _InicioScreenState extends State<InicioScreen> {
                 height: 32,
                 decoration: BoxDecoration(
                   color: puedeDecrementar
-                      ? azul.withOpacity(0.1)
+                      ? azul.withOpacity(0.08)
                       : Colors.grey.shade100,
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.remove_rounded,
@@ -558,6 +651,7 @@ class _InicioScreenState extends State<InicioScreen> {
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
+                  color: textoPrincipal,
                 ),
               ),
             ),
@@ -568,9 +662,9 @@ class _InicioScreenState extends State<InicioScreen> {
                 height: 32,
                 decoration: BoxDecoration(
                   color: puedeIncrementar
-                      ? azul.withOpacity(0.1)
+                      ? azul.withOpacity(0.08)
                       : Colors.grey.shade100,
-                  shape: BoxShape.circle,
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.add_rounded,
@@ -597,8 +691,8 @@ class _InicioScreenState extends State<InicioScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          elevation: 4,
-          shadowColor: naranja.withOpacity(0.4),
+          elevation: 3,
+          shadowColor: naranja.withOpacity(0.3),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
