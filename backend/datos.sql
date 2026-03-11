@@ -1,4 +1,4 @@
--- Active: 1760978807635@@127.0.0.1@3306@rbe
+-- Active: 1772565691688@@127.0.0.1@3306@rbe
 -- ============================================================
 -- RBE - Rutas Baja Express
 -- Script completo: schema + datos
@@ -614,3 +614,5 @@ INSERT INTO ticket (codigo, precio, fechaEmision, asiento, viaje, pasajero, tipo
 (39,  90.00, '2026-02-15 14:00:00', 151, 12, 104, 1, 14),
 (40,  63.00, '2026-02-15 14:00:00', 152, 12, 71,  3, 14),
 (41,  45.00, '2026-02-15 14:00:00', 153, 12, 44,  2, 14);
+
+SELECT COUNT(*) FROM viaje_asiento WHERE viaje = 17;

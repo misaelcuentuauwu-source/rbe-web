@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+<<<<<<< HEAD
     path('login/',         views.login_view,            name='login'),
     path('registro/',      views.registro_view,          name='registro'),
     path('panel/',         views.panel_principal,        name='panel_principal'),
@@ -24,3 +25,13 @@ urlpatterns = [
     path('api/kpi/especificos/',      views.kpi_especificos,       name='kpi_especificos'),
     path('api/kpi/filtros/',          views.kpi_filtros_opciones,  name='kpi_filtros'),
 ]
+=======
+    path('login/', views.login_view, name='login'),
+    path('registro/', views.registro_view, name='registro'),
+    path('panel/', views.panel_principal, name='panel_principal'),
+    path('admin-panel/', views.panel_admin, name='panel_admin'),
+    path('logout/', views.logout_view, name='logout'),
+    path('dashboard/', views.dashboard, name='dashboard'),
+    path('salidas/', views.salidas, name='salidas'),
+]
+>>>>>>> c4fff904d5b176ea6bbc7a23e5b00d75e0e96531

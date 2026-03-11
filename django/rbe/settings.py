@@ -10,7 +10,7 @@ SECRET_KEY = 'django-insecure-p&co780gt&ojpgq0er7-9q%t^arrei=qtfp=3&j9+%6dt=r_=q
 
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'taquilla',
+    'rest_framework',
 ]
 
 MIDDLEWARE = [
@@ -74,11 +75,12 @@ AUTH_PASSWORD_VALIDATORS = [
 LANGUAGE_CODE = 'es-mx'
 TIME_ZONE = 'America/Tijuana'
 USE_I18N = True
-USE_TZ = True
+USE_TZ = False
 
 # ── Archivos estáticos ─────────────────────────────────────────
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
+    BASE_DIR / 'static',
     BASE_DIR.parent / 'css',
     BASE_DIR.parent / 'imagenes',
 ]
