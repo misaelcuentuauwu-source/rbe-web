@@ -10,6 +10,9 @@ windows: venv\Scripts\activate
 instalar requerimientos:
 pip install -r requirements.txt
 
+Ejecutar migraciones:
+python manage.py migrate
+
 __RECUERDA PRENDER XAMPP__
 
 iniciar el server:

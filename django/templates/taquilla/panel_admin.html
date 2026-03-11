@@ -5,241 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>RBE — Panel Administrador</title>
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet"/>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --naranja:  #ed7237;
-      --nar-d:    #c75a22;
-      --azul:     #1181c3;
-      --azul-d:   #0a5a8a;
-      --bg:       #f2f4f7;
-      --surface:  #ffffff;
-      --border:   #e2e8f0;
-      --text:     #1a2b3c;
-      --muted:    #6b8fa8;
-      --danger:   #e63946;
-      --success:  #52b788;
-      --sidebar-w: 260px;
-    }
-    html, body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
-
-    /* ── Sidebar ── */
-    #sidebar {
-      position: fixed; top: 0; left: 0; bottom: 0;
-      width: var(--sidebar-w);
-      background: var(--naranja);
-      display: flex; flex-direction: column;
-      transition: width .25s ease;
-      z-index: 100;
-      overflow: hidden;
-    }
-    #sidebar.collapsed { width: 64px; }
-    .sb-brand {
-      padding: 20px 18px 14px;
-      font-family: 'Bebas Neue', sans-serif;
-      font-size: 22px;
-      color: white;
-      white-space: nowrap;
-      overflow: hidden;
-      border-bottom: 1px solid rgba(255,255,255,.2);
-      flex-shrink: 0;
-    }
-    .sb-brand span { font-size: 11px; display: block; font-family: 'DM Sans', sans-serif; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; opacity: .8; }
-    .sb-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 12px 10px; }
-    .sb-scroll::-webkit-scrollbar { width: 4px; }
-    .sb-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,.3); border-radius: 4px; }
-    .nav-btn {
-      display: flex; align-items: center; gap: 10px;
-      width: 100%; padding: 11px 12px;
-      background: rgba(255,255,255,.15);
-      border: none; border-radius: 10px;
-      color: white; font-family: 'DM Sans', sans-serif;
-      font-size: 13.5px; font-weight: 700;
-      cursor: pointer; text-align: left;
-      transition: background .15s;
-      margin-bottom: 6px;
-      white-space: nowrap; overflow: hidden;
-    }
-    .nav-btn:hover, .nav-btn.active { background: rgba(255,255,255,.95); color: var(--naranja); }
-    .nav-btn .icon { font-size: 17px; flex-shrink: 0; }
-    .nav-btn .label { overflow: hidden; transition: opacity .2s; }
-    #sidebar.collapsed .nav-btn .label { opacity: 0; width: 0; }
-    .gestion-sub { overflow: hidden; max-height: 0; transition: max-height .3s ease; }
-    .gestion-sub.open { max-height: 900px; }
-    .sub-btn {
-      display: block; width: 100%; padding: 8px 12px 8px 36px;
-      background: rgba(255,255,255,.1); border: none; border-radius: 8px;
-      color: white; font-family: 'DM Sans', sans-serif;
-      font-size: 12.5px; font-weight: 600; cursor: pointer; text-align: left;
-      margin-bottom: 4px; transition: background .15s; white-space: nowrap;
-    }
-    .sub-btn:hover { background: rgba(255,255,255,.9); color: var(--naranja); }
-    .sb-footer { padding: 12px 10px; border-top: 1px solid rgba(255,255,255,.2); flex-shrink: 0; }
-    .btn-logout {
-      width: 100%; padding: 11px; border: none; border-radius: 10px;
-      background: var(--azul); color: white;
-      font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 800;
-      cursor: pointer; transition: background .15s;
-    }
-    .btn-logout:hover { background: var(--azul-d); }
-
-    /* ── Main ── */
-    #main {
-      margin-left: var(--sidebar-w);
-      height: 100vh;
-      display: flex; flex-direction: column;
-      transition: margin-left .25s ease;
-      overflow: hidden;
-    }
-    #sidebar.collapsed ~ #main { margin-left: 64px; }
-
-    /* ── Topbar ── */
-    #topbar {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 10px 20px;
-      display: flex; align-items: center; gap: 12px;
-      flex-shrink: 0;
-    }
-    #toggle-btn {
-      width: 38px; height: 38px; border: none; border-radius: 8px;
-      background: var(--azul); color: white; font-size: 18px;
-      cursor: pointer; flex-shrink: 0;
-    }
-    #topbar-title { font-size: 18px; font-weight: 800; color: var(--azul); flex: 1; }
-    #topbar-user { font-size: 13px; color: var(--muted); font-weight: 600; }
-
-    /* ── Content area ── */
-    #content {
-      flex: 1; overflow-y: auto; padding: 20px 24px;
-    }
-
-    /* ── Pages ── */
-    .page { display: none; }
-    .page.active { display: block; }
-
-    /* ── Cards ── */
-    .card {
-      background: var(--surface); border-radius: 14px;
-      border: 1px solid var(--border);
-      padding: 20px; margin-bottom: 16px;
-    }
-    .card-title { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 12px; }
-
-    /* ── KPI generales ── */
-    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
-    .kpi-card {
-      background: var(--surface); border-radius: 14px;
-      border: 2px solid var(--border);
-      border-left: 8px solid var(--naranja);
-      padding: 18px; min-height: 140px;
-    }
-    .kpi-card-title { font-size: 13px; font-weight: 700; color: var(--azul); margin-bottom: 10px; text-transform: uppercase; letter-spacing: .06em; }
-    .kpi-item { font-size: 13px; color: var(--text); padding: 3px 0; border-bottom: 1px dashed var(--border); }
-    .kpi-item:first-child { font-size: 17px; font-weight: 800; }
-    .kpi-item span { float: right; font-weight: 700; color: var(--naranja); }
-
-    /* ── Filtros ── */
-    .filtros-row {
-      display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px;
-      background: var(--surface); padding: 14px 18px;
-      border-radius: 12px; border: 1px solid var(--border);
-      margin-bottom: 16px;
-    }
-    .filtro-group { display: flex; flex-direction: column; gap: 4px; }
-    .filtro-group label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
-    .filtro-group select, .filtro-group input {
-      padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px;
-      font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--text);
-      background: var(--bg); outline: none; min-width: 130px;
-    }
-    .filtro-group select:focus, .filtro-group input:focus { border-color: var(--azul); }
-    .btn { padding: 9px 18px; border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity .15s; }
-    .btn:hover { opacity: .85; }
-    .btn-primary  { background: var(--azul); color: white; }
-    .btn-naranja  { background: var(--naranja); color: white; }
-    .btn-success  { background: var(--success); color: white; }
-    .btn-danger   { background: var(--danger); color: white; }
-    .btn-gray     { background: #6c757d; color: white; }
-    .btn-sm       { padding: 6px 12px; font-size: 12px; }
-
-    /* ── Tabla genérica ── */
-    .tbl-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    thead th {
-      background: var(--azul); color: white; padding: 10px 12px;
-      text-align: left; font-weight: 700; white-space: nowrap;
-    }
-    tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
-    tbody tr:hover { background: #f0f6ff; }
-    tbody td { padding: 9px 12px; }
-    .badge {
-      display: inline-block; padding: 3px 9px; border-radius: 20px;
-      font-size: 11px; font-weight: 700;
-    }
-    .badge-ok    { background: #d1fae5; color: #065f46; }
-    .badge-warn  { background: #fef3c7; color: #92400e; }
-    .badge-info  { background: #dbeafe; color: #1e40af; }
-
-    /* ── Info bar ── */
-    .info-bar { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 10px; }
-
-    /* ── Modal ── */
-    .modal-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,.55);
-      backdrop-filter: blur(4px); z-index: 500;
-      display: none; align-items: center; justify-content: center;
-    }
-    .modal-overlay.open { display: flex; }
-    .modal-box {
-      background: var(--surface); border-radius: 16px;
-      padding: 28px; width: 500px; max-width: 95vw;
-      max-height: 90vh; overflow-y: auto;
-      animation: modalIn .2s ease;
-    }
-    @keyframes modalIn { from { opacity:0; transform: scale(.94) translateY(10px); } to { opacity:1; transform: none; } }
-    .modal-title { font-size: 18px; font-weight: 800; color: var(--naranja); margin-bottom: 18px; }
-    .form-field { margin-bottom: 14px; }
-    .form-field label { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 5px; }
-    .form-field input, .form-field select {
-      width: 100%; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px;
-      font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--text); background: var(--bg); outline: none;
-    }
-    .form-field input:focus, .form-field select:focus { border-color: var(--azul); box-shadow: 0 0 0 3px rgba(17,129,195,.12); }
-    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
-
-    /* ── Config page ── */
-    .config-form { max-width: 480px; }
-
-    /* ── Salidas cards ── */
-    .salidas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
-    .salida-card {
-      background: var(--surface); border-radius: 12px; border: 1px solid var(--border);
-      padding: 16px; border-left: 5px solid var(--azul);
-    }
-    .salida-ruta { font-size: 15px; font-weight: 800; color: var(--azul); margin-bottom: 6px; }
-    .salida-meta { font-size: 12px; color: var(--muted); line-height: 1.8; }
-    .salida-meta b { color: var(--text); }
-
-    /* loading spinner */
-    .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid var(--border); border-top-color: var(--naranja); border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* toast */
-    #toast {
-      position: fixed; bottom: 24px; right: 24px; z-index: 999;
-      padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 700;
-      color: white; opacity: 0; transition: opacity .3s;
-      pointer-events: none;
-    }
-    #toast.show { opacity: 1; }
-    #toast.ok  { background: var(--success); }
-    #toast.err { background: var(--danger); }
-  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'dashboard/panel_admin.css' %}">
 </head>
 <body>
 
-<!-- ── SIDEBAR ── -->
+<!-- ════════════════════════════════════════
+     SIDEBAR
+════════════════════════════════════════ -->
 <div id="sidebar">
   <div class="sb-brand">
     <span>Sistema de Taquilla</span>
@@ -275,7 +49,9 @@
   </div>
 </div>
 
-<!-- ── MAIN ── -->
+<!-- ════════════════════════════════════════
+     MAIN
+════════════════════════════════════════ -->
 <div id="main">
   <div id="topbar">
     <button id="toggle-btn" onclick="toggleSidebar()">☰</button>
@@ -285,9 +61,12 @@
 
   <div id="content">
 
-    <!-- ── KPI GENERALES ── -->
+    <!-- ════════════════════════════════════
+         KPI GENERALES
+    ════════════════════════════════════ -->
     <div id="page-kpi-generales" class="page">
       <h2 style="font-size:22px;font-weight:800;color:var(--azul);margin-bottom:16px;">Dashboard — KPIs Generales</h2>
+
       <div class="filtros-row">
         <div class="filtro-group">
           <label>Rango</label>
@@ -299,7 +78,7 @@
         </div>
         <div class="filtro-group" id="kg-dia-wrap">
           <label>Fecha</label>
-          <input type="date" id="kg-fecha" value="">
+          <input type="date" id="kg-fecha">
         </div>
         <div class="filtro-group" id="kg-mes-wrap" style="display:none">
           <label>Mes</label>
@@ -317,17 +96,56 @@
           <input type="number" id="kg-anio" min="2000" max="2100" style="width:90px">
         </div>
         <button class="btn btn-naranja" onclick="cargarKpiGenerales()">Actualizar</button>
+        <div class="kg-view-toggle">
+          <button class="kg-view-btn active" id="vbtn-cards"  onclick="kgSetView('cards')">🗂 Tarjetas</button>
+          <button class="kg-view-btn"        id="vbtn-charts" onclick="kgSetView('charts')">📈 Gráficas</button>
+          <button class="kg-view-btn"        id="vbtn-table"  onclick="kgSetView('table')">📋 Tabla</button>
+        </div>
       </div>
-      <div class="kpi-grid" id="kpi-gen-grid">
-        <div class="kpi-card"><div class="kpi-card-title">Boletos vendidos por destino</div><div id="kg-boletos"><span class="spinner"></span></div></div>
-        <div class="kpi-card"><div class="kpi-card-title">Top conductores</div><div id="kg-conductores"><span class="spinner"></span></div></div>
-        <div class="kpi-card"><div class="kpi-card-title">Top autobuses</div><div id="kg-autobuses"><span class="spinner"></span></div></div>
-        <div class="kpi-card"><div class="kpi-card-title">Ciudades destino</div><div id="kg-destinos"><span class="spinner"></span></div></div>
-        <div class="kpi-card"><div class="kpi-card-title">Ciudades origen</div><div id="kg-origenes"><span class="spinner"></span></div></div>
+
+      <div id="kg-view-cards" class="kg-cards-view">
+        <div class="kpi-grid">
+          <div class="kpi-card"><div class="kpi-card-title">Boletos vendidos por destino</div><div id="kg-boletos"><span class="spinner"></span></div></div>
+          <div class="kpi-card"><div class="kpi-card-title">Top conductores</div><div id="kg-conductores"><span class="spinner"></span></div></div>
+          <div class="kpi-card"><div class="kpi-card-title">Top autobuses</div><div id="kg-autobuses"><span class="spinner"></span></div></div>
+          <div class="kpi-card"><div class="kpi-card-title">Ciudades destino</div><div id="kg-destinos"><span class="spinner"></span></div></div>
+          <div class="kpi-card"><div class="kpi-card-title">Ciudades origen</div><div id="kg-origenes"><span class="spinner"></span></div></div>
+        </div>
+      </div>
+
+      <div id="kg-view-charts" class="kg-charts-view" style="display:none">
+        <div class="charts-grid">
+          <div class="chart-card"><div class="chart-card-title">Boletos por destino</div><div class="chart-wrap"><canvas id="ch-boletos"></canvas></div></div>
+          <div class="chart-card"><div class="chart-card-title">Top conductores</div><div class="chart-wrap"><canvas id="ch-conductores"></canvas></div></div>
+          <div class="chart-card"><div class="chart-card-title">Top autobuses</div><div class="chart-wrap"><canvas id="ch-autobuses"></canvas></div></div>
+          <div class="chart-card"><div class="chart-card-title">Ciudades destino</div><div class="chart-wrap"><canvas id="ch-destinos"></canvas></div></div>
+          <div class="chart-card"><div class="chart-card-title">Ciudades origen</div><div class="chart-wrap"><canvas id="ch-origenes"></canvas></div></div>
+        </div>
+      </div>
+
+      <div id="kg-view-table" class="kg-table-view" style="display:none">
+        <div class="kg-table-controls">
+          <div class="kg-table-tabs">
+            <button class="kg-tab active" onclick="kgTableTab('boletos',this)">Boletos</button>
+            <button class="kg-tab" onclick="kgTableTab('conductores',this)">Conductores</button>
+            <button class="kg-tab" onclick="kgTableTab('autobuses',this)">Autobuses</button>
+            <button class="kg-tab" onclick="kgTableTab('destinos',this)">Destinos</button>
+            <button class="kg-tab" onclick="kgTableTab('origenes',this)">Orígenes</button>
+          </div>
+          <button class="btn btn-naranja btn-sm" onclick="exportarKgCSV()">⬇ Exportar CSV</button>
+        </div>
+        <div class="tbl-wrap">
+          <table class="kg-table-full">
+            <thead id="kg-full-thead"></thead>
+            <tbody id="kg-full-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- ── KPI ESPECÍFICOS ── -->
+    <!-- ════════════════════════════════════
+         KPI ESPECÍFICOS
+    ════════════════════════════════════ -->
     <div id="page-kpi-especificos" class="page">
       <h2 style="font-size:22px;font-weight:800;color:var(--azul);margin-bottom:16px;">KPIs Específicos</h2>
       <div class="filtros-row">
@@ -351,7 +169,7 @@
         </div>
         <div class="filtro-group" id="ke-dia-wrap">
           <label>Fecha</label>
-          <input type="date" id="ke-fecha" value="">
+          <input type="date" id="ke-fecha">
         </div>
         <div class="filtro-group" id="ke-mes-wrap" style="display:none">
           <label>Mes</label>
@@ -368,7 +186,6 @@
           <label>Año</label>
           <input type="number" id="ke-anio" min="2000" max="2100" style="width:90px">
         </div>
-        <!-- filtros específicos -->
         <div class="filtro-group" id="ke-conductor-wrap" style="display:none">
           <label>Conductor</label>
           <select id="ke-conductor"><option value="">Todos</option></select>
@@ -383,13 +200,17 @@
         </div>
         <button class="btn btn-naranja" onclick="cargarKpiEspecificos(true)">Aplicar</button>
         <button class="btn btn-gray btn-sm" onclick="cargarKpiEspecificos(false)" style="align-self:flex-end">Actualizar BD</button>
-        <button class="btn btn-primary btn-sm" onclick="exportarCSV()" style="align-self:flex-end">Exportar CSV</button>
+        <button class="btn btn-primary btn-sm" onclick="exportarCSV()" style="align-self:flex-end">⬇ Exportar CSV</button>
       </div>
       <div class="info-bar" id="ke-info"></div>
-      <div class="tbl-wrap"><table id="ke-tabla"><thead><tr><th>Cargando...</th></tr></thead><tbody></tbody></table></div>
+      <div class="tbl-wrap">
+        <table id="ke-tabla"><thead><tr><th>Cargando...</th></tr></thead><tbody></tbody></table>
+      </div>
     </div>
 
-    <!-- ── SALIDAS ── -->
+    <!-- ════════════════════════════════════
+         SALIDAS
+    ════════════════════════════════════ -->
     <div id="page-salidas" class="page">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
         <h2 style="font-size:22px;font-weight:800;color:var(--azul);">Salidas programadas</h2>
@@ -398,32 +219,49 @@
       <div id="salidas-container"><span class="spinner"></span></div>
     </div>
 
-    <!-- ── HISTORIAL ── -->
+    <!-- ════════════════════════════════════
+         HISTORIAL DE VIAJES
+    ════════════════════════════════════ -->
     <div id="page-historial" class="page">
       <h2 style="font-size:22px;font-weight:800;color:var(--azul);margin-bottom:16px;">Historial de Viajes</h2>
+
       <div class="filtros-row">
         <div class="filtro-group">
           <label>Buscar</label>
-          <input type="text" id="hist-search" placeholder="Ciudad, conductor, autobús..." style="min-width:220px" oninput="filtrarHistorial()">
+          <input type="text" id="hist-search"
+            placeholder="Ciudad, conductor, autobús..."
+            style="min-width:240px"
+            oninput="filtrarHistorial()">
         </div>
         <div class="filtro-group">
           <label>Estado</label>
-          <select id="hist-estado" onchange="filtrarHistorial()"><option value="">Todos</option></select>
+          <select id="hist-estado" onchange="filtrarHistorial()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="filtro-group">
+          <label>Origen</label>
+          <select id="hist-origen" onchange="filtrarHistorial()">
+            <option value="">Todos</option>
+          </select>
+        </div>
+        <div class="filtro-group">
+          <label>Destino</label>
+          <select id="hist-destino" onchange="filtrarHistorial()">
+            <option value="">Todos</option>
+          </select>
         </div>
       </div>
+
       <div class="info-bar" id="hist-info"></div>
-      <div class="tbl-wrap">
-        <table id="hist-tabla">
-          <thead><tr>
-            <th>#</th><th>Salida</th><th>Llegada</th><th>Origen</th><th>Destino</th>
-            <th>Conductor</th><th>Autobús</th><th>Estado</th>
-          </tr></thead>
-          <tbody id="hist-tbody"></tbody>
-        </table>
+      <div id="hist-cards-container">
+        <div style="text-align:center;padding:40px"><span class="spinner"></span></div>
       </div>
     </div>
 
-    <!-- ── GESTIÓN CRUD ── -->
+    <!-- ════════════════════════════════════
+         GESTIÓN CRUD
+    ════════════════════════════════════ -->
     <div id="page-gestion" class="page">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
         <h2 style="font-size:22px;font-weight:800;color:var(--naranja);" id="gestion-title">Gestión</h2>
@@ -441,7 +279,9 @@
       </div>
     </div>
 
-    <!-- ── CONFIGURACIÓN ── -->
+    <!-- ════════════════════════════════════
+         CONFIGURACIÓN
+    ════════════════════════════════════ -->
     <div id="page-configuracion" class="page">
       <h2 style="font-size:22px;font-weight:800;color:var(--azul);margin-bottom:16px;">Configuración de Usuario</h2>
       <div class="card config-form">
@@ -457,7 +297,54 @@
   </div><!-- /content -->
 </div><!-- /main -->
 
-<!-- ── MODAL AGREGAR VIAJE ── -->
+<!-- ════════════════════════════════════════
+     MODAL — INFORMACIÓN DEL AUTOBÚS
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-autobus">
+  <div class="modal-box">
+    <div class="modal-title azul" id="modal-autobus-title">Información del Autobús</div>
+    <div class="bus-info-grid" id="modal-autobus-body">
+      <div style="text-align:center;padding:20px"><span class="spinner"></span></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="cerrarModal('modal-autobus')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     MODAL — PASAJEROS DEL VIAJE
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-pasajeros">
+  <div class="modal-box modal-wide">
+    <div class="modal-title azul" id="modal-pasajeros-title">Pasajeros del viaje</div>
+    <div class="pasajeros-header" id="modal-pasajeros-header"></div>
+    <div class="tbl-wrap">
+      <table class="pasajeros-tabla">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Nombre completo</th>
+            <th>Edad</th>
+            <th>Número boleto</th>
+            <th>Número asiento</th>
+          </tr>
+        </thead>
+        <tbody id="modal-pasajeros-tbody">
+          <tr><td colspan="5" style="text-align:center;padding:20px"><span class="spinner"></span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pasajeros-export-row">
+      <button class="btn btn-naranja" onclick="exportarPasajerosCSV()">Exportar CSV</button>
+      <button class="btn btn-gray"    onclick="cerrarModal('modal-pasajeros')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     MODAL — AGREGAR VIAJE
+════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-viaje">
   <div class="modal-box">
     <div class="modal-title">🚌 Agregar nuevo viaje</div>
@@ -468,25 +355,29 @@
     <div class="form-field"><label>Conductor</label><select id="mv-conductor"></select></div>
     <div class="form-field"><label>Estado</label><select id="mv-estado"></select></div>
     <div class="modal-actions">
-      <button class="btn btn-gray" onclick="cerrarModal('modal-viaje')">Cancelar</button>
+      <button class="btn btn-gray"    onclick="cerrarModal('modal-viaje')">Cancelar</button>
       <button class="btn btn-success" onclick="submitViaje()">Agregar viaje</button>
     </div>
   </div>
 </div>
 
-<!-- ── MODAL CRUD ── -->
+<!-- ════════════════════════════════════════
+     MODAL — CRUD
+════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-crud">
   <div class="modal-box">
     <div class="modal-title" id="crud-modal-title">Formulario</div>
     <div id="crud-form-fields"></div>
     <div class="modal-actions">
-      <button class="btn btn-gray" onclick="cerrarModal('modal-crud')">Cancelar</button>
+      <button class="btn btn-gray"    onclick="cerrarModal('modal-crud')">Cancelar</button>
       <button class="btn btn-naranja" id="crud-submit-btn" onclick="submitCrud()">Guardar</button>
     </div>
   </div>
 </div>
 
-<!-- ── MODAL VER DETALLE ── -->
+<!-- ════════════════════════════════════════
+     MODAL — DETALLE CRUD
+════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-detalle">
   <div class="modal-box">
     <div class="modal-title" id="detalle-title">Detalle</div>
@@ -497,57 +388,57 @@
   </div>
 </div>
 
-<!-- ── TOAST ── -->
 <div id="toast"></div>
 
+<!-- ════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════ -->
 <script>
-// ── Estado global ────────────────────────────────────────────────────────────
+// ── Estado global ─────────────────────────────────────────────────────────────
 const CSRF = '{{ csrf_token }}';
-const tablaActual = { nombre: '', esquema: null, modo: null, pkName: null, pkValue: null };
-let historialData = [];
-let keData = [];
+const tablaActual = { nombre:'', esquema:null, modo:null, pkName:null, pkValue:null };
 
-// ── Utilidades ───────────────────────────────────────────────────────────────
-function csrfHeaders() { return { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF }; }
+let historialData     = [];
+let historialFiltered = [];
+let keData            = [];
+let kgData            = null;
+let kgView            = 'cards';
+let kgTableCurrent    = 'boletos';
+let kgCharts          = {};
+
+// estado para modal de pasajeros (CSV)
+let pasajerosActuales  = [];
+let pasajerosViajeInfo = {};
+
+// ── Utilidades ────────────────────────────────────────────────────────────────
+const csrfHeaders = () => ({ 'Content-Type':'application/json', 'X-CSRFToken':CSRF });
 
 function toast(msg, tipo='ok') {
   const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `show ${tipo}`;
+  t.textContent = msg; t.className = `show ${tipo}`;
   setTimeout(() => t.className = '', 2800);
 }
 
-function fmt(dt) {
-  if (!dt) return '—';
-  return dt.replace('T',' ').substring(0,16);
-}
-
-function today() {
-  return new Date().toISOString().split('T')[0];
-}
+const fmt   = dt => dt ? dt.replace('T',' ').substring(0,16) : '—';
+const today = ()  => new Date().toISOString().split('T')[0];
 
 function semanaRango() {
-  const now = new Date();
-  const day = now.getDay();
-  const diffL = (day === 0 ? -6 : 1 - day);
-  const lunes = new Date(now); lunes.setDate(now.getDate() + diffL);
-  const domingo = new Date(lunes); domingo.setDate(lunes.getDate() + 6);
-  return [lunes.toISOString().split('T')[0], domingo.toISOString().split('T')[0]];
+  const now = new Date(), day = now.getDay();
+  const lun = new Date(now); lun.setDate(now.getDate() + (day===0 ? -6 : 1-day));
+  const dom = new Date(lun); dom.setDate(lun.getDate() + 6);
+  return [lun.toISOString().split('T')[0], dom.toISOString().split('T')[0]];
 }
 
-function mesRango(mesVal, anioVal) {
-  const anio = anioVal || new Date().getFullYear();
-  const mes  = parseInt(mesVal || (new Date().getMonth() + 1));
-  const inicio = `${anio}-${String(mes).padStart(2,'0')}-01`;
-  const ultimo = new Date(anio, mes, 0).getDate();
-  const fin = `${anio}-${String(mes).padStart(2,'0')}-${String(ultimo).padStart(2,'0')}`;
-  return [inicio, fin];
+function mesRango(m, y) {
+  const anio = y || new Date().getFullYear();
+  const mes  = parseInt(m || new Date().getMonth()+1);
+  const ini  = `${anio}-${String(mes).padStart(2,'0')}-01`;
+  const fin  = `${anio}-${String(mes).padStart(2,'0')}-${new Date(anio,mes,0).getDate()}`;
+  return [ini, fin];
 }
 
-// ── Sidebar / toggle ─────────────────────────────────────────────────────────
-function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('collapsed');
-}
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+const toggleSidebar = () => document.getElementById('sidebar').classList.toggle('collapsed');
 
 function toggleGestion() {
   const sub = document.getElementById('gestion-sub');
@@ -556,421 +447,617 @@ function toggleGestion() {
     sub.classList.contains('open') ? 'Gestión ▴' : 'Gestión ▾';
 }
 
-// ── Navegación ───────────────────────────────────────────────────────────────
+// ── Navegación ────────────────────────────────────────────────────────────────
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  const page = document.getElementById('page-' + id);
-  if (page) page.classList.add('active');
+  document.getElementById('page-'+id)?.classList.add('active');
   document.getElementById('topbar-title').textContent = {
-    'kpi-generales': 'KPIs Generales', 'kpi-especificos': 'KPIs Específicos',
-    'salidas': 'Salidas', 'historial': 'Historial de Viajes',
-    'gestion': 'Gestión', 'configuracion': 'Configuración',
+    'kpi-generales':'KPIs Generales','kpi-especificos':'KPIs Específicos',
+    'salidas':'Salidas','historial':'Historial de Viajes',
+    'gestion':'Gestión','configuracion':'Configuración'
   }[id] || id;
-  // lazy loads
-  if (id === 'salidas') cargarSalidas();
-  if (id === 'historial') cargarHistorial();
-  if (id === 'kpi-generales') cargarKpiGenerales();
-  if (id === 'kpi-especificos') { cargarKpiOpciones(); cargarKpiEspecificos(false); }
-  if (id === 'configuracion') cargarConfig();
+  if (id==='salidas')         cargarSalidas();
+  if (id==='historial')       cargarHistorial();
+  if (id==='kpi-generales')   cargarKpiGenerales();
+  if (id==='kpi-especificos') { cargarKpiOpciones(); cargarKpiEspecificos(false); }
+  if (id==='configuracion')   cargarConfig();
 }
 
 function showGestion(tabla) {
   showPage('gestion');
-  document.getElementById('gestion-title').textContent = 'Gestión — ' + tabla.charAt(0).toUpperCase() + tabla.slice(1);
+  document.getElementById('gestion-title').textContent =
+    'Gestión — ' + tabla.charAt(0).toUpperCase() + tabla.slice(1);
   tablaActual.nombre = tabla;
   recargarGestion();
 }
 
-// ── KPI GENERALES ────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+//  KPI GENERALES
+// ════════════════════════════════════════════════════════════
 function kgRangoChange() {
   const r = document.getElementById('kg-rango').value;
-  document.getElementById('kg-dia-wrap').style.display  = r === 'dia'  ? '' : 'none';
-  document.getElementById('kg-mes-wrap').style.display  = r === 'mes'  ? '' : 'none';
-  document.getElementById('kg-anio-wrap').style.display = r === 'mes'  ? '' : 'none';
+  document.getElementById('kg-dia-wrap').style.display  = r==='dia' ? '' : 'none';
+  document.getElementById('kg-mes-wrap').style.display  = r==='mes' ? '' : 'none';
+  document.getElementById('kg-anio-wrap').style.display = r==='mes' ? '' : 'none';
 }
-
 function kgGetRango() {
   const r = document.getElementById('kg-rango').value;
-  if (r === 'dia') { const d = document.getElementById('kg-fecha').value || today(); return [d, d]; }
-  if (r === 'semana') return semanaRango();
+  if (r==='dia')    { const d = document.getElementById('kg-fecha').value||today(); return [d,d]; }
+  if (r==='semana') return semanaRango();
   return mesRango(document.getElementById('kg-mes').value, document.getElementById('kg-anio').value);
 }
+async function cargarKpiGenerales() {
+  const [desde,hasta] = kgGetRango();
+  kgData = await fetch(`/api/kpi/generales/?desde=${desde}&hasta=${hasta}`).then(r=>r.json());
+  renderKgView();
+}
+function kgSetView(v) {
+  kgView = v;
+  ['cards','charts','table'].forEach(x => {
+    document.getElementById(`kg-view-${x}`).style.display = x===v ? '' : 'none';
+    document.getElementById(`vbtn-${x}`).classList.toggle('active', x===v);
+  });
+  if (kgData) renderKgView();
+}
+function renderKgView() {
+  if (kgView==='cards')  renderKgCards();
+  if (kgView==='charts') renderKgCharts();
+  if (kgView==='table')  renderKgTable(kgTableCurrent);
+}
+function renderTop5Cards(id, data, lf, cf='total') {
+  const el = document.getElementById(id);
+  if (!data?.length) { el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:8px 0">Sin datos</div>'; return; }
+  el.innerHTML = data.map((r,i)=>`
+    <div class="kpi-item" style="animation-delay:${i*.06}s">
+      <span class="kpi-item-label">${i+1}. ${r[lf]??r[cf]??''}</span>
+      <span class="kpi-item-count">${r[cf]??0}</span>
+    </div>`).join('');
+}
+function renderKgCards() {
+  renderTop5Cards('kg-boletos',    kgData.boletos,    'ciudad',      'total');
+  renderTop5Cards('kg-conductores',kgData.conductores,'nombre',      'total');
+  renderTop5Cards('kg-autobuses',  kgData.autobuses,  'autobus_num', 'total');
+  renderTop5Cards('kg-destinos',   kgData.destinos,   'nombre',      'total');
+  renderTop5Cards('kg-origenes',   kgData.origenes,   'nombre',      'total');
+}
 
-function renderTop5(containerId, data, labelField, countField='total') {
-  const el = document.getElementById(containerId);
-  if (!data || !data.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px;">Sin datos</div>'; return; }
-  el.innerHTML = data.map((r, i) => {
-    const label = r[labelField] || r[countField] || '';
-    const count = r[countField];
-    const size  = i === 0 ? '17px' : i <= 2 ? '14px' : '12px';
-    const fw    = i === 0 ? '800' : i <= 2 ? '700' : '500';
-    return `<div class="kpi-item" style="font-size:${size};font-weight:${fw}">
-      ${i+1}. ${label} ${count !== undefined ? `<span>${count}</span>` : ''}
-    </div>`;
+const PIE_COLORS = ['#ed7237','#1181c3','#52b788','#f4a261','#264653','#e9c46a','#2a9d8f'];
+function destroyChart(id) { if(kgCharts[id]){kgCharts[id].destroy();delete kgCharts[id];} }
+function makeChart(cid, type, labels, values) {
+  destroyChart(cid);
+  const ctx = document.getElementById(cid); if (!ctx||!labels.length) return;
+  const isPie = type==='doughnut';
+  kgCharts[cid] = new Chart(ctx, {
+    type,
+    data:{ labels, datasets:[{ data:values, backgroundColor:PIE_COLORS,
+      borderColor:isPie?'#fff':'transparent', borderWidth:isPie?3:0, borderRadius:isPie?0:6 }] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      animation:{duration:700,easing:'easeOutQuart'},
+      plugins:{ legend:{display:isPie,position:'bottom',
+        labels:{font:{family:'DM Sans',size:11,weight:'700'},padding:12,color:'#1a2b3c'}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed.y??c.parsed}`}} },
+      scales: isPie ? {} : {
+        x:{grid:{display:false},ticks:{font:{family:'DM Sans',size:11},color:'#6b8fa8'}},
+        y:{grid:{color:'#e2e8f0'},ticks:{font:{family:'DM Sans',size:11},color:'#6b8fa8'},beginAtZero:true}
+      }
+    }
+  });
+}
+function renderKgCharts() {
+  const d = kgData;
+  makeChart('ch-boletos',    'doughnut', d.boletos.map(r=>r.ciudad),            d.boletos.map(r=>r.total));
+  makeChart('ch-conductores','bar',      d.conductores.map(r=>r.nombre),        d.conductores.map(r=>r.total));
+  makeChart('ch-autobuses',  'bar',      d.autobuses.map(r=>`Bus #${r.autobus_num}`),d.autobuses.map(r=>r.total));
+  makeChart('ch-destinos',   'doughnut', d.destinos.map(r=>r.nombre),           d.destinos.map(r=>r.total));
+  makeChart('ch-origenes',   'bar',      d.origenes.map(r=>r.nombre),           d.origenes.map(r=>r.total));
+}
+function kgTableTab(key, btn) {
+  kgTableCurrent = key;
+  document.querySelectorAll('.kg-tab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if (kgData) renderKgTable(key);
+}
+const KG_CFG = {
+  boletos:    {h:['#','Ciudad destino','Boletos vendidos','Barra'],lf:'ciudad',     cf:'total'},
+  conductores:{h:['#','Conductor','Viajes realizados','Barra'],   lf:'nombre',     cf:'total'},
+  autobuses:  {h:['#','Autobús #','Viajes','Barra'],              lf:'autobus_num',cf:'total'},
+  destinos:   {h:['#','Ciudad destino','Viajes','Barra'],         lf:'nombre',     cf:'total'},
+  origenes:   {h:['#','Ciudad origen','Viajes','Barra'],          lf:'nombre',     cf:'total'},
+};
+function renderKgTable(key) {
+  const cfg=KG_CFG[key], rows=kgData[key]||[], max=rows[0]?.[cfg.cf]||1;
+  document.getElementById('kg-full-thead').innerHTML=`<tr>${cfg.h.map(h=>`<th>${h}</th>`).join('')}</tr>`;
+  const tb=document.getElementById('kg-full-tbody');
+  if (!rows.length){tb.innerHTML=`<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--muted)">Sin datos</td></tr>`;return;}
+  tb.innerHTML=rows.map((r,i)=>{
+    const pct=Math.round((r[cfg.cf]??0)/max*100);
+    const rc=i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank-n';
+    return `<tr style="animation:slideIn .3s ease ${i*.04}s both">
+      <td><span class="rank-badge ${rc}">${i+1}</span></td>
+      <td style="font-weight:700">${r[cfg.lf]??'—'}</td>
+      <td style="font-weight:800;color:var(--naranja)">${r[cfg.cf]??0}</td>
+      <td style="min-width:150px"><div class="bar-cell">
+        <div class="mini-bar-wrap"><div class="mini-bar" style="width:${pct}%"></div></div>
+        <span style="font-size:11px;color:var(--muted);min-width:30px">${pct}%</span>
+      </div></td></tr>`;
   }).join('');
 }
-
-async function cargarKpiGenerales() {
-  const [desde, hasta] = kgGetRango();
-  const res = await fetch(`/api/kpi/generales/?desde=${desde}&hasta=${hasta}`);
-  const d = await res.json();
-  renderTop5('kg-boletos',     d.boletos,     'ciudad',      'total');
-  renderTop5('kg-conductores', d.conductores, 'nombre',      'total');
-  renderTop5('kg-autobuses',   d.autobuses,   'autobus_num', 'total');
-  renderTop5('kg-destinos',    d.destinos,    'nombre',      'total');
-  renderTop5('kg-origenes',    d.origenes,    'nombre',      'total');
+function exportarKgCSV() {
+  if (!kgData){toast('No hay datos','err');return;}
+  const cfg=KG_CFG[kgTableCurrent], rows=kgData[kgTableCurrent]||[];
+  if (!rows.length){toast('Sin datos','err');return;}
+  const csv=[cfg.h[1]+','+cfg.h[2], ...rows.map(r=>`"${r[cfg.lf]??''}","${r[cfg.cf]??0}"`)].join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`kpi_generales_${kgTableCurrent}.csv`; a.click();
+  toast('CSV exportado');
 }
 
-// ── KPI ESPECÍFICOS ───────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+//  KPI ESPECÍFICOS
+// ════════════════════════════════════════════════════════════
 function keScopeChange() {
-  const s = document.getElementById('ke-scope').value;
-  document.getElementById('ke-dia-wrap').style.display  = s === 'dia'  ? '' : 'none';
-  document.getElementById('ke-mes-wrap').style.display  = s === 'mes'  ? '' : 'none';
-  document.getElementById('ke-anio-wrap').style.display = s === 'mes'  ? '' : 'none';
+  const s=document.getElementById('ke-scope').value;
+  document.getElementById('ke-dia-wrap').style.display  = s==='dia' ?''  :'none';
+  document.getElementById('ke-mes-wrap').style.display  = s==='mes' ?''  :'none';
+  document.getElementById('ke-anio-wrap').style.display = s==='mes' ?''  :'none';
 }
 function keTipoChange() {
-  const t = document.getElementById('ke-tipo').value;
-  document.getElementById('ke-conductor-wrap').style.display = t === 'conductor' ? '' : 'none';
-  document.getElementById('ke-autobus-wrap').style.display   = t === 'autobus'   ? '' : 'none';
-  document.getElementById('ke-ciudad-wrap').style.display    = t === 'ciudad'    ? '' : 'none';
+  const t=document.getElementById('ke-tipo').value;
+  document.getElementById('ke-conductor-wrap').style.display = t==='conductor'?'':'none';
+  document.getElementById('ke-autobus-wrap').style.display   = t==='autobus'  ?'':'none';
+  document.getElementById('ke-ciudad-wrap').style.display    = t==='ciudad'   ?'':'none';
   cargarKpiEspecificos(false);
 }
-
 async function cargarKpiOpciones() {
-  const res = await fetch('/api/kpi/filtros/');
-  const d = await res.json();
-  fillSelect('ke-conductor', d.conductores, 'Todos');
-  fillSelect('ke-autobus',   d.autobuses,   'Todos');
-  fillSelect('ke-ciudad',    d.ciudades,    'Todas');
+  const d=await fetch('/api/kpi/filtros/').then(r=>r.json());
+  fillSelect('ke-conductor',d.conductores,'Todos');
+  fillSelect('ke-autobus',d.autobuses,'Todos');
+  fillSelect('ke-ciudad',d.ciudades,'Todas');
 }
-
-function fillSelect(id, items, placeholder) {
-  const sel = document.getElementById(id);
-  const prev = sel.value;
-  sel.innerHTML = `<option value="">${placeholder}</option>` +
-    items.map(i => `<option value="${i.value}">${i.label}</option>`).join('');
-  sel.value = prev;
+function fillSelect(id,items,ph) {
+  const sel=document.getElementById(id), prev=sel.value;
+  sel.innerHTML=`<option value="">${ph}</option>`+items.map(i=>`<option value="${i.value}">${i.label}</option>`).join('');
+  sel.value=prev;
 }
-
 function keGetRango() {
-  const s = document.getElementById('ke-scope').value;
-  if (s === 'todos') return [null, null];
-  if (s === 'dia') { const d = document.getElementById('ke-fecha').value || today(); return [d, d]; }
-  if (s === 'semana') return semanaRango();
-  return mesRango(document.getElementById('ke-mes').value, document.getElementById('ke-anio').value);
+  const s=document.getElementById('ke-scope').value;
+  if (s==='todos') return [null,null];
+  if (s==='dia')   { const d=document.getElementById('ke-fecha').value||today(); return [d,d]; }
+  if (s==='semana') return semanaRango();
+  return mesRango(document.getElementById('ke-mes').value,document.getElementById('ke-anio').value);
 }
-
 async function cargarKpiEspecificos(aplicar) {
-  const tipo = document.getElementById('ke-tipo').value;
-  const [desde, hasta] = keGetRango();
-  const conductor = document.getElementById('ke-conductor').value;
-  const autobus   = document.getElementById('ke-autobus').value;
-  const ciudad    = document.getElementById('ke-ciudad').value;
-  let url = `/api/kpi/especificos/?tipo=${tipo}&aplicar=${aplicar?1:0}`;
-  if (desde) url += `&desde=${desde}&hasta=${hasta}`;
-  if (conductor) url += `&conductor=${conductor}`;
-  if (autobus)   url += `&autobus=${autobus}`;
-  if (ciudad)    url += `&ciudad=${ciudad}`;
-
-  const res = await fetch(url);
-  const d = await res.json();
-  keData = d.rows;
-  renderKeTablo(tipo, d.rows);
+  const tipo=document.getElementById('ke-tipo').value;
+  const [desde,hasta]=keGetRango();
+  const c=document.getElementById('ke-conductor').value;
+  const a=document.getElementById('ke-autobus').value;
+  const ci=document.getElementById('ke-ciudad').value;
+  let url=`/api/kpi/especificos/?tipo=${tipo}&aplicar=${aplicar?1:0}`;
+  if (desde) url+=`&desde=${desde}&hasta=${hasta}`;
+  if (c)  url+=`&conductor=${c}`;
+  if (a)  url+=`&autobus=${a}`;
+  if (ci) url+=`&ciudad=${ci}`;
+  const d=await fetch(url).then(r=>r.json());
+  keData=d.rows; renderKeTablo(tipo,d.rows);
 }
-
-function renderKeTablo(tipo, rows) {
-  const tbl = document.getElementById('ke-tabla');
-  let headers = [];
-  let rowMapper;
-  if (tipo === 'boletos') {
-    headers = ['Viaje','Fecha salida','Origen','Destino','Autobús','Vendidos','Disponibles'];
-    rowMapper = r => [r.trip_id, fmt(r.departure), r.origin_city, r.dest_city, r.bus_number, r.vendidos, r.disponibles];
-  } else if (tipo === 'conductor') {
-    headers = ['Conductor','Viaje','Salida','Llegada','Origen','Destino','Autobús'];
-    rowMapper = r => [`${r.con_nombre||''} ${r.con_ap1||''}`, r.trip_id, fmt(r.departure), fmt(r.arrival), r.origin_city, r.dest_city, r.bus_number];
-  } else if (tipo === 'autobus') {
-    headers = ['Número','Matrícula','Marca','Modelo','Año','Asientos'];
-    rowMapper = r => [r.bus_number, r.placas, r.marca_nombre, r.modelo_nombre, r.modelo_ano, r.numasientos];
+function renderKeTablo(tipo,rows) {
+  const tbl=document.getElementById('ke-tabla');
+  let h=[],map;
+  if (tipo==='boletos') {
+    h=['Viaje','Fecha salida','Origen','Destino','Autobús','Vendidos','Disponibles'];
+    map=r=>[r.trip_id,fmt(r.departure),r.origin_city,r.dest_city,r.bus_number,r.vendidos,r.disponibles];
+  } else if (tipo==='conductor') {
+    h=['Conductor','Viaje','Salida','Llegada','Origen','Destino','Autobús'];
+    map=r=>[`${r.con_nombre||''} ${r.con_ap1||''}`,r.trip_id,fmt(r.departure),fmt(r.arrival),r.origin_city,r.dest_city,r.bus_number];
+  } else if (tipo==='autobus') {
+    h=['Número','Matrícula','Marca','Modelo','Año','Asientos'];
+    map=r=>[r.bus_number,r.placas,r.marca_nombre,r.modelo_nombre,r.modelo_ano,r.numasientos];
   } else {
-    headers = ['Ciudad','Salida','Viaje','Destino','Autobús','Matrícula','Operador'];
-    rowMapper = r => [r.ciudad, fmt(r.salida), r.viaje, r.destino, r.autobus, r.matricula, r.operador];
+    h=['Ciudad','Salida','Viaje','Destino','Autobús','Matrícula','Operador'];
+    map=r=>[r.ciudad,fmt(r.salida),r.viaje,r.destino,r.autobus,r.matricula,r.operador];
   }
-  tbl.querySelector('thead').innerHTML = `<tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr>`;
-  tbl.querySelector('tbody').innerHTML = rows.map(r => `<tr>${rowMapper(r).map(v=>`<td>${v??'—'}</td>`).join('')}</tr>`).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--muted)">Sin datos</td></tr>';
-  document.getElementById('ke-info').textContent = `Resultados: ${rows.length} registro(s)`;
+  tbl.querySelector('thead').innerHTML=`<tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>`;
+  tbl.querySelector('tbody').innerHTML=rows.map(r=>`<tr>${map(r).map(v=>`<td>${v??'—'}</td>`).join('')}</tr>`).join('')
+    || `<tr><td colspan="${h.length}" style="text-align:center;color:var(--muted);padding:24px">Sin datos</td></tr>`;
+  document.getElementById('ke-info').textContent=`Resultados: ${rows.length} registro(s)`;
 }
-
 function exportarCSV() {
-  if (!keData.length) { toast('No hay datos para exportar', 'err'); return; }
-  const tipo = document.getElementById('ke-tipo').value;
-  const headers = Object.keys(keData[0]);
-  const csv = [headers.join(','), ...keData.map(r => headers.map(h => `"${(r[h]??'').toString().replace(/"/g,'""')}"`).join(','))].join('\n');
-  const blob = new Blob([csv], {type:'text/csv'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-  a.download = `kpi_${tipo}.csv`; a.click();
+  if (!keData.length){toast('No hay datos','err');return;}
+  const tipo=document.getElementById('ke-tipo').value;
+  const hd=Object.keys(keData[0]);
+  const csv=[hd.join(','),...keData.map(r=>hd.map(h=>`"${(r[h]??'').toString().replace(/"/g,'""')}"`).join(','))].join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download=`kpi_${tipo}.csv`; a.click();
 }
 
-// ── SALIDAS ───────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+//  SALIDAS
+// ════════════════════════════════════════════════════════════
 async function cargarSalidas() {
-  document.getElementById('salidas-container').innerHTML = '<span class="spinner"></span>';
-  const res = await fetch('/api/salidas/');
-  const d = await res.json();
-  if (!d.rows.length) {
-    document.getElementById('salidas-container').innerHTML = '<div style="color:var(--muted);padding:20px">No hay salidas registradas.</div>';
+  document.getElementById('salidas-container').innerHTML='<span class="spinner"></span>';
+  const d=await fetch('/api/salidas/').then(r=>r.json());
+  if (!d.rows.length){
+    document.getElementById('salidas-container').innerHTML='<div style="color:var(--muted);padding:20px">No hay salidas registradas.</div>';
     return;
   }
-  document.getElementById('salidas-container').innerHTML = `
+  document.getElementById('salidas-container').innerHTML=`
     <div class="salidas-grid">
-      ${d.rows.map(r => `
+      ${d.rows.map(r=>`
         <div class="salida-card">
           <div class="salida-ruta">${r.origen_ciudad} → ${r.destino_ciudad}</div>
           <div class="salida-meta">
             <b>Salida:</b> ${fmt(r.fecHoraSalida)}<br>
             <b>Llegada:</b> ${fmt(r.fecHoraEntrada)}<br>
             <b>Conductor:</b> ${r.conductor||'—'}<br>
-            <b>Autobús:</b> ${r.autobus_placas ? '#'+r.autobus_num+' ('+r.autobus_placas+')' : '—'}<br>
+            <b>Autobús:</b> ${r.autobus_placas?'#'+r.autobus_num+' ('+r.autobus_placas+')':'—'}<br>
             <b>Estado:</b> <span class="badge badge-info">${r.estado}</span>
           </div>
-        </div>
-      `).join('')}
+        </div>`).join('')}
     </div>`;
 }
-
 async function abrirModalViaje() {
-  const res = await fetch('/api/viaje/opciones/');
-  const d = await res.json();
-  fillSelect('mv-ruta',      d.rutas,       'Seleccionar...');
-  fillSelect('mv-autobus',   d.autobuses,   'Seleccionar...');
-  fillSelect('mv-conductor', d.conductores, 'Seleccionar...');
-  fillSelect('mv-estado',    d.estados,     'Seleccionar...');
-  const now = new Date().toISOString().slice(0,16);
-  document.getElementById('mv-salida').value = now;
-  document.getElementById('mv-llegada').value = now;
+  const d=await fetch('/api/viaje/opciones/').then(r=>r.json());
+  fillSelect('mv-ruta',d.rutas,'Seleccionar...');
+  fillSelect('mv-autobus',d.autobuses,'Seleccionar...');
+  fillSelect('mv-conductor',d.conductores,'Seleccionar...');
+  fillSelect('mv-estado',d.estados,'Seleccionar...');
+  const now=new Date().toISOString().slice(0,16);
+  document.getElementById('mv-salida').value=now;
+  document.getElementById('mv-llegada').value=now;
   abrirModal('modal-viaje');
 }
-
 async function submitViaje() {
-  const body = {
-    salida:    document.getElementById('mv-salida').value,
-    llegada:   document.getElementById('mv-llegada').value,
-    ruta:      document.getElementById('mv-ruta').value,
-    autobus:   document.getElementById('mv-autobus').value,
-    conductor: document.getElementById('mv-conductor').value,
-    estado:    document.getElementById('mv-estado').value,
+  const body={
+    salida:   document.getElementById('mv-salida').value,
+    llegada:  document.getElementById('mv-llegada').value,
+    ruta:     document.getElementById('mv-ruta').value,
+    autobus:  document.getElementById('mv-autobus').value,
+    conductor:document.getElementById('mv-conductor').value,
+    estado:   document.getElementById('mv-estado').value,
   };
-  if (!body.salida || !body.llegada || !body.ruta || !body.autobus || !body.conductor || !body.estado) {
-    toast('Todos los campos son obligatorios', 'err'); return;
+  if (!body.salida||!body.llegada||!body.ruta||!body.autobus||!body.conductor||!body.estado) {
+    toast('Todos los campos son obligatorios','err'); return;
   }
-  if (body.llegada <= body.salida) { toast('La llegada debe ser posterior a la salida', 'err'); return; }
-  const res = await fetch('/api/viaje/agregar/', { method:'POST', headers: csrfHeaders(), body: JSON.stringify(body) });
-  const d = await res.json();
-  if (d.ok) { toast('Viaje agregado correctamente'); cerrarModal('modal-viaje'); cargarSalidas(); }
-  else toast('Error: ' + d.error, 'err');
+  if (body.llegada<=body.salida){toast('La llegada debe ser posterior a la salida','err');return;}
+  const d=await fetch('/api/viaje/agregar/',{method:'POST',headers:csrfHeaders(),body:JSON.stringify(body)}).then(r=>r.json());
+  d.ok?(toast('Viaje agregado correctamente'),cerrarModal('modal-viaje'),cargarSalidas()):toast('Error: '+d.error,'err');
 }
 
-// ── HISTORIAL ─────────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+//  HISTORIAL — tarjetas con Autobús y Pasajeros
+// ════════════════════════════════════════════════════════════
 async function cargarHistorial() {
-  const res = await fetch('/api/salidas/');
-  const d = await res.json();
-  historialData = d.rows;
-  // llenar combo de estados
-  const estados = [...new Set(d.rows.map(r => r.estado).filter(Boolean))];
-  const sel = document.getElementById('hist-estado');
-  sel.innerHTML = '<option value="">Todos</option>' + estados.map(e => `<option>${e}</option>`).join('');
+  document.getElementById('hist-cards-container').innerHTML=
+    '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
+
+  const d=await fetch('/api/salidas/').then(r=>r.json());
+  historialData=d.rows;
+
+  const uniq = (arr,fn) => [...new Set(arr.map(fn).filter(Boolean))].sort();
+  const opt  = (v) => `<option>${v}</option>`;
+
+  document.getElementById('hist-estado').innerHTML  = '<option value="">Todos</option>' + uniq(d.rows,r=>r.estado).map(opt).join('');
+  document.getElementById('hist-origen').innerHTML  = '<option value="">Todos</option>' + uniq(d.rows,r=>r.origen_ciudad).map(opt).join('');
+  document.getElementById('hist-destino').innerHTML = '<option value="">Todos</option>' + uniq(d.rows,r=>r.destino_ciudad).map(opt).join('');
+
   filtrarHistorial();
 }
 
 function filtrarHistorial() {
-  const busq   = document.getElementById('hist-search').value.toLowerCase();
-  const estado = document.getElementById('hist-estado').value;
-  const rows   = historialData.filter(r => {
-    const txt = [r.origen_ciudad, r.destino_ciudad, r.conductor, r.autobus_placas, String(r.numero)].join(' ').toLowerCase();
-    return txt.includes(busq) && (!estado || r.estado === estado);
+  const q  = document.getElementById('hist-search').value.toLowerCase();
+  const es = document.getElementById('hist-estado').value;
+  const or = document.getElementById('hist-origen').value;
+  const de = document.getElementById('hist-destino').value;
+
+  historialFiltered = historialData.filter(r => {
+    const txt=[r.origen_ciudad,r.destino_ciudad,r.conductor,r.autobus_placas,
+               String(r.numero),String(r.autobus_num)].join(' ').toLowerCase();
+    return txt.includes(q) && (!es||r.estado===es) && (!or||r.origen_ciudad===or) && (!de||r.destino_ciudad===de);
   });
-  document.getElementById('hist-info').textContent = `Mostrando ${rows.length} de ${historialData.length} viajes`;
-  document.getElementById('hist-tbody').innerHTML = rows.map(r => `
-    <tr>
-      <td>${r.numero}</td>
-      <td>${fmt(r.fecHoraSalida)}</td>
-      <td>${fmt(r.fecHoraEntrada)}</td>
-      <td>${r.origen_ciudad}</td>
-      <td>${r.destino_ciudad}</td>
-      <td>${r.conductor||'—'}</td>
-      <td>${r.autobus_placas ? '#'+r.autobus_num+' ('+r.autobus_placas+')' : '—'}</td>
-      <td><span class="badge badge-info">${r.estado}</span></td>
-    </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--muted)">Sin resultados</td></tr>';
+
+  document.getElementById('hist-info').textContent=
+    `Mostrando ${historialFiltered.length} de ${historialData.length} viajes`;
+  renderHistorialCards(historialFiltered);
 }
 
-// ── GESTIÓN CRUD ─────────────────────────────────────────────────────────────
-async function recargarGestion() {
-  const tabla = tablaActual.nombre;
-  if (!tabla) return;
-  document.getElementById('gestion-tbody').innerHTML = '<tr><td colspan="20"><span class="spinner"></span></td></tr>';
-  const res = await fetch(`/api/crud/${tabla}/leer/`);
-  const d = await res.json();
-  if (d.error) { toast(d.error, 'err'); return; }
-  // cabeceras
-  document.getElementById('gestion-thead').innerHTML =
-    `<tr>${d.cols.map(c=>`<th>${c}</th>`).join('')}<th>Acciones</th></tr>`;
-  // body
-  if (!d.rows.length) {
-    document.getElementById('gestion-tbody').innerHTML = '<tr><td colspan="20" style="text-align:center;color:var(--muted)">Sin registros</td></tr>';
+function renderHistorialCards(rows) {
+  const container=document.getElementById('hist-cards-container');
+  if (!rows.length) {
+    container.innerHTML=`
+      <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <p>No se encontraron viajes con los filtros aplicados.</p>
+      </div>`;
     return;
   }
-  // Determinar PK (primera columna con 'id' o primera)
-  const pkCol = d.cols[0];
-  document.getElementById('gestion-tbody').innerHTML = d.rows.map(row => `
+  container.innerHTML=rows.map((r,idx)=>`
+    <div class="viaje-card" style="animation-delay:${Math.min(idx*.04,.4)}s">
+      <div class="viaje-card-inner">
+
+        <div class="viaje-card-stripe"></div>
+
+        <div class="viaje-card-body">
+          <div class="viaje-card-header">
+            <span class="viaje-card-num">Viaje #${r.numero}</span>
+            <span style="color:var(--muted)">—</span>
+            <span class="viaje-card-ruta">Ruta #${r.ruta??'—'}</span>
+            <span class="badge badge-info" style="margin-left:auto">${r.estado??'—'}</span>
+          </div>
+
+          <div class="viaje-card-route">
+            ${r.origen_terminal??r.origen_ciudad??'—'}
+            <span class="arrow">→</span>
+            ${r.destino_terminal??r.destino_ciudad??'—'}
+          </div>
+
+          <div class="viaje-card-meta">
+            <span><b>Salida:</b> ${fmt(r.fecHoraSalida)}</span>
+            <span>•</span>
+            <span><b>Llegada:</b> ${fmt(r.fecHoraEntrada)}</span>
+          </div>
+
+          <div class="viaje-card-row2">
+            <span><b>Operador:</b> ${r.conductor??'—'}</span>
+            <span>•</span>
+            <span><b>Autobús:</b> ${r.autobus_num?'#'+r.autobus_num:'—'}${r.autobus_placas?' • Placas: '+r.autobus_placas:''}</span>
+            <span>•</span>
+            <span><b>Asientos:</b> ${r.asientos_total??'—'}</span>
+            <span>•</span>
+            <span><b>Pasajeros:</b> ${r.pasajeros_count??'—'}</span>
+          </div>
+        </div>
+
+        <div class="viaje-card-actions">
+          <button class="btn btn-naranja" onclick="verAutobus(${r.numero},${r.autobus_num??'null'})">Autobús</button>
+          <button class="btn btn-primary"  onclick="verPasajeros(${r.numero})">Pasajeros</button>
+        </div>
+
+      </div>
+    </div>`).join('');
+}
+
+// ── Modal: info autobús ───────────────────────────────────────────────────────
+async function verAutobus(viajeId, busNum) {
+  if (!busNum) { toast('Este viaje no tiene autobús asignado','err'); return; }
+  document.getElementById('modal-autobus-title').textContent=`Información del Autobús — Viaje ${viajeId}`;
+  document.getElementById('modal-autobus-body').innerHTML=
+    '<div style="text-align:center;padding:20px"><span class="spinner"></span></div>';
+  abrirModal('modal-autobus');
+
+  try {
+    const d=await fetch(`/api/autobus/detalle/${busNum}/`).then(r=>r.json());
+    if (d.error){document.getElementById('modal-autobus-body').innerHTML=`<p style="color:var(--danger)">${d.error}</p>`;return;}
+
+    const tiposHtml = d.tipos_asiento?.length
+      ? `<ul class="bus-tipo-list">${d.tipos_asiento.map(t=>`<li>${t.descripcion} (${t.codigo}): ${t.cantidad} asiento(s)</li>`).join('')}</ul>`
+      : '—';
+
+    document.getElementById('modal-autobus-body').innerHTML=`
+      <div class="bus-info-row"><span class="bus-info-label">Número del autobús:</span>    <span class="bus-info-value">${d.numero}</span></div>
+      <div class="bus-info-row"><span class="bus-info-label">Matrícula:</span>              <span class="bus-info-value">${d.placas}</span></div>
+      <div class="bus-info-row"><span class="bus-info-label">Marca:</span>                  <span class="bus-info-value">${d.marca}</span></div>
+      <div class="bus-info-row"><span class="bus-info-label">Modelo:</span>                 <span class="bus-info-value">${d.modelo}</span></div>
+      <div class="bus-info-row"><span class="bus-info-label">Año:</span>                    <span class="bus-info-value">${d.anio}</span></div>
+      <div class="bus-info-row"><span class="bus-info-label">Cantidad de asientos:</span>   <span class="bus-info-value">${d.num_asientos}</span></div>
+      <div class="bus-info-row"><span class="bus-info-label">Asientos por tipo:</span>      <span class="bus-info-value">${tiposHtml}</span></div>
+    `;
+  } catch(e) {
+    document.getElementById('modal-autobus-body').innerHTML=
+      '<p style="color:var(--danger)">Error al cargar información del autobús.</p>';
+  }
+}
+
+// ── Modal: pasajeros ──────────────────────────────────────────────────────────
+async function verPasajeros(viajeId) {
+  document.getElementById('modal-pasajeros-title').textContent=`Pasajeros del viaje ${viajeId}`;
+  document.getElementById('modal-pasajeros-header').innerHTML='';
+  document.getElementById('modal-pasajeros-tbody').innerHTML=
+    '<tr><td colspan="5" style="text-align:center;padding:20px"><span class="spinner"></span></td></tr>';
+  abrirModal('modal-pasajeros');
+
+  try {
+    const d=await fetch(`/api/viaje/pasajeros/${viajeId}/`).then(r=>r.json());
+    if (d.error){
+      document.getElementById('modal-pasajeros-tbody').innerHTML=
+        `<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:20px">${d.error}</td></tr>`;
+      return;
+    }
+    pasajerosActuales=d.pasajeros||[];
+    pasajerosViajeInfo={...d.viaje||{}, viaje_id:viajeId};
+
+    const v=d.viaje||{};
+    document.getElementById('modal-pasajeros-header').innerHTML=`
+      <span class="pasajeros-header-item">Número de viaje: <b>${viajeId}</b></span>
+      <span class="pasajeros-header-item">Origen: <b>${v.origen??'—'}</b></span>
+      <span class="pasajeros-header-item">Destino: <b>${v.destino??'—'}</b></span>
+      <span class="pasajeros-header-item">Salida: <b>${v.salida?fmt(v.salida):'—'}</b></span>
+      <span class="pasajeros-header-item">Autobús: <b>${v.autobus??'—'}</b></span>
+    `;
+
+    if (!pasajerosActuales.length) {
+      document.getElementById('modal-pasajeros-tbody').innerHTML=
+        '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Sin pasajeros registrados</td></tr>';
+      return;
+    }
+
+    document.getElementById('modal-pasajeros-tbody').innerHTML=
+      pasajerosActuales.map((p,i)=>`
+        <tr>
+          <td>${i+1}</td>
+          <td>${p.nombre_completo??'—'}</td>
+          <td>${p.edad??'—'}</td>
+          <td>${p.numero_boleto??'—'}</td>
+          <td>${p.numero_asiento??'—'}</td>
+        </tr>`).join('');
+  } catch(e) {
+    document.getElementById('modal-pasajeros-tbody').innerHTML=
+      '<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:20px">Error al cargar pasajeros.</td></tr>';
+  }
+}
+
+function exportarPasajerosCSV() {
+  if (!pasajerosActuales.length){toast('No hay pasajeros para exportar','err');return;}
+  const v=pasajerosViajeInfo;
+  const meta=`# Viaje: ${v.viaje_id??'?'} | Origen: ${v.origen??'?'} | Destino: ${v.destino??'?'} | Salida: ${v.salida??'?'}`;
+  const csv=[meta,'Nombre completo,Edad,Número boleto,Número asiento',
+    ...pasajerosActuales.map(p=>`"${p.nombre_completo??''}","${p.edad??''}","${p.numero_boleto??''}","${p.numero_asiento??''}"`)
+  ].join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`pasajeros_viaje_${v.viaje_id??'x'}.csv`; a.click();
+  toast('CSV exportado');
+}
+
+// ════════════════════════════════════════════════════════════
+//  GESTIÓN CRUD
+// ════════════════════════════════════════════════════════════
+async function recargarGestion() {
+  const tabla=tablaActual.nombre; if(!tabla)return;
+  document.getElementById('gestion-tbody').innerHTML=
+    '<tr><td colspan="20"><span class="spinner"></span></td></tr>';
+  const d=await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
+  if (d.error){toast(d.error,'err');return;}
+  document.getElementById('gestion-thead').innerHTML=
+    `<tr>${d.cols.map(c=>`<th>${c}</th>`).join('')}<th>Acciones</th></tr>`;
+  if (!d.rows.length){
+    document.getElementById('gestion-tbody').innerHTML=
+      '<tr><td colspan="20" style="text-align:center;color:var(--muted)">Sin registros</td></tr>';
+    return;
+  }
+  const pk=d.cols[0];
+  document.getElementById('gestion-tbody').innerHTML=d.rows.map(row=>`
     <tr>
       ${d.cols.map(c=>`<td>${row[c]??'—'}</td>`).join('')}
       <td style="white-space:nowrap;display:flex;gap:4px">
-        <button class="btn btn-gray btn-sm" onclick='verDetalle(${JSON.stringify(d.cols)}, ${JSON.stringify(row)})'>Ver</button>
-        <button class="btn btn-naranja btn-sm" onclick='abrirEditar("${tabla}","${pkCol}","${row[pkCol]}")'>Editar</button>
-        <button class="btn btn-danger btn-sm" onclick='eliminarReg("${tabla}","${pkCol}","${row[pkCol]}")'>Eliminar</button>
+        <button class="btn btn-gray btn-sm"    onclick='verDetalle(${JSON.stringify(d.cols)},${JSON.stringify(row)})'>Ver</button>
+        <button class="btn btn-naranja btn-sm" onclick='abrirEditar("${tabla}","${pk}","${row[pk]}")'>Editar</button>
+        <button class="btn btn-danger btn-sm"  onclick='eliminarReg("${tabla}","${pk}","${row[pk]}")'>Eliminar</button>
       </td>
     </tr>`).join('');
-  document.getElementById('gestion-info').textContent = `${d.rows.length} registro(s)`;
+  document.getElementById('gestion-info').textContent=`${d.rows.length} registro(s)`;
 }
-
 async function abrirInsertar() {
-  const tabla = tablaActual.nombre;
-  if (!tabla) { toast('Selecciona una tabla primero', 'err'); return; }
-  const res = await fetch(`/api/crud/${tabla}/esquema/`);
-  const d = await res.json();
-  tablaActual.esquema = d;
-  tablaActual.modo = 'insertar';
-  document.getElementById('crud-modal-title').textContent = `Insertar en ${tabla}`;
-  document.getElementById('crud-submit-btn').textContent = 'Insertar';
-  renderCrudForm(d, null);
-  abrirModal('modal-crud');
+  const tabla=tablaActual.nombre; if(!tabla){toast('Selecciona una tabla primero','err');return;}
+  const d=await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
+  tablaActual.esquema=d; tablaActual.modo='insertar';
+  document.getElementById('crud-modal-title').textContent=`Insertar en ${tabla}`;
+  document.getElementById('crud-submit-btn').textContent='Insertar';
+  renderCrudForm(d,null); abrirModal('modal-crud');
 }
-
-async function abrirEditar(tabla, pkName, pkValue) {
-  const esq = await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
-  const datos = await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
-  const row = datos.rows.find(r => String(r[pkName]) === String(pkValue));
-  tablaActual.esquema = esq;
-  tablaActual.modo = 'editar';
-  tablaActual.pkName = pkName;
-  tablaActual.pkValue = pkValue;
-  document.getElementById('crud-modal-title').textContent = `Editar — ${tabla}`;
-  document.getElementById('crud-submit-btn').textContent = 'Guardar';
-  renderCrudForm(esq, row);
-  abrirModal('modal-crud');
+async function abrirEditar(tabla,pk,pkv) {
+  const esq=await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
+  const datos=await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
+  const row=datos.rows.find(r=>String(r[pk])===String(pkv));
+  tablaActual.esquema=esq; tablaActual.modo='editar';
+  tablaActual.pkName=pk; tablaActual.pkValue=pkv;
+  document.getElementById('crud-modal-title').textContent=`Editar — ${tabla}`;
+  document.getElementById('crud-submit-btn').textContent='Guardar';
+  renderCrudForm(esq,row); abrirModal('modal-crud');
 }
-
-function renderCrudForm(esquema, values) {
-  const container = document.getElementById('crud-form-fields');
-  container.innerHTML = '';
-  esquema.columnas.forEach(col => {
-    const name = col.Field;
-    const val  = values ? (values[name] ?? '') : '';
-    const isAI = (col.Extra||'').toLowerCase().includes('auto_increment');
-    const isPK = col.Key === 'PRI';
-    const div  = document.createElement('div');
-    div.className = 'form-field';
-    if (esquema.fk_map[name]) {
-      const opts = esquema.opciones[name] || [];
-      div.innerHTML = `<label>${name}${isPK?'':''}</label>
+function renderCrudForm(esq,vals) {
+  const c=document.getElementById('crud-form-fields'); c.innerHTML='';
+  esq.columnas.forEach(col=>{
+    const name=col.Field, val=vals?(vals[name]??''):'';
+    const isAI=(col.Extra||'').toLowerCase().includes('auto_increment');
+    const isPK=col.Key==='PRI';
+    const div=document.createElement('div'); div.className='form-field';
+    if (esq.fk_map[name]) {
+      const opts=esq.opciones[name]||[];
+      div.innerHTML=`<label>${name}</label>
         <select data-field="${name}" ${isPK?'disabled':''}>
           <option value="">— seleccionar —</option>
           ${opts.map(o=>`<option value="${o.value}" ${String(o.value)===String(val)?'selected':''}>${o.label}</option>`).join('')}
         </select>`;
     } else {
-      const readonly = isPK && tablaActual.modo === 'editar';
-      const type = col.Type.includes('date') ? 'text' : (col.Type.includes('int')||col.Type.includes('decimal') ? 'text' : 'text');
-      div.innerHTML = `<label>${name}${isAI?' (auto)':''}</label>
-        <input data-field="${name}" type="${type}" value="${val}" placeholder="${col.Type}" ${readonly||isAI?'readonly':''}/>`;
+      const ro=isPK&&tablaActual.modo==='editar';
+      div.innerHTML=`<label>${name}${isAI?' (auto)':''}</label>
+        <input data-field="${name}" type="text" value="${val}" placeholder="${col.Type}" ${ro||isAI?'readonly':''}/>`;
     }
-    container.appendChild(div);
+    c.appendChild(div);
   });
 }
-
 async function submitCrud() {
-  const tabla = tablaActual.nombre;
-  const campos = document.querySelectorAll('#crud-form-fields [data-field]');
-  const data = {};
-  campos.forEach(el => {
-    if (el.readOnly || el.disabled) return;
-    const v = el.value.trim();
-    data[el.dataset.field] = v === '' ? null : v;
+  const tabla=tablaActual.nombre;
+  const campos=document.querySelectorAll('#crud-form-fields [data-field]');
+  const data={};
+  campos.forEach(el=>{
+    if(el.readOnly||el.disabled)return;
+    const v=el.value.trim(); data[el.dataset.field]=v===''?null:v;
   });
-  if (tablaActual.modo === 'insertar') {
-    const res = await fetch(`/api/crud/${tabla}/insertar/`, { method:'POST', headers: csrfHeaders(), body: JSON.stringify(data) });
-    const d = await res.json();
-    d.ok ? (toast('Registro insertado'), cerrarModal('modal-crud'), recargarGestion()) : toast('Error: '+d.error, 'err');
+  if (tablaActual.modo==='insertar') {
+    const d=await fetch(`/api/crud/${tabla}/insertar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify(data)}).then(r=>r.json());
+    d.ok?(toast('Registro insertado'),cerrarModal('modal-crud'),recargarGestion()):toast('Error: '+d.error,'err');
   } else {
-    data.__pk_name__  = tablaActual.pkName;
-    data.__pk_value__ = tablaActual.pkValue;
-    const res = await fetch(`/api/crud/${tabla}/actualizar/`, { method:'POST', headers: csrfHeaders(), body: JSON.stringify(data) });
-    const d = await res.json();
-    d.ok ? (toast('Registro actualizado'), cerrarModal('modal-crud'), recargarGestion()) : toast('Error: '+d.error, 'err');
+    data.__pk_name__=tablaActual.pkName; data.__pk_value__=tablaActual.pkValue;
+    const d=await fetch(`/api/crud/${tabla}/actualizar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify(data)}).then(r=>r.json());
+    d.ok?(toast('Registro actualizado'),cerrarModal('modal-crud'),recargarGestion()):toast('Error: '+d.error,'err');
   }
 }
-
-async function eliminarReg(tabla, pkName, pkValue) {
-  if (!confirm(`¿Eliminar el registro ${pkValue} de ${tabla}?`)) return;
-  const res = await fetch(`/api/crud/${tabla}/eliminar/`, { method:'POST', headers: csrfHeaders(), body: JSON.stringify({pk_name: pkName, pk_value: pkValue}) });
-  const d = await res.json();
-  d.ok ? (toast('Registro eliminado'), recargarGestion()) : toast('Error: '+d.error, 'err');
+async function eliminarReg(tabla,pk,pkv) {
+  if (!confirm(`¿Eliminar el registro ${pkv} de ${tabla}?`))return;
+  const d=await fetch(`/api/crud/${tabla}/eliminar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify({pk_name:pk,pk_value:pkv})}).then(r=>r.json());
+  d.ok?(toast('Registro eliminado'),recargarGestion()):toast('Error: '+d.error,'err');
 }
-
-function verDetalle(cols, row) {
-  document.getElementById('detalle-title').textContent = `Detalle — ${tablaActual.nombre}`;
-  document.getElementById('detalle-body').innerHTML = cols.map(c =>
+function verDetalle(cols,row) {
+  document.getElementById('detalle-title').textContent=`Detalle — ${tablaActual.nombre}`;
+  document.getElementById('detalle-body').innerHTML=cols.map(c=>
     `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--border)">
-      <span style="font-weight:700;color:var(--muted)">${c}</span>
-      <span>${row[c]??'—'}</span>
+      <span style="font-weight:700;color:var(--muted)">${c}</span><span>${row[c]??'—'}</span>
     </div>`).join('');
   abrirModal('modal-detalle');
 }
 
-// ── CONFIGURACIÓN ─────────────────────────────────────────────────────────────
+// ════════════════════════════════════════════════════════════
+//  CONFIGURACIÓN
+// ════════════════════════════════════════════════════════════
 function cargarConfig() {
-  document.getElementById('cfg-nombre').value  = '{{ request.session.usuario_nombre }}';
-  document.getElementById('cfg-ap1').value     = '{{ request.session.usuario_apellido }}';
+  document.getElementById('cfg-nombre').value  = '{{ taquillero.taqnombre }}';
+  document.getElementById('cfg-ap1').value     = '{{ taquillero.taqprimerapell }}';
+  document.getElementById('cfg-ap2').value     = '{{ taquillero.taqsegundoapell|default:"" }}';
+  document.getElementById('cfg-usuario').value = '{{ taquillero.usuario }}';
+  document.getElementById('cfg-pass').value    = '{{ taquillero.contrasena }}';
 }
-
 async function guardarConfig() {
-  const body = new FormData();
-  body.append('nombre',           document.getElementById('cfg-nombre').value.trim());
-  body.append('primer_apellido',  document.getElementById('cfg-ap1').value.trim());
-  body.append('segundo_apellido', document.getElementById('cfg-ap2').value.trim());
-  body.append('usuario',          document.getElementById('cfg-usuario').value.trim());
-  body.append('contrasena',       document.getElementById('cfg-pass').value.trim());
-  body.append('csrfmiddlewaretoken', CSRF);
-  const res = await fetch('/api/config/', { method:'POST', body });
-  const d = await res.json();
-  d.ok ? toast('Cambios guardados correctamente') : toast('Error: '+d.error, 'err');
+  const body=new FormData();
+  body.append('nombre',          document.getElementById('cfg-nombre').value.trim());
+  body.append('primer_apellido', document.getElementById('cfg-ap1').value.trim());
+  body.append('segundo_apellido',document.getElementById('cfg-ap2').value.trim());
+  body.append('usuario',         document.getElementById('cfg-usuario').value.trim());
+  body.append('contrasena',      document.getElementById('cfg-pass').value.trim());
+  body.append('csrfmiddlewaretoken',CSRF);
+  const d=await fetch('/api/config/',{method:'POST',body}).then(r=>r.json());
+  d.ok?toast('Cambios guardados correctamente'):toast('Error: '+d.error,'err');
 }
 
-// ── Modales ───────────────────────────────────────────────────────────────────
-function abrirModal(id) { document.getElementById(id).classList.add('open'); }
-function cerrarModal(id) { document.getElementById(id).classList.remove('open'); }
-document.querySelectorAll('.modal-overlay').forEach(m => {
-  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
-});
+// ════════════════════════════════════════════════════════════
+//  MODALES
+// ════════════════════════════════════════════════════════════
+const abrirModal  = id => document.getElementById(id).classList.add('open');
+const cerrarModal = id => document.getElementById(id).classList.remove('open');
 
-// ── Logout ────────────────────────────────────────────────────────────────────
-function cerrarSesion() {
-  if (confirm('¿Cerrar sesión?')) window.location.href = '/logout/';
-}
+document.querySelectorAll('.modal-overlay').forEach(m=>
+  m.addEventListener('click', e=>{ if(e.target===m) m.classList.remove('open'); })
+);
 
-// ── Init ─────────────────────────────────────────────────────────────────────
+const cerrarSesion = () => { if(confirm('¿Cerrar sesión?')) window.location.href='/logout/'; };
+
+// ════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════
 (function init() {
-  // Fechas por defecto
-  const h = today();
-  document.getElementById('kg-fecha').value = h;
-  document.getElementById('ke-fecha').value = h;
-  const now = new Date();
-  document.getElementById('ke-mes').value = String(now.getMonth()+1).padStart(2,'0');
-  document.getElementById('kg-mes').value  = String(now.getMonth()+1).padStart(2,'0');
-  if (document.getElementById('ke-anio')) document.getElementById('ke-anio').value = now.getFullYear();
-  if (document.getElementById('kg-anio')) document.getElementById('kg-anio').value = now.getFullYear();
-
+  const h=today(), now=new Date();
+  const mes=String(now.getMonth()+1).padStart(2,'0');
+  document.getElementById('kg-fecha').value=h;
+  document.getElementById('ke-fecha').value=h;
+  document.getElementById('ke-mes').value=mes;
+  document.getElementById('kg-mes').value=mes;
+  document.getElementById('ke-anio').value=now.getFullYear();
+  document.getElementById('kg-anio').value=now.getFullYear();
   showPage('kpi-generales');
 })();
 </script>
-
 </body>
 </html>

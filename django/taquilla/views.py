@@ -42,7 +42,7 @@ def login_view(request):
             request.session['usuario_apellido'] = taquillero.taqprimerapell
             request.session['supervisa']        = bool(taquillero.supervisa)
             if taquillero.supervisa:
-                return redirect('dashboard')
+                return redirect('panel_admin')
             else:
                 return redirect('panel_principal')
         except Taquillero.DoesNotExist:
@@ -100,8 +100,11 @@ def panel_admin(request):
         'viaje_asiento','taquillero','tipo_pasajero','tipo_pago','edo_viaje',
         'ticket','pasajero','pago','terminal','tipo_asiento',
     ]
-    return render(request, 'taquilla/panel_admin.html', {'tablas': tablas})
-
+    taquillero = Taquillero.objects.get(registro=request.session['usuario_id'])
+    return render(request, 'taquilla/panel_admin.html', {
+        'tablas': tablas,
+        'taquillero': taquillero,
+    })
 @require_POST
 @admin_requerido
 def actualizar_config(request):
