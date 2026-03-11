@@ -2,12 +2,15 @@ from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.contrib import messages
 from django.views.decorators.http import require_POST
-from .models import Taquillero, Terminal, Viaje
+from .models import Taquillero, Terminal, Viaje, Pasajero, Pago, Ticket, TipoPago, TipoPasajero, ViajeAsiento, Asiento
 from datetime import date, datetime, timedelta
 import json
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .serializers import ViajeSerializer, ViajeListSerializer, TerminalSerializer
+from django.utils import timezone
+from django.db import transaction
+from django.core.mail import send_mail
 
 CLAVE_MAESTRA = "RutasBaja2024"
 
@@ -525,3 +528,204 @@ def api_terminales(request):
     terminales = Terminal.objects.all()
     serializer = TerminalSerializer(terminales, many=True)
     return Response(serializer.data)
+
+@api_view(['POST'])
+def api_login(request):
+    usuario = request.data.get('usuario')
+    contrasena = request.data.get('contrasena')
+    try:
+        taquillero = Taquillero.objects.get(usuario=usuario, contrasena=contrasena)
+        return Response({
+            'tipo': 'taquillero',
+            'registro': taquillero.registro,
+            'nombre': taquillero.taqnombre,
+            'primer_apellido': taquillero.taqprimerapell,
+            'segundo_apellido': taquillero.taqsegundoapell or '',
+            'usuario': taquillero.usuario,
+            'fecha_contrato': str(taquillero.fechacontrato),
+            'terminal': {
+                'numero': taquillero.terminal.numero,
+                'nombre': taquillero.terminal.nombre,
+                'ciudad': taquillero.terminal.ciudad.nombre,
+            }
+        })
+    except Taquillero.DoesNotExist:
+        return Response({'error': 'Credenciales incorrectas'}, status=401)
+
+
+@api_view(['POST'])
+def api_comprar(request):
+    try:
+        data = request.data
+        viaje_id = data.get('viaje_id')
+        tipo_pago_id = data.get('tipo_pago')
+        pasajeros = data.get('pasajeros')
+        monto_total = data.get('monto_total')
+        vendedor_id = data.get('vendedor_id')
+        correo_contacto = data.get('correo_contacto', '')
+
+        with transaction.atomic():
+            vendedor = Taquillero.objects.get(registro=vendedor_id) if vendedor_id else None
+            pago = Pago.objects.create(
+                fechapago=timezone.now(),
+                monto=monto_total,
+                tipo=TipoPago.objects.get(numero=tipo_pago_id),
+                vendedor=vendedor
+            )
+            viaje = Viaje.objects.get(numero=viaje_id)
+            tickets_creados = []
+
+            for p in pasajeros:
+                ano_nacimiento = date.today().year - p['edad']
+                pasajero = Pasajero.objects.create(
+                    panombre=p['nombre'],
+                    paprimerapell=p['primer_apellido'],
+                    pasegundoapell=p.get('segundo_apellido', None),
+                    fechanacimiento=date(ano_nacimiento, 1, 1),
+                    edad=p['edad']
+                )
+                tipo_map = {'Adulto': 1, 'Estudiante': 4, 'INAPAM': 3, 'Discapacidad': 5}
+                tipo_pasajero_id = tipo_map.get(p['tipo'], 1)
+                tipo_pasajero = TipoPasajero.objects.get(num=tipo_pasajero_id)
+                precio_base = viaje.ruta.precio
+                descuento = tipo_pasajero.descuento
+                precio_final = float(precio_base) * (1 - descuento / 100)
+                asiento = Asiento.objects.get(numero=p['asiento_id'])
+                ticket = Ticket.objects.create(
+                    precio=precio_final,
+                    fechaemision=timezone.now(),
+                    asiento=asiento,
+                    viaje=viaje,
+                    pasajero=pasajero,
+                    tipopasajero=tipo_pasajero,
+                    pago=pago
+                )
+                tickets_creados.append(ticket)
+                ViajeAsiento.objects.filter(
+                    asiento=asiento,
+                    viaje=viaje
+                ).update(ocupado=1)
+
+        if correo_contacto:
+            try:
+                fecha_viaje = viaje.fechorasalida.strftime('%d/%m/%Y')
+                hora_salida = viaje.fechorasalida.strftime('%H:%M')
+                hora_llegada = viaje.fechoraentrada.strftime('%H:%M')
+                lista_pasajeros = ''
+                for t in tickets_creados:
+                    lista_pasajeros += (
+                        f"  • {t.pasajero.panombre} {t.pasajero.paprimerapell}"
+                        f" | Asiento {t.asiento.numero}"
+                        f" | {t.tipopasajero.descripcion}"
+                        f" | ${float(t.precio):.2f} MXN\n"
+                    )
+                mensaje = f"""
+Hola, gracias por viajar con Rutas Baja Express 🚌
+
+Tu compra ha sido confirmada exitosamente.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  FOLIO DE COMPRA: #{pago.numero}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🗺  RUTA
+  {viaje.ruta.origen.ciudad.nombre} → {viaje.ruta.destino.ciudad.nombre}
+
+📅  FECHA Y HORA
+  {fecha_viaje}  |  Salida: {hora_salida}  →  Llegada: {hora_llegada}
+
+👥  PASAJEROS
+{lista_pasajeros}
+💳  MÉTODO DE PAGO
+  {pago.tipo.nombre}
+
+💰  TOTAL PAGADO
+  ${float(pago.monto):.2f} MXN
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Preséntate en la terminal 30 minutos antes de la salida con este folio.
+
+¡Buen viaje! 🌟
+Rutas Baja Express
+"""
+                send_mail(
+                    subject=f'✅ Confirmación de compra - Folio #{pago.numero} | Rutas Baja Express',
+                    message=mensaje,
+                    from_email=None,
+                    recipient_list=[correo_contacto],
+                    fail_silently=True,
+                )
+            except Exception as e:
+                print(f'Error enviando correo: {e}')
+
+        return Response({'success': True, 'pago_id': pago.numero}, status=201)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+
+
+@api_view(['GET'])
+def api_historial_taquillero(request, vendedor_id):
+    try:
+        pagos = Pago.objects.filter(vendedor__registro=vendedor_id).order_by('-fechapago')
+        resultado = []
+        for pago in pagos:
+            tickets = Ticket.objects.filter(pago=pago)
+            primer_ticket = tickets.first()
+            if primer_ticket:
+                viaje = primer_ticket.viaje
+                resultado.append({
+                    'folio': pago.numero,
+                    'fecha': str(pago.fechapago),
+                    'origen': viaje.ruta.origen.ciudad.nombre,
+                    'destino': viaje.ruta.destino.ciudad.nombre,
+                    'hora_salida': str(viaje.fechorasalida),
+                    'monto': str(pago.monto),
+                    'num_pasajeros': tickets.count(),
+                    'metodo_pago': pago.tipo.nombre,
+                })
+        return Response(resultado)
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+
+
+@api_view(['GET'])
+def api_buscar_boleto(request, folio):
+    try:
+        pago = Pago.objects.get(numero=folio)
+        tickets = Ticket.objects.filter(pago=pago)
+        primer_ticket = tickets.first()
+        if not primer_ticket:
+            return Response({'error': 'No se encontraron tickets'}, status=404)
+        viaje = primer_ticket.viaje
+        resultado = {
+            'folio': pago.numero,
+            'fecha_pago': str(pago.fechapago),
+            'monto': str(pago.monto),
+            'metodo_pago': pago.tipo.nombre,
+            'vendedor': f'{pago.vendedor.taqnombre} {pago.vendedor.taqprimerapell}' if pago.vendedor else 'App',
+            'viaje': {
+                'origen': viaje.ruta.origen.ciudad.nombre,
+                'destino': viaje.ruta.destino.ciudad.nombre,
+                'hora_salida': str(viaje.fechorasalida),
+                'hora_llegada': str(viaje.fechoraentrada),
+                'duracion': viaje.ruta.duracion,
+            },
+            'tickets': [
+                {
+                    'codigo': t.codigo,
+                    'asiento': t.asiento.numero,
+                    'tipo_asiento': t.asiento.tipo.descripcion,
+                    'pasajero': f'{t.pasajero.panombre} {t.pasajero.paprimerapell}',
+                    'tipo_pasajero': t.tipopasajero.descripcion,
+                    'precio': str(t.precio),
+                }
+                for t in tickets
+            ]
+        }
+        return Response(resultado)
+    except Pago.DoesNotExist:
+        return Response({'error': 'Folio no encontrado'}, status=404)
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
