@@ -1,20 +1,17 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.contrib import messages
-<<<<<<< HEAD
 from django.views.decorators.http import require_POST
-from .models import Taquillero, Terminal
-from datetime import date
-import json
-=======
 from .models import Taquillero, Terminal, Viaje
 from datetime import date, datetime, timedelta
+import json
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .serializers import ViajeSerializer, ViajeListSerializer, TerminalSerializer
->>>>>>> c4fff904d5b176ea6bbc7a23e5b00d75e0e96531
 
 CLAVE_MAESTRA = "RutasBaja2024"
+
+# ─── Decoradores ──────────────────────────────────────────────────────────────
 
 def login_requerido(view_func):
     def wrapper(request, *args, **kwargs):
@@ -31,6 +28,8 @@ def admin_requerido(view_func):
             return redirect('panel_principal')
         return view_func(request, *args, **kwargs)
     return wrapper
+
+# ─── Auth ─────────────────────────────────────────────────────────────────────
 
 def login_view(request):
     if request.method == 'POST':
@@ -75,39 +74,33 @@ def registro_view(request):
         messages.success(request, 'Taquillero registrado correctamente')
     return redirect('login')
 
-<<<<<<< HEAD
 def logout_view(request):
     request.session.flush()
     return redirect('login')
-=======
 
-def login_requerido(view_func):
-    def wrapper(request, *args, **kwargs):
-        if not request.session.get('usuario_id'):
-            return redirect('login')
-        return view_func(request, *args, **kwargs)
-    return wrapper
-
->>>>>>> c4fff904d5b176ea6bbc7a23e5b00d75e0e96531
+# ─── Vistas generales ─────────────────────────────────────────────────────────
 
 @login_requerido
 def panel_principal(request):
     return render(request, 'taquilla/panel_principal.html')
 
+@login_requerido
+def dashboard(request):
+    return render(request, 'taquilla/dash.html')
+
+def salidas(request):
+    return render(request, 'taquilla/salidas.html')
+
+# ─── Panel admin ──────────────────────────────────────────────────────────────
+
 @admin_requerido
 def panel_admin(request):
-<<<<<<< HEAD
     tablas = [
         'marca','modelo','autobus','ciudad','conductor','ruta','viaje','asiento',
         'viaje_asiento','taquillero','tipo_pasajero','tipo_pago','edo_viaje',
         'ticket','pasajero','pago','terminal','tipo_asiento',
     ]
     return render(request, 'taquilla/panel_admin.html', {'tablas': tablas})
-=======
-    if not request.session.get('supervisa'):
-        return redirect('panel_principal')
-    return render(request, 'taquilla/panel_admin.html')
->>>>>>> c4fff904d5b176ea6bbc7a23e5b00d75e0e96531
 
 @require_POST
 @admin_requerido
@@ -133,7 +126,8 @@ def actualizar_config(request):
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
 
-<<<<<<< HEAD
+# ─── CRUD genérico ────────────────────────────────────────────────────────────
+
 TABLAS_PERMITIDAS = [
     'marca','modelo','autobus','ciudad','conductor','ruta','viaje','asiento',
     'viaje_asiento','taquillero','tipo_pasajero','tipo_pago','edo_viaje',
@@ -241,6 +235,8 @@ def crud_eliminar(request, tabla):
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
 
+# ─── Viajes / Dashboard admin ─────────────────────────────────────────────────
+
 @admin_requerido
 def salidas_json(request):
     from django.db import connection
@@ -325,6 +321,8 @@ def agregar_viaje(request):
         return JsonResponse({'ok': True, 'viaje_id': trip_id})
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
+
+# ─── KPIs ─────────────────────────────────────────────────────────────────────
 
 @admin_requerido
 def kpi_generales(request):
@@ -490,29 +488,15 @@ def kpi_filtros_opciones(request):
         cur.execute("SELECT clave, nombre FROM ciudad ORDER BY nombre")
         ciudades = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
     return JsonResponse({'conductores': conductores, 'autobuses': autobuses, 'ciudades': ciudades})
-=======
-def logout_view(request):
-    request.session.flush()
-    return redirect('login')
 
-
-@login_requerido
-def dashboard(request):
-    return render(request, 'taquilla/dash.html')
-
-
-def salidas(request):
-    return render(request, 'taquilla/salidas.html')
-
+# ─── API REST ─────────────────────────────────────────────────────────────────
 
 @api_view(['GET'])
 def api_viajes(request):
     viajes = Viaje.objects.filter(estado=1)
-
     origen = request.GET.get('origen')
     destino = request.GET.get('destino')
     fecha = request.GET.get('fecha')
-
     if origen:
         viajes = viajes.filter(ruta__origen__numero=origen)
     if destino:
@@ -521,13 +505,11 @@ def api_viajes(request):
         fecha_dt = datetime.strptime(fecha, '%Y-%m-%d')
         fecha_fin = fecha_dt + timedelta(days=1)
         viajes = viajes.filter(
-            fechorasalida__gte=fecha_dt,
-            fechorasalida__lt=fecha_fin
+            fecHoraSalida__gte=fecha_dt,
+            fecHoraSalida__lt=fecha_fin
         )
-
     serializer = ViajeListSerializer(viajes, many=True)
     return Response(serializer.data)
-
 
 @api_view(['GET'])
 def api_viaje_detalle(request, id):
@@ -538,10 +520,8 @@ def api_viaje_detalle(request, id):
     except Viaje.DoesNotExist:
         return Response({'error': 'Viaje no encontrado'}, status=404)
 
-
 @api_view(['GET'])
 def api_terminales(request):
     terminales = Terminal.objects.all()
     serializer = TerminalSerializer(terminales, many=True)
     return Response(serializer.data)
->>>>>>> c4fff904d5b176ea6bbc7a23e5b00d75e0e96531
