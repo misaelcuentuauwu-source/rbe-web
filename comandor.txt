@@ -1,2 +1,16 @@
+Pasos a ejecutar para poder usarlo...
+crear un entorno virtual:
+linux: python3 -m venv venv
+windows:python -m venv venv
+
 activar entorno virtual:
-source venv/bin/activate
+ubuntu: source venv/bin/activate
+windows: venv\Scripts\activate
+
+instalar requerimientos:
+pip install -r requirements.txt
+
+__RECUERDA PRENDER XAMPP__
+
+iniciar el server:
+python manage.py runserver

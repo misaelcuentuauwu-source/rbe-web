@@ -1,71 +1,17 @@
 from django.shortcuts import render, redirect
+from django.http import JsonResponse
 from django.contrib import messages
+from django.views.decorators.http import require_POST
 from .models import Taquillero, Terminal, Viaje
 from datetime import date, datetime, timedelta
+import json
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .serializers import ViajeSerializer, ViajeListSerializer, TerminalSerializer
 
 CLAVE_MAESTRA = "RutasBaja2024"
 
-def login_view(request):
-    if request.method == 'POST':
-        usuario = request.POST.get('usuario', '').strip()
-        contrasena = request.POST.get('contrasena', '').strip()
-
-        try:
-            taquillero = Taquillero.objects.get(usuario=usuario, contrasena=contrasena)
-            request.session['usuario_id'] = taquillero.registro
-            request.session['usuario_nombre'] = taquillero.taqnombre
-            request.session['usuario_apellido'] = taquillero.taqprimerapell
-            request.session['supervisa'] = bool(taquillero.supervisa)
-
-            if taquillero.supervisa:
-                return redirect('dashboard')
-            else:
-                return redirect('panel_principal')
-
-        except Taquillero.DoesNotExist:
-            messages.error(request, 'Usuario o contraseña incorrectos')
-
-    terminales = Terminal.objects.all()
-    return render(request, 'taquilla/login.html', {'terminales': terminales})
-
-
-def registro_view(request):
-    if request.method == 'POST':
-        clave = request.POST.get('clave_maestra', '')
-        if clave != CLAVE_MAESTRA:
-            messages.error(request, 'Clave maestra incorrecta')
-            return redirect('login')
-
-        nombre = request.POST.get('nombre', '').strip()
-        ap1 = request.POST.get('primer_apellido', '').strip()
-        ap2 = request.POST.get('segundo_apellido', '').strip()
-        usuario = request.POST.get('usuario', '').strip()
-        contrasena = request.POST.get('contrasena', '').strip()
-        terminal_id = request.POST.get('terminal')
-        supervisa = request.POST.get('supervisa') == 'on'
-
-        if not all([nombre, ap1, usuario, contrasena]):
-            messages.error(request, 'Completa los campos obligatorios')
-            return redirect('login')
-
-        Taquillero.objects.create(
-            taqnombre=nombre,
-            taqprimerapell=ap1,
-            taqsegundoapell=ap2,
-            fechacontrato=date.today(),
-            usuario=usuario,
-            contrasena=contrasena,
-            terminal_id=terminal_id,
-            supervisa=supervisa
-        )
-        messages.success(request, 'Taquillero registrado correctamente')
-        return redirect('login')
-
-    return redirect('login')
-
+# ─── Decoradores ──────────────────────────────────────────────────────────────
 
 def login_requerido(view_func):
     def wrapper(request, *args, **kwargs):
@@ -74,41 +20,483 @@ def login_requerido(view_func):
         return view_func(request, *args, **kwargs)
     return wrapper
 
+def admin_requerido(view_func):
+    def wrapper(request, *args, **kwargs):
+        if not request.session.get('usuario_id'):
+            return redirect('login')
+        if not request.session.get('supervisa'):
+            return redirect('panel_principal')
+        return view_func(request, *args, **kwargs)
+    return wrapper
 
-@login_requerido
-def panel_principal(request):
-    return render(request, 'taquilla/panel_principal.html')
+# ─── Auth ─────────────────────────────────────────────────────────────────────
 
+def login_view(request):
+    if request.method == 'POST':
+        usuario = request.POST.get('usuario', '').strip()
+        contrasena = request.POST.get('contrasena', '').strip()
+        try:
+            taquillero = Taquillero.objects.get(usuario=usuario, contrasena=contrasena)
+            request.session['usuario_id']       = taquillero.registro
+            request.session['usuario_nombre']   = taquillero.taqnombre
+            request.session['usuario_apellido'] = taquillero.taqprimerapell
+            request.session['supervisa']        = bool(taquillero.supervisa)
+            if taquillero.supervisa:
+                return redirect('dashboard')
+            else:
+                return redirect('panel_principal')
+        except Taquillero.DoesNotExist:
+            messages.error(request, 'Usuario o contraseña incorrectos')
+    terminales = Terminal.objects.all()
+    return render(request, 'taquilla/login.html', {'terminales': terminales})
 
-@login_requerido
-def panel_admin(request):
-    if not request.session.get('supervisa'):
-        return redirect('panel_principal')
-    return render(request, 'taquilla/panel_admin.html')
-
+def registro_view(request):
+    if request.method == 'POST':
+        clave = request.POST.get('clave_maestra', '')
+        if clave != CLAVE_MAESTRA:
+            messages.error(request, 'Clave maestra incorrecta')
+            return redirect('login')
+        nombre      = request.POST.get('nombre', '').strip()
+        ap1         = request.POST.get('primer_apellido', '').strip()
+        ap2         = request.POST.get('segundo_apellido', '').strip()
+        usuario     = request.POST.get('usuario', '').strip()
+        contrasena  = request.POST.get('contrasena', '').strip()
+        terminal_id = request.POST.get('terminal')
+        supervisa   = request.POST.get('supervisa') == 'on'
+        if not all([nombre, ap1, usuario, contrasena]):
+            messages.error(request, 'Completa los campos obligatorios')
+            return redirect('login')
+        Taquillero.objects.create(
+            taqnombre=nombre, taqprimerapell=ap1, taqsegundoapell=ap2,
+            fechacontrato=date.today(), usuario=usuario, contrasena=contrasena,
+            terminal_id=terminal_id, supervisa=supervisa
+        )
+        messages.success(request, 'Taquillero registrado correctamente')
+    return redirect('login')
 
 def logout_view(request):
     request.session.flush()
     return redirect('login')
 
+# ─── Vistas generales ─────────────────────────────────────────────────────────
+
+@login_requerido
+def panel_principal(request):
+    return render(request, 'taquilla/panel_principal.html')
 
 @login_requerido
 def dashboard(request):
     return render(request, 'taquilla/dash.html')
 
-
 def salidas(request):
     return render(request, 'taquilla/salidas.html')
 
+# ─── Panel admin ──────────────────────────────────────────────────────────────
+
+@admin_requerido
+def panel_admin(request):
+    tablas = [
+        'marca','modelo','autobus','ciudad','conductor','ruta','viaje','asiento',
+        'viaje_asiento','taquillero','tipo_pasajero','tipo_pago','edo_viaje',
+        'ticket','pasajero','pago','terminal','tipo_asiento',
+    ]
+    return render(request, 'taquilla/panel_admin.html', {'tablas': tablas})
+
+@require_POST
+@admin_requerido
+def actualizar_config(request):
+    nombre     = request.POST.get('nombre', '').strip()
+    ap1        = request.POST.get('primer_apellido', '').strip()
+    ap2        = request.POST.get('segundo_apellido', '').strip()
+    usuario    = request.POST.get('usuario', '').strip()
+    contrasena = request.POST.get('contrasena', '').strip()
+    if not all([nombre, ap1, usuario, contrasena]):
+        return JsonResponse({'ok': False, 'error': 'Campos obligatorios incompletos'})
+    try:
+        taq = Taquillero.objects.get(registro=request.session['usuario_id'])
+        taq.taqnombre       = nombre
+        taq.taqprimerapell  = ap1
+        taq.taqsegundoapell = ap2
+        taq.usuario         = usuario
+        taq.contrasena      = contrasena
+        taq.save()
+        request.session['usuario_nombre']   = nombre
+        request.session['usuario_apellido'] = ap1
+        return JsonResponse({'ok': True})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)})
+
+# ─── CRUD genérico ────────────────────────────────────────────────────────────
+
+TABLAS_PERMITIDAS = [
+    'marca','modelo','autobus','ciudad','conductor','ruta','viaje','asiento',
+    'viaje_asiento','taquillero','tipo_pasajero','tipo_pago','edo_viaje',
+    'ticket','pasajero','pago','terminal','tipo_asiento',
+]
+
+@admin_requerido
+def crud_leer(request, tabla):
+    if tabla not in TABLAS_PERMITIDAS:
+        return JsonResponse({'error': 'Tabla no permitida'}, status=403)
+    from django.db import connection
+    with connection.cursor() as cur:
+        cur.execute(f"SELECT * FROM `{tabla}` LIMIT 500")
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    for row in rows:
+        for k, v in row.items():
+            if hasattr(v, 'isoformat'):
+                row[k] = v.isoformat()
+    return JsonResponse({'cols': cols, 'rows': rows})
+
+@admin_requerido
+def crud_esquema(request, tabla):
+    if tabla not in TABLAS_PERMITIDAS:
+        return JsonResponse({'error': 'Tabla no permitida'}, status=403)
+    from django.db import connection
+    with connection.cursor() as cur:
+        cur.execute(f"SHOW COLUMNS FROM `{tabla}`")
+        cols_desc = [d[0] for d in cur.description]
+        columnas = [dict(zip(cols_desc, r)) for r in cur.fetchall()]
+        cur.execute("""
+            SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+              AND REFERENCED_TABLE_NAME IS NOT NULL
+        """, [tabla])
+        fk_rows = cur.fetchall()
+    fk_map = {r[0]: {'ref_table': r[1], 'ref_col': r[2]} for r in fk_rows}
+    opciones = {}
+    if fk_map:
+        from django.db import connection as c2
+        with c2.cursor() as cur2:
+            for col, fk in fk_map.items():
+                rt = fk['ref_table']
+                rc = fk['ref_col']
+                cur2.execute(f"SHOW COLUMNS FROM `{rt}`")
+                rt_cols = [r[0] for r in cur2.fetchall()]
+                display = next(
+                    (c for c in rt_cols if c.lower() in ('nombre','name','descripcion','titulo','nom')),
+                    next((c for c in rt_cols if c != rc), rc)
+                )
+                cur2.execute(f"SELECT `{rc}`, `{display}` FROM `{rt}` LIMIT 1000")
+                opciones[col] = [{'value': r[0], 'label': str(r[1])} for r in cur2.fetchall()]
+    return JsonResponse({'columnas': columnas, 'fk_map': fk_map, 'opciones': opciones})
+
+@require_POST
+@admin_requerido
+def crud_insertar(request, tabla):
+    if tabla not in TABLAS_PERMITIDAS:
+        return JsonResponse({'error': 'Tabla no permitida'}, status=403)
+    data = json.loads(request.body)
+    fields = list(data.keys())
+    vals   = list(data.values())
+    sql = f"INSERT INTO `{tabla}` ({', '.join(f'`{f}`' for f in fields)}) VALUES ({', '.join(['%s']*len(vals))})"
+    try:
+        from django.db import connection
+        with connection.cursor() as cur:
+            cur.execute(sql, vals)
+        return JsonResponse({'ok': True})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)})
+
+@require_POST
+@admin_requerido
+def crud_actualizar(request, tabla):
+    if tabla not in TABLAS_PERMITIDAS:
+        return JsonResponse({'error': 'Tabla no permitida'}, status=403)
+    data     = json.loads(request.body)
+    pk_name  = data.pop('__pk_name__')
+    pk_value = data.pop('__pk_value__')
+    setters  = [f"`{k}` = %s" for k in data]
+    vals     = list(data.values()) + [pk_value]
+    sql = f"UPDATE `{tabla}` SET {', '.join(setters)} WHERE `{pk_name}` = %s"
+    try:
+        from django.db import connection
+        with connection.cursor() as cur:
+            cur.execute(sql, vals)
+        return JsonResponse({'ok': True})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)})
+
+@require_POST
+@admin_requerido
+def crud_eliminar(request, tabla):
+    if tabla not in TABLAS_PERMITIDAS:
+        return JsonResponse({'error': 'Tabla no permitida'}, status=403)
+    data     = json.loads(request.body)
+    pk_name  = data['pk_name']
+    pk_value = data['pk_value']
+    try:
+        from django.db import connection
+        with connection.cursor() as cur:
+            cur.execute(f"DELETE FROM `{tabla}` WHERE `{pk_name}` = %s", [pk_value])
+        return JsonResponse({'ok': True})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)})
+
+# ─── Viajes / Dashboard admin ─────────────────────────────────────────────────
+
+@admin_requerido
+def salidas_json(request):
+    from django.db import connection
+    with connection.cursor() as cur:
+        cur.execute("""
+            SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
+                   corig.nombre AS origen_ciudad, cdest.nombre AS destino_ciudad,
+                   tor.nombre AS origen_terminal, tdes.nombre AS destino_terminal,
+                   ev.nombre AS estado,
+                   CONCAT(c.conNombre,' ',c.conPrimerApell) AS conductor,
+                   a.placas AS autobus_placas, a.numero AS autobus_num
+            FROM viaje v
+            JOIN ruta r       ON v.ruta = r.codigo
+            JOIN terminal tor ON r.origen = tor.numero
+            JOIN terminal tdes ON r.destino = tdes.numero
+            JOIN ciudad corig ON tor.ciudad = corig.clave
+            JOIN ciudad cdest ON tdes.ciudad = cdest.clave
+            JOIN edo_viaje ev ON v.estado = ev.numero
+            LEFT JOIN conductor c ON v.conductor = c.registro
+            LEFT JOIN autobus a   ON v.autobus = a.numero
+            ORDER BY v.fecHoraSalida DESC
+            LIMIT 200
+        """)
+        cols = [d[0] for d in cur.description]
+        rows = []
+        for r in cur.fetchall():
+            row = dict(zip(cols, r))
+            for k, v in row.items():
+                if hasattr(v, 'isoformat'):
+                    row[k] = v.isoformat()
+            rows.append(row)
+    return JsonResponse({'rows': rows})
+
+@admin_requerido
+def agregar_viaje_opciones(request):
+    from django.db import connection
+    result = {}
+    with connection.cursor() as cur:
+        cur.execute("""
+            SELECT r.codigo, CONCAT(corig.nombre,' \u2192 ',cdest.nombre) AS label
+            FROM ruta r
+            JOIN terminal tor  ON r.origen  = tor.numero
+            JOIN terminal tdes ON r.destino = tdes.numero
+            JOIN ciudad corig  ON tor.ciudad = corig.clave
+            JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+        """)
+        result['rutas'] = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
+        cur.execute("SELECT numero, placas FROM autobus ORDER BY numero")
+        result['autobuses'] = [{'value': r[0], 'label': f"#{r[0]} ({r[1]})"} for r in cur.fetchall()]
+        cur.execute("SELECT registro, CONCAT(conNombre,' ',conPrimerApell) AS n FROM conductor ORDER BY conNombre")
+        result['conductores'] = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
+        cur.execute("SELECT numero, nombre FROM edo_viaje ORDER BY numero")
+        result['estados'] = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
+    return JsonResponse(result)
+
+@require_POST
+@admin_requerido
+def agregar_viaje(request):
+    data = json.loads(request.body)
+    salida    = data.get('salida')
+    llegada   = data.get('llegada')
+    ruta      = data.get('ruta')
+    autobus   = data.get('autobus')
+    conductor = data.get('conductor')
+    estado    = data.get('estado')
+    if not all([salida, llegada, ruta, autobus, conductor, estado]):
+        return JsonResponse({'ok': False, 'error': 'Todos los campos son obligatorios'})
+    try:
+        from django.db import connection
+        with connection.cursor() as cur:
+            cur.execute("""
+                INSERT INTO viaje (fecHoraSalida, fecHoraEntrada, ruta, estado, autobus, conductor)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, [salida, llegada, ruta, estado, autobus, conductor])
+            trip_id = cur.lastrowid
+            cur.execute("SELECT numero FROM asiento WHERE autobus = %s", [autobus])
+            for (asiento_num,) in cur.fetchall():
+                cur.execute(
+                    "INSERT INTO viaje_asiento (asiento, viaje, ocupado) VALUES (%s, %s, FALSE)",
+                    [asiento_num, trip_id]
+                )
+        return JsonResponse({'ok': True, 'viaje_id': trip_id})
+    except Exception as e:
+        return JsonResponse({'ok': False, 'error': str(e)})
+
+# ─── KPIs ─────────────────────────────────────────────────────────────────────
+
+@admin_requerido
+def kpi_generales(request):
+    desde = request.GET.get('desde')
+    hasta = request.GET.get('hasta')
+    if not desde or not hasta:
+        hoy = date.today()
+        desde = hasta = hoy.isoformat()
+    from django.db import connection
+    def qall(sql, params):
+        with connection.cursor() as cur:
+            cur.execute(sql, params)
+            cols = [d[0] for d in cur.description]
+            return [dict(zip(cols, r)) for r in cur.fetchall()]
+    return JsonResponse({
+        'boletos': qall("""
+            SELECT ci.nombre AS ciudad, COUNT(*) AS total
+            FROM ticket t JOIN viaje v ON v.numero=t.viaje
+            JOIN ruta r ON r.codigo=v.ruta JOIN terminal ter ON ter.numero=r.destino
+            JOIN ciudad ci ON ci.clave=ter.ciudad
+            WHERE DATE(v.fecHoraSalida) BETWEEN %s AND %s
+            GROUP BY ci.clave ORDER BY total DESC LIMIT 5
+        """, [desde, hasta]),
+        'conductores': qall("""
+            SELECT CONCAT(c.conNombre,' ',c.conPrimerApell) AS nombre, COUNT(*) AS total
+            FROM viaje v JOIN conductor c ON c.registro=v.conductor
+            WHERE DATE(v.fecHoraSalida) BETWEEN %s AND %s
+            GROUP BY v.conductor ORDER BY total DESC LIMIT 5
+        """, [desde, hasta]),
+        'autobuses': qall("""
+            SELECT a.numero AS autobus_num, COUNT(*) AS total
+            FROM viaje v JOIN autobus a ON a.numero=v.autobus
+            WHERE DATE(v.fecHoraSalida) BETWEEN %s AND %s
+            GROUP BY a.numero ORDER BY total DESC LIMIT 5
+        """, [desde, hasta]),
+        'destinos': qall("""
+            SELECT ci.nombre AS nombre, COUNT(*) AS total
+            FROM viaje v JOIN ruta r ON r.codigo=v.ruta
+            JOIN terminal t ON t.numero=r.destino JOIN ciudad ci ON ci.clave=t.ciudad
+            WHERE DATE(v.fecHoraSalida) BETWEEN %s AND %s
+            GROUP BY ci.clave ORDER BY total DESC LIMIT 5
+        """, [desde, hasta]),
+        'origenes': qall("""
+            SELECT ci.nombre AS nombre, COUNT(*) AS total
+            FROM viaje v JOIN ruta r ON r.codigo=v.ruta
+            JOIN terminal t ON t.numero=r.origen JOIN ciudad ci ON ci.clave=t.ciudad
+            WHERE DATE(v.fecHoraSalida) BETWEEN %s AND %s
+            GROUP BY ci.clave ORDER BY total DESC LIMIT 5
+        """, [desde, hasta]),
+    })
+
+@admin_requerido
+def kpi_especificos(request):
+    tipo      = request.GET.get('tipo', 'boletos')
+    desde     = request.GET.get('desde', '')
+    hasta     = request.GET.get('hasta', '')
+    conductor = request.GET.get('conductor', '')
+    autobus   = request.GET.get('autobus', '')
+    ciudad    = request.GET.get('ciudad', '')
+    aplicar   = request.GET.get('aplicar', '0') == '1'
+    from django.db import connection
+    where = []
+    params = []
+    if aplicar and desde and hasta:
+        where.append("v.fecHoraSalida BETWEEN %s AND %s")
+        params.extend([desde + ' 00:00:00', hasta + ' 23:59:59'])
+    def qall(sql, p):
+        with connection.cursor() as cur:
+            cur.execute(sql, p)
+            cols = [d[0] for d in cur.description]
+            rows = []
+            for r in cur.fetchall():
+                row = dict(zip(cols, r))
+                for k, v in row.items():
+                    if hasattr(v, 'isoformat'):
+                        row[k] = v.isoformat()
+                rows.append(row)
+            return rows
+    w = ('WHERE ' + ' AND '.join(where)) if where else ''
+    if tipo == 'boletos':
+        rows = qall(f"""
+            SELECT v.numero AS trip_id, v.fecHoraSalida AS departure,
+                   corig.nombre AS origin_city, cdest.nombre AS dest_city,
+                   a.numero AS bus_number, mo.numasientos AS seats_count,
+                   COUNT(t.codigo) AS vendidos
+            FROM viaje v
+            LEFT JOIN ruta r ON v.ruta=r.codigo
+            LEFT JOIN terminal tor ON r.origen=tor.numero
+            LEFT JOIN terminal tdes ON r.destino=tdes.numero
+            LEFT JOIN ciudad corig ON tor.ciudad=corig.clave
+            LEFT JOIN ciudad cdest ON tdes.ciudad=cdest.clave
+            LEFT JOIN autobus a ON v.autobus=a.numero
+            LEFT JOIN modelo mo ON a.modelo=mo.numero
+            LEFT JOIN ticket t ON t.viaje=v.numero
+            {w} GROUP BY v.numero ORDER BY v.fecHoraSalida ASC
+        """, params)
+        for r in rows:
+            r['disponibles'] = max(0, (r.get('seats_count') or 0) - (r.get('vendidos') or 0))
+        return JsonResponse({'rows': rows, 'tipo': tipo})
+    elif tipo == 'conductor':
+        if conductor:
+            where.append("v.conductor = %s"); params.append(conductor)
+        w = ('WHERE ' + ' AND '.join(where)) if where else ''
+        return JsonResponse({'rows': qall(f"""
+            SELECT v.numero AS trip_id, v.fecHoraSalida AS departure,
+                   v.fecHoraEntrada AS arrival,
+                   corig.nombre AS origin_city, cdest.nombre AS dest_city,
+                   a.numero AS bus_number,
+                   c.conNombre AS con_nombre, c.conPrimerApell AS con_ap1
+            FROM viaje v
+            LEFT JOIN ruta r ON v.ruta=r.codigo
+            LEFT JOIN terminal tor ON r.origen=tor.numero
+            LEFT JOIN terminal tdes ON r.destino=tdes.numero
+            LEFT JOIN ciudad corig ON tor.ciudad=corig.clave
+            LEFT JOIN ciudad cdest ON tdes.ciudad=cdest.clave
+            LEFT JOIN autobus a ON v.autobus=a.numero
+            LEFT JOIN conductor c ON v.conductor=c.registro
+            {w} ORDER BY v.fecHoraSalida ASC
+        """, params), 'tipo': tipo})
+    elif tipo == 'autobus':
+        if autobus:
+            where.append("v.autobus = %s"); params.append(autobus)
+        w = ('WHERE ' + ' AND '.join(where)) if where else ''
+        return JsonResponse({'rows': qall(f"""
+            SELECT DISTINCT a.numero AS bus_number, a.placas,
+                   mo.nombre AS modelo_nombre, mo.ano AS modelo_ano,
+                   mo.numasientos, m.nombre AS marca_nombre
+            FROM viaje v
+            JOIN autobus a ON v.autobus=a.numero
+            LEFT JOIN modelo mo ON a.modelo=mo.numero
+            LEFT JOIN marca m ON mo.marca=m.numero
+            {w} ORDER BY a.numero ASC
+        """, params), 'tipo': tipo})
+    elif tipo == 'ciudad':
+        if ciudad:
+            where.append("corig.clave = %s"); params.append(ciudad)
+        w = ('WHERE ' + ' AND '.join(where)) if where else ''
+        return JsonResponse({'rows': qall(f"""
+            SELECT corig.nombre AS ciudad, v.fecHoraSalida AS salida,
+                   v.numero AS viaje, cdest.nombre AS destino,
+                   a.numero AS autobus, a.placas AS matricula,
+                   CONCAT(c.conNombre,' ',c.conPrimerApell) AS operador
+            FROM viaje v
+            LEFT JOIN ruta r ON v.ruta=r.codigo
+            LEFT JOIN terminal tor ON r.origen=tor.numero
+            LEFT JOIN terminal tdes ON r.destino=tdes.numero
+            LEFT JOIN ciudad corig ON tor.ciudad=corig.clave
+            LEFT JOIN ciudad cdest ON tdes.ciudad=cdest.clave
+            LEFT JOIN autobus a ON v.autobus=a.numero
+            LEFT JOIN conductor c ON v.conductor=c.registro
+            {w} ORDER BY v.fecHoraSalida ASC
+        """, params), 'tipo': tipo})
+    return JsonResponse({'rows': [], 'tipo': tipo})
+
+@admin_requerido
+def kpi_filtros_opciones(request):
+    from django.db import connection
+    with connection.cursor() as cur:
+        cur.execute("SELECT registro, CONCAT(conNombre,' ',conPrimerApell) FROM conductor ORDER BY conNombre")
+        conductores = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
+        cur.execute("SELECT numero, placas FROM autobus ORDER BY numero")
+        autobuses = [{'value': r[0], 'label': f"#{r[0]} ({r[1]})"} for r in cur.fetchall()]
+        cur.execute("SELECT clave, nombre FROM ciudad ORDER BY nombre")
+        ciudades = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
+    return JsonResponse({'conductores': conductores, 'autobuses': autobuses, 'ciudades': ciudades})
+
+# ─── API REST ─────────────────────────────────────────────────────────────────
 
 @api_view(['GET'])
 def api_viajes(request):
     viajes = Viaje.objects.filter(estado=1)
-
     origen = request.GET.get('origen')
     destino = request.GET.get('destino')
     fecha = request.GET.get('fecha')
-
     if origen:
         viajes = viajes.filter(ruta__origen__numero=origen)
     if destino:
@@ -117,13 +505,11 @@ def api_viajes(request):
         fecha_dt = datetime.strptime(fecha, '%Y-%m-%d')
         fecha_fin = fecha_dt + timedelta(days=1)
         viajes = viajes.filter(
-            fechorasalida__gte=fecha_dt,
-            fechorasalida__lt=fecha_fin
+            fecHoraSalida__gte=fecha_dt,
+            fecHoraSalida__lt=fecha_fin
         )
-
     serializer = ViajeListSerializer(viajes, many=True)
     return Response(serializer.data)
-
 
 @api_view(['GET'])
 def api_viaje_detalle(request, id):
@@ -133,7 +519,6 @@ def api_viaje_detalle(request, id):
         return Response(serializer.data)
     except Viaje.DoesNotExist:
         return Response({'error': 'Viaje no encontrado'}, status=404)
-
 
 @api_view(['GET'])
 def api_terminales(request):
