@@ -1,7 +1,10 @@
 from django.urls import path
+from django.views.generic import RedirectView 
 from . import views
 
 urlpatterns = [
+    path('ok/', views.ok_view, name='ok'),
+    path('', views.index_view, name='index'),
     # Auth
     path('login/',         views.login_view,             name='login'),
     path('registro/',      views.registro_view,           name='registro'),

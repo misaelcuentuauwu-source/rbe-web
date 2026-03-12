@@ -8,6 +8,16 @@ import json
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .serializers import ViajeSerializer, ViajeListSerializer, TerminalSerializer
+from django.http import FileResponse
+from django.conf import settings
+import os
+
+def ok_view(request):
+    path = os.path.join(settings.BASE_DIR, '..', 'pages', 'ok.html')
+    return FileResponse(open(path, 'rb'))
+def index_view(request):
+    path = os.path.join(settings.BASE_DIR, '..', 'index.html')
+    return FileResponse(open(path, 'rb'))
 
 CLAVE_MAESTRA = "RutasBaja2024"
 

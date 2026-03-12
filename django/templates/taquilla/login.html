@@ -157,9 +157,49 @@
     .modal-actions { display: flex; gap: 10px; }
     .btn-ghost { flex: 1; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color .2s; }
     .btn-ghost:hover { border-color: var(--azul); color: var(--text); }
+    
+  
+    .btn-back {
+  position: fixed;
+  top: 24px;
+  left: 24px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .05em;
+  text-decoration: none;
+  backdrop-filter: blur(8px);
+  transition: all .2s;
+}
+.btn-back:hover {
+  background: rgba(17,129,195,.12);
+  border-color: var(--azul);
+  color: var(--text);
+}
+.btn-back svg {
+  transition: transform .2s;
+}
+.btn-back:hover svg {
+  transform: translateX(-3px);
+}
   </style>
 </head>
 <body>
+  <a href="/" class="btn-back">
+  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 12H5M12 5l-7 7 7 7"/>
+  </svg>
+  Salir
+</a>
 
 <div class="page">
 
