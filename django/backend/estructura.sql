@@ -1,7 +1,16 @@
--- Active: 1769826674400@@127.0.0.1@3306@rbe
+-- Active: 1760978807635@@127.0.0.1@3306@mysql
+-- ============================================================
+-- RBE - Rutas Baja Express
+-- Script completo: schema + datos
+-- Actualizado: Marzo 12 del 2026
+-- Usuario de prueba supervisor: za / za
+-- ============================================================
+
 DROP DATABASE IF EXISTS rbe;
-CREATE DATABASE rbe;
+CREATE DATABASE rbe CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 USE rbe;
+
+-- ── Tablas ────────────────────────────────────────────────────
 
 CREATE TABLE marca (
     numero INT PRIMARY KEY,
@@ -54,12 +63,22 @@ CREATE TABLE pasajero (
     fechaNacimiento DATE NOT NULL
 );
 
+CREATE VIEW vista_pasajeros_edad AS
+SELECT 
+    num,
+    paNombre,
+    paPrimerApell,
+    paSegundoApell,
+    fechaNacimiento,
+    TIMESTAMPDIFF(YEAR, fechaNacimiento, CURDATE()) AS edad
+FROM pasajero;
+
 CREATE TABLE cuenta_pasajero (
-    pasajero_num INT PRIMARY KEY AUTO_INCREMENT,
+    pasajero_num INT PRIMARY KEY,
     correo VARCHAR(100) NOT NULL UNIQUE,
     clave VARCHAR(255) NOT NULL,
     foto MEDIUMBLOB,
-    FOREIGN KEY (pasajero_num) REFERENCES pasajero(num)
+    FOREIGN KEY (pasajero_num) REFERENCES pasajero(num) ON DELETE CASCADE
 );
 
 CREATE TABLE modelo (
