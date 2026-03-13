@@ -10,7 +10,7 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --rojo: #D42B2B;
+    --rojo: #EE733A;
     --oro: #F5A623;
     --negro: #0A0A0A;
     --gris-oscuro: #111111;
@@ -60,7 +60,7 @@
     background: rgba(10,10,10,0.92);
     backdrop-filter: blur(14px);
     -webkit-backdrop-filter: blur(14px);
-    border-bottom-color: rgba(212,43,43,0.25);
+    border-bottom-color: rgba(238,115,58,0.25);
   }
 
   .header-logo {
@@ -99,7 +99,7 @@
     font-size: 0.78rem !important;
     transition: background 0.2s, transform 0.15s !important;
   }
-  .btn-nav:hover { background: #b82222 !important; transform: translateY(-1px); }
+  .btn-nav:hover { background: #c95a28 !important; transform: translateY(-1px); }
 
   .hamburger {
     display: none; flex-direction: column; gap: 5px;
@@ -145,9 +145,9 @@
   .route-ticker {
     position: fixed; top: 72px; left: 0; right: 0;
     z-index: 999; overflow: hidden;
-    border-top: 1px solid rgba(212,43,43,0.3);
-    border-bottom: 1px solid rgba(212,43,43,0.3);
-    background: rgba(212,43,43,0.08); padding: 10px 0;
+    border-top: 1px solid rgba(238,115,58,0.3);
+    border-bottom: 1px solid rgba(238,115,58,0.3);
+    background: rgba(238,115,58,0.08); padding: 10px 0;
   }
   .ticker-track {
     display: flex; gap: 60px; white-space: nowrap;
@@ -164,7 +164,6 @@
 
   /* ══════════════════════════════
      HERO
-     — todo en flujo normal, sin position:absolute en stats
   ══════════════════════════════ */
   .hero {
     min-height: 100vh;
@@ -174,16 +173,16 @@
     align-items: center;
     justify-content: center;
     overflow: hidden;
-    padding-top: 160px;   /* header 72 + ticker ~41 + extra */
+    padding-top: 160px;
     padding-bottom: 80px;
   }
 
   .hero-bg {
     position: absolute; inset: 0;
     background:
-      radial-gradient(ellipse 80% 60% at 60% 40%, rgba(212,43,43,0.18) 0%, transparent 60%),
+      radial-gradient(ellipse 80% 60% at 60% 40%, rgba(238,115,58,0.18) 0%, transparent 60%),
       radial-gradient(ellipse 60% 80% at 20% 80%, rgba(245,166,35,0.08) 0%, transparent 50%),
-      linear-gradient(160deg, #0A0A0A 0%, #1a0808 50%, #0A0A0A 100%);
+      linear-gradient(160deg, #0A0A0A 0%, #1a0c06 50%, #0A0A0A 100%);
     pointer-events: none;
   }
 
@@ -195,8 +194,8 @@
   .grid-lines {
     position: absolute; inset: 0; pointer-events: none;
     background-image:
-      linear-gradient(rgba(212,43,43,0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(212,43,43,0.05) 1px, transparent 1px);
+      linear-gradient(rgba(238,115,58,0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(238,115,58,0.05) 1px, transparent 1px);
     background-size: 80px 80px;
   }
 
@@ -243,7 +242,6 @@
     animation: fadeUp 0.7s 0.8s both;
   }
 
-  /* ── Stats: siempre en flujo, nunca absolute ── */
   .hero-stats {
     display: flex;
     gap: 60px;
@@ -288,10 +286,10 @@
     font-size: 1rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
     cursor: pointer; text-decoration: none;
     transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
-    box-shadow: 0 4px 24px rgba(212,43,43,0.35);
+    box-shadow: 0 4px 24px rgba(238,115,58,0.35);
     display: inline-block; -webkit-tap-highlight-color: transparent;
   }
-  .btn-primary:hover { background: #b82222; transform: translateY(-2px); box-shadow: 0 8px 32px rgba(212,43,43,0.5); }
+  .btn-primary:hover { background: #c95a28; transform: translateY(-2px); box-shadow: 0 8px 32px rgba(238,115,58,0.5); }
   .btn-primary:active { transform: translateY(0); }
 
   .btn-outline {
@@ -348,14 +346,14 @@
   .ruta-card:hover { background: #222; }
   .ruta-num {
     font-family: 'Bebas Neue', sans-serif; font-size: 4rem;
-    color: rgba(212,43,43,0.15); line-height: 1; margin-bottom: 16px; transition: color 0.3s;
+    color: rgba(238,115,58,0.15); line-height: 1; margin-bottom: 16px; transition: color 0.3s;
   }
-  .ruta-card:hover .ruta-num { color: rgba(212,43,43,0.4); }
+  .ruta-card:hover .ruta-num { color: rgba(238,115,58,0.4); }
   .ruta-route { font-family: 'Barlow Condensed', sans-serif; font-size: 1.4rem; font-weight: 700; letter-spacing: 1px; color: var(--texto); margin-bottom: 8px; }
   .ruta-desc { font-size: 0.85rem; color: var(--texto-suave); line-height: 1.6; margin-bottom: 20px; }
   .ruta-tag {
-    display: inline-block; background: rgba(212,43,43,0.12); color: var(--rojo);
-    border: 1px solid rgba(212,43,43,0.25); padding: 4px 12px; border-radius: 2px;
+    display: inline-block; background: rgba(238,115,58,0.12); color: var(--rojo);
+    border: 1px solid rgba(238,115,58,0.25); padding: 4px 12px; border-radius: 2px;
     font-size: 0.68rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
   }
 
@@ -371,15 +369,15 @@
   ══════════════════════════════ */
   .servicios-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin-top: 60px; }
   .servicio-item { background: var(--gris-medio); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 32px 28px; transition: border-color 0.3s, transform 0.3s; }
-  .servicio-item:hover { border-color: rgba(212,43,43,0.4); transform: translateY(-4px); }
-  .servicio-icon { width: 48px; height: 48px; background: rgba(212,43,43,0.12); border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; font-size: 1.4rem; }
+  .servicio-item:hover { border-color: rgba(238,115,58,0.4); transform: translateY(-4px); }
+  .servicio-icon { width: 48px; height: 48px; background: rgba(238,115,58,0.12); border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; font-size: 1.4rem; }
   .servicio-title { font-family: 'Barlow Condensed', sans-serif; font-size: 1.1rem; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px; color: var(--texto); }
   .servicio-desc { font-size: 0.85rem; color: var(--texto-suave); line-height: 1.6; }
 
   /* ══════════════════════════════
      HORARIOS
   ══════════════════════════════ */
-  .horarios-section { background: linear-gradient(135deg, #0d0d0d 0%, #160808 100%); padding: 120px 0; overflow: hidden; }
+  .horarios-section { background: linear-gradient(135deg, #0d0d0d 0%, #160d06 100%); padding: 120px 0; overflow: hidden; }
   .horarios-inner { max-width: 1200px; margin: 0 auto; padding: 0 40px; }
   .slider-container { margin-top: 60px; overflow: hidden; position: relative; touch-action: pan-y; }
   .slider-track { display: flex; gap: 24px; transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
@@ -403,7 +401,7 @@
   ══════════════════════════════ */
   .testimonios-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-top: 60px; }
   .testimonio { background: var(--gris-medio); border-radius: 10px; padding: 32px; border-left: 3px solid var(--rojo); position: relative; }
-  .testimonio::before { content: '"'; font-family: 'Bebas Neue', sans-serif; font-size: 6rem; color: rgba(212,43,43,0.12); position: absolute; top: 8px; right: 24px; line-height: 1; }
+  .testimonio::before { content: '"'; font-family: 'Bebas Neue', sans-serif; font-size: 6rem; color: rgba(238,115,58,0.12); position: absolute; top: 8px; right: 24px; line-height: 1; }
   .testimonio-texto { font-size: 0.95rem; color: var(--texto-suave); line-height: 1.7; margin-bottom: 20px; }
   .testimonio-autor { font-weight: 700; font-size: 0.85rem; color: var(--texto); }
   .testimonio-ciudad { font-size: 0.75rem; color: var(--texto-suave); }
@@ -422,7 +420,7 @@
   /* ══════════════════════════════
      FOOTER
   ══════════════════════════════ */
-  footer { background: #050505; padding: 60px 40px 32px; border-top: 1px solid rgba(212,43,43,0.15); }
+  footer { background: #050505; padding: 60px 40px 32px; border-top: 1px solid rgba(238,115,58,0.15); }
   .footer-grid { max-width: 1200px; margin: 0 auto 48px; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; }
   .footer-brand p { font-size: 0.85rem; color: var(--texto-suave); line-height: 1.7; margin-top: 12px; }
   .footer-col h4 { font-family: 'Barlow Condensed', sans-serif; font-size: 0.8rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--texto); margin-bottom: 16px; }
@@ -433,24 +431,24 @@
   /* ══════════════════════════════
      DIVIDER
   ══════════════════════════════ */
-  .divider { max-width: 1200px; margin: 0 auto; height: 1px; background: linear-gradient(90deg, transparent, rgba(212,43,43,0.3), transparent); }
+  .divider { max-width: 1200px; margin: 0 auto; height: 1px; background: linear-gradient(90deg, transparent, rgba(238,115,58,0.3), transparent); }
 
   /* ══════════════════════════════
      LOGIN MODAL
   ══════════════════════════════ */
   .login-modal { display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); align-items: center; justify-content: center; padding: 20px; }
   .login-modal.open { display: flex; }
-  .login-box { background: #181818; border: 1px solid rgba(212,43,43,0.3); border-radius: 12px; padding: 48px 40px; width: 100%; max-width: 420px; position: relative; animation: fadeUp 0.3s both; }
+  .login-box { background: #181818; border: 1px solid rgba(238,115,58,0.3); border-radius: 12px; padding: 48px 40px; width: 100%; max-width: 420px; position: relative; animation: fadeUp 0.3s both; }
   .login-close { position: absolute; top: 16px; right: 20px; background: none; border: none; color: #9A9080; font-size: 1.4rem; cursor: pointer; -webkit-tap-highlight-color: transparent; }
   .login-title { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 3px; margin-bottom: 4px; color: var(--texto); }
   .login-subtitle { font-size: 0.8rem; color: var(--texto-suave); margin-bottom: 32px; letter-spacing: 1px; }
   .login-field { margin-bottom: 20px; }
   .login-field label { font-size: 0.75rem; letter-spacing: 2px; text-transform: uppercase; color: var(--texto-suave); display: block; margin-bottom: 8px; }
   .login-field input { width: 100%; background: #0d0d0d; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 14px 16px; color: var(--texto); font-family: 'Barlow', sans-serif; font-size: 0.95rem; outline: none; transition: border-color 0.2s; -webkit-appearance: none; }
-  .login-field input:focus { border-color: rgba(212,43,43,0.6); }
+  .login-field input:focus { border-color: rgba(238,115,58,0.6); }
   .login-submit { width: 100%; margin-bottom: 16px; }
   .login-register { background: none; border: 1px solid rgba(255,255,255,0.1); color: var(--texto-suave); padding: 10px 20px; border-radius: 6px; font-family: 'Barlow', sans-serif; font-size: 0.8rem; cursor: pointer; width: 100%; transition: border-color 0.2s, color 0.2s; -webkit-tap-highlight-color: transparent; }
-  .login-register:hover { border-color: rgba(212,43,43,0.5); color: var(--texto); }
+  .login-register:hover { border-color: rgba(238,115,58,0.5); color: var(--texto); }
 
   /* ══════════════════════════════
      ANIMATIONS
@@ -631,11 +629,11 @@
   <div class="grid-lines"></div>
 
   <svg class="road-svg" viewBox="0 0 1440 500" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M0 500 L720 120 L1440 500" fill="none" stroke="rgba(212,43,43,0.6)" stroke-width="2"/>
-    <path d="M0 500 L720 160 L1440 500" fill="none" stroke="rgba(212,43,43,0.25)" stroke-width="1"/>
+    <path d="M0 500 L720 120 L1440 500" fill="none" stroke="rgba(238,115,58,0.6)" stroke-width="2"/>
+    <path d="M0 500 L720 160 L1440 500" fill="none" stroke="rgba(238,115,58,0.25)" stroke-width="1"/>
     <line x1="720" y1="120" x2="720" y2="500" stroke="rgba(245,166,35,0.4)" stroke-width="3" stroke-dasharray="18 14"/>
     <path d="M120 500 L720 130 L1320 500" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="80"/>
-    <circle cx="720" cy="120" r="6" fill="#D42B2B" opacity="0.8">
+    <circle cx="720" cy="120" r="6" fill="#EE733A" opacity="0.8">
       <animate attributeName="opacity" values="0.8;0.3;0.8" dur="2s" repeatCount="indefinite"/>
     </circle>
   </svg>
@@ -652,7 +650,6 @@
       <a href="#rutas" class="btn-primary">Ver rutas disponibles</a>
       <a href="#horarios" class="btn-outline">Consultar horarios</a>
     </div>
-    <!-- Stats dentro del flujo, nunca position:absolute -->
     <div class="hero-stats">
       <div class="stat"><div class="stat-num">18+</div><div class="stat-label">Rutas activas</div></div>
       <div class="stat"><div class="stat-num">6</div><div class="stat-label">Ciudades</div></div>
@@ -697,26 +694,26 @@
     <div class="mapa-visual reveal reveal-delay-2">
       <svg class="mapa-svg" viewBox="0 0 300 500" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#1a0808"/><stop offset="100%" stop-color="#0d0d0d"/></radialGradient>
+          <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#1a0d06"/><stop offset="100%" stop-color="#0d0d0d"/></radialGradient>
           <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
         </defs>
         <rect width="300" height="500" fill="url(#bgGrad)"/>
-        <path d="M140 30 L170 35 L185 55 L180 80 L175 120 L170 160 L165 200 L160 240 L155 280 L148 320 L140 360 L130 400 L120 440 L108 470 L95 490 L82 480 L90 450 L100 410 L108 370 L115 330 L122 290 L128 250 L132 210 L135 170 L138 130 L138 90 L135 60 Z" fill="rgba(212,43,43,0.08)" stroke="rgba(212,43,43,0.5)" stroke-width="1.5"/>
-        <circle cx="145" cy="50" r="6" fill="#D42B2B" filter="url(#glow)"><animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite"/></circle>
+        <path d="M140 30 L170 35 L185 55 L180 80 L175 120 L170 160 L165 200 L160 240 L155 280 L148 320 L140 360 L130 400 L120 440 L108 470 L95 490 L82 480 L90 450 L100 410 L108 370 L115 330 L122 290 L128 250 L132 210 L135 170 L138 130 L138 90 L135 60 Z" fill="rgba(238,115,58,0.08)" stroke="rgba(238,115,58,0.5)" stroke-width="1.5"/>
+        <circle cx="145" cy="50" r="6" fill="#EE733A" filter="url(#glow)"><animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite"/></circle>
         <text x="155" y="55" fill="#E8E0D0" font-size="9" font-family="Barlow Condensed, sans-serif" font-weight="700" letter-spacing="1">TIJUANA</text>
         <circle cx="175" cy="62" r="5" fill="#F5A623" filter="url(#glow)"><animate attributeName="r" values="5;7;5" dur="2.5s" repeatCount="indefinite"/></circle>
         <text x="182" y="66" fill="#E8E0D0" font-size="8" font-family="Barlow Condensed, sans-serif" font-weight="700" letter-spacing="1">MEXICALI</text>
         <circle cx="162" cy="72" r="4" fill="#9A9080"/><text x="168" y="76" fill="#9A9080" font-size="7" font-family="Barlow Condensed, sans-serif">TECATE</text>
         <circle cx="138" cy="80" r="4" fill="#9A9080"/><text x="100" y="84" fill="#9A9080" font-size="7" font-family="Barlow Condensed, sans-serif">ROSARITO</text>
-        <circle cx="133" cy="120" r="5" fill="#D42B2B" opacity="0.8"/><text x="98" y="124" fill="#E8E0D0" font-size="8" font-family="Barlow Condensed, sans-serif" font-weight="700">ENSENADA</text>
+        <circle cx="133" cy="120" r="5" fill="#EE733A" opacity="0.8"/><text x="98" y="124" fill="#E8E0D0" font-size="8" font-family="Barlow Condensed, sans-serif" font-weight="700">ENSENADA</text>
         <circle cx="170" cy="130" r="4" fill="#9A9080"/><text x="176" y="134" fill="#9A9080" font-size="7" font-family="Barlow Condensed, sans-serif">SAN FELIPE</text>
-        <circle cx="125" cy="390" r="5" fill="#D42B2B" opacity="0.8"/><text x="88" y="394" fill="#E8E0D0" font-size="8" font-family="Barlow Condensed, sans-serif" font-weight="700">LA PAZ</text>
+        <circle cx="125" cy="390" r="5" fill="#EE733A" opacity="0.8"/><text x="88" y="394" fill="#E8E0D0" font-size="8" font-family="Barlow Condensed, sans-serif" font-weight="700">LA PAZ</text>
         <circle cx="95" cy="465" r="5" fill="#F5A623" filter="url(#glow)"><animate attributeName="r" values="5;7;5" dur="3s" repeatCount="indefinite"/></circle>
         <text x="58" y="469" fill="#E8E0D0" font-size="8" font-family="Barlow Condensed, sans-serif" font-weight="700">LOS CABOS</text>
-        <line x1="145" y1="50" x2="138" y2="80" stroke="rgba(212,43,43,0.5)" stroke-width="1" stroke-dasharray="5 4"/>
-        <line x1="138" y1="80" x2="133" y2="120" stroke="rgba(212,43,43,0.5)" stroke-width="1" stroke-dasharray="5 4"/>
+        <line x1="145" y1="50" x2="138" y2="80" stroke="rgba(238,115,58,0.5)" stroke-width="1" stroke-dasharray="5 4"/>
+        <line x1="138" y1="80" x2="133" y2="120" stroke="rgba(238,115,58,0.5)" stroke-width="1" stroke-dasharray="5 4"/>
         <line x1="145" y1="50" x2="162" y2="72" stroke="rgba(245,166,35,0.4)" stroke-width="1" stroke-dasharray="5 4"/>
-        <line x1="125" y1="390" x2="95" y2="465" stroke="rgba(212,43,43,0.5)" stroke-width="1" stroke-dasharray="5 4"/>
+        <line x1="125" y1="390" x2="95" y2="465" stroke="rgba(238,115,58,0.5)" stroke-width="1" stroke-dasharray="5 4"/>
         <text x="150" y="495" fill="rgba(154,144,128,0.4)" font-size="7" font-family="Barlow Condensed" letter-spacing="2" text-anchor="middle">BAJA CALIFORNIA · MÉXICO</text>
       </svg>
     </div>
