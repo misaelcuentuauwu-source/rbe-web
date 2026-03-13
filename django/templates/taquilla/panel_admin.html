@@ -11,6 +11,9 @@
 </head>
 <body>
 
+<!-- overlay para cerrar sidebar en mobile -->
+<div id="sidebar-overlay" onclick="closeSidebarMobile()"></div>
+
 <!-- ════════════════════════════════════════
      SIDEBAR
 ════════════════════════════════════════ -->
@@ -56,7 +59,7 @@
   <div id="topbar">
     <button id="toggle-btn" onclick="toggleSidebar()">☰</button>
     <div id="topbar-title">Panel Administrador</div>
-    <div id="topbar-user">Hola, {{ request.session.usuario_nombre }} {{ request.session.usuario_apellido }}</div>
+    <div id="topbar-user">{{ request.session.usuario_nombre }} {{ request.session.usuario_apellido }}</div>
   </div>
 
   <div id="content">
@@ -65,7 +68,7 @@
          KPI GENERALES
     ════════════════════════════════════ -->
     <div id="page-kpi-generales" class="page">
-      <h2 style="font-size:22px;font-weight:800;color:var(--azul);margin-bottom:16px;">Dashboard — KPIs Generales</h2>
+      <h2 class="page-title">Dashboard — KPIs Generales</h2>
 
       <div class="filtros-row">
         <div class="filtro-group">
@@ -132,7 +135,7 @@
             <button class="kg-tab" onclick="kgTableTab('destinos',this)">Destinos</button>
             <button class="kg-tab" onclick="kgTableTab('origenes',this)">Orígenes</button>
           </div>
-          <button class="btn btn-naranja btn-sm" onclick="exportarKgCSV()">⬇ Exportar CSV</button>
+          <button class="btn btn-naranja btn-sm" onclick="exportarKgCSV()">⬇ CSV</button>
         </div>
         <div class="tbl-wrap">
           <table class="kg-table-full">
@@ -147,7 +150,7 @@
          KPI ESPECÍFICOS
     ════════════════════════════════════ -->
     <div id="page-kpi-especificos" class="page">
-      <h2 style="font-size:22px;font-weight:800;color:var(--azul);margin-bottom:16px;">KPIs Específicos</h2>
+      <h2 class="page-title">KPIs Específicos</h2>
       <div class="filtros-row">
         <div class="filtro-group">
           <label>Ver</label>
@@ -199,8 +202,8 @@
           <select id="ke-ciudad"><option value="">Todas</option></select>
         </div>
         <button class="btn btn-naranja" onclick="cargarKpiEspecificos(true)">Aplicar</button>
-        <button class="btn btn-gray btn-sm" onclick="cargarKpiEspecificos(false)" style="align-self:flex-end">Actualizar BD</button>
-        <button class="btn btn-primary btn-sm" onclick="exportarCSV()" style="align-self:flex-end">⬇ Exportar CSV</button>
+        <button class="btn btn-gray btn-sm" onclick="cargarKpiEspecificos(false)">↺ BD</button>
+        <button class="btn btn-primary btn-sm" onclick="exportarCSV()">⬇ CSV</button>
       </div>
       <div class="info-bar" id="ke-info"></div>
       <div class="tbl-wrap">
@@ -212,8 +215,8 @@
          SALIDAS
     ════════════════════════════════════ -->
     <div id="page-salidas" class="page">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <h2 style="font-size:22px;font-weight:800;color:var(--azul);">Salidas programadas</h2>
+      <div class="salidas-header">
+        <h2 class="page-title" style="margin:0">Salidas programadas</h2>
         <button class="btn btn-success" onclick="abrirModalViaje()">+ Agregar viaje</button>
       </div>
       <div id="salidas-container"><span class="spinner"></span></div>
@@ -223,14 +226,13 @@
          HISTORIAL DE VIAJES
     ════════════════════════════════════ -->
     <div id="page-historial" class="page">
-      <h2 style="font-size:22px;font-weight:800;color:var(--azul);margin-bottom:16px;">Historial de Viajes</h2>
+      <h2 class="page-title">Historial de Viajes</h2>
 
       <div class="filtros-row">
         <div class="filtro-group">
           <label>Buscar</label>
           <input type="text" id="hist-search"
             placeholder="Ciudad, conductor, autobús..."
-            style="min-width:240px"
             oninput="filtrarHistorial()">
         </div>
         <div class="filtro-group">
@@ -263,9 +265,9 @@
          GESTIÓN CRUD
     ════════════════════════════════════ -->
     <div id="page-gestion" class="page">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
-        <h2 style="font-size:22px;font-weight:800;color:var(--naranja);" id="gestion-title">Gestión</h2>
-        <div style="display:flex;gap:8px;">
+      <div class="gestion-header">
+        <h2 id="gestion-title">Gestión</h2>
+        <div class="gestion-header-btns">
           <button class="btn btn-success" id="btn-insertar" onclick="abrirInsertar()">+ Insertar</button>
           <button class="btn btn-primary" onclick="recargarGestion()">↺ Actualizar</button>
         </div>
@@ -283,7 +285,7 @@
          CONFIGURACIÓN
     ════════════════════════════════════ -->
     <div id="page-configuracion" class="page">
-      <h2 style="font-size:22px;font-weight:800;color:var(--azul);margin-bottom:16px;">Configuración de Usuario</h2>
+      <h2 class="page-title">Configuración de Usuario</h2>
       <div class="card config-form">
         <div class="form-field"><label>Nombre *</label><input type="text" id="cfg-nombre"></div>
         <div class="form-field"><label>Primer Apellido *</label><input type="text" id="cfg-ap1"></div>
@@ -326,8 +328,8 @@
             <th>#</th>
             <th>Nombre completo</th>
             <th>Edad</th>
-            <th>Número boleto</th>
-            <th>Número asiento</th>
+            <th>Núm. boleto</th>
+            <th>Núm. asiento</th>
           </tr>
         </thead>
         <tbody id="modal-pasajeros-tbody">
@@ -394,7 +396,7 @@
      JAVASCRIPT
 ════════════════════════════════════════ -->
 <script>
-// ── Estado global ─────────────────────────────────────────────────────────────
+// ── Estado global ──────────────────────────────────────────────────────────────
 const CSRF = '{{ csrf_token }}';
 const tablaActual = { nombre:'', esquema:null, modo:null, pkName:null, pkValue:null };
 
@@ -405,12 +407,10 @@ let kgData            = null;
 let kgView            = 'cards';
 let kgTableCurrent    = 'boletos';
 let kgCharts          = {};
-
-// estado para modal de pasajeros (CSV)
 let pasajerosActuales  = [];
 let pasajerosViajeInfo = {};
 
-// ── Utilidades ────────────────────────────────────────────────────────────────
+// ── Utilidades ─────────────────────────────────────────────────────────────────
 const csrfHeaders = () => ({ 'Content-Type':'application/json', 'X-CSRFToken':CSRF });
 
 function toast(msg, tipo='ok') {
@@ -437,8 +437,43 @@ function mesRango(m, y) {
   return [ini, fin];
 }
 
-// ── Sidebar ───────────────────────────────────────────────────────────────────
-const toggleSidebar = () => document.getElementById('sidebar').classList.toggle('collapsed');
+// ── Sidebar — RESPONSIVO ───────────────────────────────────────────────────────
+const isMobile  = () => window.innerWidth <= 767;
+const isTablet  = () => window.innerWidth >= 768 && window.innerWidth <= 1023;
+
+function toggleSidebar() {
+  const sb  = document.getElementById('sidebar');
+  const ov  = document.getElementById('sidebar-overlay');
+
+  if (isMobile()) {
+    // MOBILE: drawer lateral
+    const isOpen = sb.classList.contains('mobile-open');
+    if (isOpen) {
+      closeSidebarMobile();
+    } else {
+      sb.classList.add('mobile-open');
+      ov.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
+  } else if (isTablet()) {
+    // TABLET: expandir/colapsar con clase "expanded"
+    sb.classList.toggle('expanded');
+  } else {
+    // DESKTOP: colapsar/expandir con clase "collapsed"
+    sb.classList.toggle('collapsed');
+  }
+}
+
+function closeSidebarMobile() {
+  document.getElementById('sidebar').classList.remove('mobile-open');
+  document.getElementById('sidebar-overlay').classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+// cerrar sidebar mobile al navegar
+function afterNav() {
+  if (isMobile()) closeSidebarMobile();
+}
 
 function toggleGestion() {
   const sub = document.getElementById('gestion-sub');
@@ -447,21 +482,27 @@ function toggleGestion() {
     sub.classList.contains('open') ? 'Gestión ▴' : 'Gestión ▾';
 }
 
-// ── Navegación ────────────────────────────────────────────────────────────────
+// ── Navegación ─────────────────────────────────────────────────────────────────
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-'+id)?.classList.add('active');
   document.getElementById('topbar-title').textContent = {
-    'kpi-generales':'KPIs Generales','kpi-especificos':'KPIs Específicos',
-    'salidas':'Salidas','historial':'Historial de Viajes',
-    'gestion':'Gestión','configuracion':'Configuración'
+    'kpi-generales'   : 'KPIs Generales',
+    'kpi-especificos' : 'KPIs Específicos',
+    'salidas'         : 'Salidas',
+    'historial'       : 'Historial de Viajes',
+    'gestion'         : 'Gestión',
+    'configuracion'   : 'Configuración'
   }[id] || id;
+
   if (id==='salidas')         cargarSalidas();
   if (id==='historial')       cargarHistorial();
   if (id==='kpi-generales')   cargarKpiGenerales();
   if (id==='kpi-especificos') { cargarKpiOpciones(); cargarKpiEspecificos(false); }
   if (id==='configuracion')   cargarConfig();
+
+  afterNav(); // cierra drawer mobile al navegar
 }
 
 function showGestion(tabla) {
@@ -546,11 +587,11 @@ function makeChart(cid, type, labels, values) {
 }
 function renderKgCharts() {
   const d = kgData;
-  makeChart('ch-boletos',    'doughnut', d.boletos.map(r=>r.ciudad),            d.boletos.map(r=>r.total));
-  makeChart('ch-conductores','bar',      d.conductores.map(r=>r.nombre),        d.conductores.map(r=>r.total));
+  makeChart('ch-boletos',    'doughnut', d.boletos.map(r=>r.ciudad),                 d.boletos.map(r=>r.total));
+  makeChart('ch-conductores','bar',      d.conductores.map(r=>r.nombre),             d.conductores.map(r=>r.total));
   makeChart('ch-autobuses',  'bar',      d.autobuses.map(r=>`Bus #${r.autobus_num}`),d.autobuses.map(r=>r.total));
-  makeChart('ch-destinos',   'doughnut', d.destinos.map(r=>r.nombre),           d.destinos.map(r=>r.total));
-  makeChart('ch-origenes',   'bar',      d.origenes.map(r=>r.nombre),           d.origenes.map(r=>r.total));
+  makeChart('ch-destinos',   'doughnut', d.destinos.map(r=>r.nombre),                d.destinos.map(r=>r.total));
+  makeChart('ch-origenes',   'bar',      d.origenes.map(r=>r.nombre),                d.origenes.map(r=>r.total));
 }
 function kgTableTab(key, btn) {
   kgTableCurrent = key;
@@ -577,9 +618,9 @@ function renderKgTable(key) {
       <td><span class="rank-badge ${rc}">${i+1}</span></td>
       <td style="font-weight:700">${r[cfg.lf]??'—'}</td>
       <td style="font-weight:800;color:var(--naranja)">${r[cfg.cf]??0}</td>
-      <td style="min-width:150px"><div class="bar-cell">
+      <td style="min-width:120px"><div class="bar-cell">
         <div class="mini-bar-wrap"><div class="mini-bar" style="width:${pct}%"></div></div>
-        <span style="font-size:11px;color:var(--muted);min-width:30px">${pct}%</span>
+        <span style="font-size:11px;color:var(--muted);min-width:28px">${pct}%</span>
       </div></td></tr>`;
   }).join('');
 }
@@ -646,7 +687,7 @@ function renderKeTablo(tipo,rows) {
   const tbl=document.getElementById('ke-tabla');
   let h=[],map;
   if (tipo==='boletos') {
-    h=['Viaje','Fecha salida','Origen','Destino','Autobús','Vendidos','Disponibles'];
+    h=['Viaje','F. salida','Origen','Destino','Autobús','Vendidos','Disponibles'];
     map=r=>[r.trip_id,fmt(r.departure),r.origin_city,r.dest_city,r.bus_number,r.vendidos,r.disponibles];
   } else if (tipo==='conductor') {
     h=['Conductor','Viaje','Salida','Llegada','Origen','Destino','Autobús'];
@@ -723,62 +764,47 @@ async function submitViaje() {
   }
   if (body.llegada<=body.salida){toast('La llegada debe ser posterior a la salida','err');return;}
   const d=await fetch('/api/viaje/agregar/',{method:'POST',headers:csrfHeaders(),body:JSON.stringify(body)}).then(r=>r.json());
-  d.ok?(toast('Viaje agregado correctamente'),cerrarModal('modal-viaje'),cargarSalidas()):toast('Error: '+d.error,'err');
+  d.ok?(toast('Viaje agregado'),cerrarModal('modal-viaje'),cargarSalidas()):toast('Error: '+d.error,'err');
 }
 
 // ════════════════════════════════════════════════════════════
-//  HISTORIAL — tarjetas con Autobús y Pasajeros
+//  HISTORIAL
 // ════════════════════════════════════════════════════════════
 async function cargarHistorial() {
   document.getElementById('hist-cards-container').innerHTML=
     '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
-
   const d=await fetch('/api/salidas/').then(r=>r.json());
   historialData=d.rows;
-
-  const uniq = (arr,fn) => [...new Set(arr.map(fn).filter(Boolean))].sort();
-  const opt  = (v) => `<option>${v}</option>`;
-
-  document.getElementById('hist-estado').innerHTML  = '<option value="">Todos</option>' + uniq(d.rows,r=>r.estado).map(opt).join('');
-  document.getElementById('hist-origen').innerHTML  = '<option value="">Todos</option>' + uniq(d.rows,r=>r.origen_ciudad).map(opt).join('');
-  document.getElementById('hist-destino').innerHTML = '<option value="">Todos</option>' + uniq(d.rows,r=>r.destino_ciudad).map(opt).join('');
-
+  const uniq=(arr,fn)=>[...new Set(arr.map(fn).filter(Boolean))].sort();
+  const opt=(v)=>`<option>${v}</option>`;
+  document.getElementById('hist-estado').innerHTML  = '<option value="">Todos</option>'+uniq(d.rows,r=>r.estado).map(opt).join('');
+  document.getElementById('hist-origen').innerHTML  = '<option value="">Todos</option>'+uniq(d.rows,r=>r.origen_ciudad).map(opt).join('');
+  document.getElementById('hist-destino').innerHTML = '<option value="">Todos</option>'+uniq(d.rows,r=>r.destino_ciudad).map(opt).join('');
   filtrarHistorial();
 }
-
 function filtrarHistorial() {
   const q  = document.getElementById('hist-search').value.toLowerCase();
   const es = document.getElementById('hist-estado').value;
   const or = document.getElementById('hist-origen').value;
   const de = document.getElementById('hist-destino').value;
-
-  historialFiltered = historialData.filter(r => {
+  historialFiltered=historialData.filter(r=>{
     const txt=[r.origen_ciudad,r.destino_ciudad,r.conductor,r.autobus_placas,
                String(r.numero),String(r.autobus_num)].join(' ').toLowerCase();
-    return txt.includes(q) && (!es||r.estado===es) && (!or||r.origen_ciudad===or) && (!de||r.destino_ciudad===de);
+    return txt.includes(q)&&(!es||r.estado===es)&&(!or||r.origen_ciudad===or)&&(!de||r.destino_ciudad===de);
   });
-
-  document.getElementById('hist-info').textContent=
-    `Mostrando ${historialFiltered.length} de ${historialData.length} viajes`;
+  document.getElementById('hist-info').textContent=`Mostrando ${historialFiltered.length} de ${historialData.length} viajes`;
   renderHistorialCards(historialFiltered);
 }
-
 function renderHistorialCards(rows) {
   const container=document.getElementById('hist-cards-container');
-  if (!rows.length) {
-    container.innerHTML=`
-      <div class="empty-state">
-        <div class="empty-icon">🔍</div>
-        <p>No se encontraron viajes con los filtros aplicados.</p>
-      </div>`;
+  if (!rows.length){
+    container.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><p>No se encontraron viajes.</p></div>`;
     return;
   }
   container.innerHTML=rows.map((r,idx)=>`
     <div class="viaje-card" style="animation-delay:${Math.min(idx*.04,.4)}s">
       <div class="viaje-card-inner">
-
         <div class="viaje-card-stripe"></div>
-
         <div class="viaje-card-body">
           <div class="viaje-card-header">
             <span class="viaje-card-num">Viaje #${r.numero}</span>
@@ -786,78 +812,65 @@ function renderHistorialCards(rows) {
             <span class="viaje-card-ruta">Ruta #${r.ruta??'—'}</span>
             <span class="badge badge-info" style="margin-left:auto">${r.estado??'—'}</span>
           </div>
-
           <div class="viaje-card-route">
             ${r.origen_terminal??r.origen_ciudad??'—'}
             <span class="arrow">→</span>
             ${r.destino_terminal??r.destino_ciudad??'—'}
           </div>
-
           <div class="viaje-card-meta">
             <span><b>Salida:</b> ${fmt(r.fecHoraSalida)}</span>
             <span>•</span>
             <span><b>Llegada:</b> ${fmt(r.fecHoraEntrada)}</span>
           </div>
-
           <div class="viaje-card-row2">
             <span><b>Operador:</b> ${r.conductor??'—'}</span>
             <span>•</span>
-            <span><b>Autobús:</b> ${r.autobus_num?'#'+r.autobus_num:'—'}${r.autobus_placas?' • Placas: '+r.autobus_placas:''}</span>
+            <span><b>Autobús:</b> ${r.autobus_num?'#'+r.autobus_num:'—'}${r.autobus_placas?' · '+r.autobus_placas:''}</span>
             <span>•</span>
             <span><b>Asientos:</b> ${r.asientos_total??'—'}</span>
             <span>•</span>
             <span><b>Pasajeros:</b> ${r.pasajeros_count??'—'}</span>
           </div>
         </div>
-
         <div class="viaje-card-actions">
           <button class="btn btn-naranja" onclick="verAutobus(${r.numero},${r.autobus_num??'null'})">Autobús</button>
           <button class="btn btn-primary"  onclick="verPasajeros(${r.numero})">Pasajeros</button>
         </div>
-
       </div>
     </div>`).join('');
 }
 
-// ── Modal: info autobús ───────────────────────────────────────────────────────
+// ── Modal autobús ──────────────────────────────────────────────────────────────
 async function verAutobus(viajeId, busNum) {
-  if (!busNum) { toast('Este viaje no tiene autobús asignado','err'); return; }
+  if (!busNum){toast('Sin autobús asignado','err');return;}
   document.getElementById('modal-autobus-title').textContent=`Información del Autobús — Viaje ${viajeId}`;
-  document.getElementById('modal-autobus-body').innerHTML=
-    '<div style="text-align:center;padding:20px"><span class="spinner"></span></div>';
+  document.getElementById('modal-autobus-body').innerHTML='<div style="text-align:center;padding:20px"><span class="spinner"></span></div>';
   abrirModal('modal-autobus');
-
   try {
     const d=await fetch(`/api/autobus/detalle/${busNum}/`).then(r=>r.json());
     if (d.error){document.getElementById('modal-autobus-body').innerHTML=`<p style="color:var(--danger)">${d.error}</p>`;return;}
-
-    const tiposHtml = d.tipos_asiento?.length
-      ? `<ul class="bus-tipo-list">${d.tipos_asiento.map(t=>`<li>${t.descripcion} (${t.codigo}): ${t.cantidad} asiento(s)</li>`).join('')}</ul>`
-      : '—';
-
+    const tiposHtml=d.tipos_asiento?.length
+      ?`<ul class="bus-tipo-list">${d.tipos_asiento.map(t=>`<li>${t.descripcion} (${t.codigo}): ${t.cantidad}</li>`).join('')}</ul>`:'—';
     document.getElementById('modal-autobus-body').innerHTML=`
-      <div class="bus-info-row"><span class="bus-info-label">Número del autobús:</span>    <span class="bus-info-value">${d.numero}</span></div>
-      <div class="bus-info-row"><span class="bus-info-label">Matrícula:</span>              <span class="bus-info-value">${d.placas}</span></div>
-      <div class="bus-info-row"><span class="bus-info-label">Marca:</span>                  <span class="bus-info-value">${d.marca}</span></div>
-      <div class="bus-info-row"><span class="bus-info-label">Modelo:</span>                 <span class="bus-info-value">${d.modelo}</span></div>
-      <div class="bus-info-row"><span class="bus-info-label">Año:</span>                    <span class="bus-info-value">${d.anio}</span></div>
-      <div class="bus-info-row"><span class="bus-info-label">Cantidad de asientos:</span>   <span class="bus-info-value">${d.num_asientos}</span></div>
-      <div class="bus-info-row"><span class="bus-info-label">Asientos por tipo:</span>      <span class="bus-info-value">${tiposHtml}</span></div>
-    `;
+      <div class="bus-info-row"><span class="bus-info-label">Número:</span><span class="bus-info-value">${d.numero}</span></div>
+      <div class="bus-info-row"><span class="bus-info-label">Matrícula:</span><span class="bus-info-value">${d.placas}</span></div>
+      <div class="bus-info-row"><span class="bus-info-label">Marca:</span><span class="bus-info-value">${d.marca}</span></div>
+      <div class="bus-info-row"><span class="bus-info-label">Modelo:</span><span class="bus-info-value">${d.modelo}</span></div>
+      <div class="bus-info-row"><span class="bus-info-label">Año:</span><span class="bus-info-value">${d.anio}</span></div>
+      <div class="bus-info-row"><span class="bus-info-label">Asientos:</span><span class="bus-info-value">${d.num_asientos}</span></div>
+      <div class="bus-info-row"><span class="bus-info-label">Por tipo:</span><span class="bus-info-value">${tiposHtml}</span></div>`;
   } catch(e) {
-    document.getElementById('modal-autobus-body').innerHTML=
-      '<p style="color:var(--danger)">Error al cargar información del autobús.</p>';
+    document.getElementById('modal-autobus-body').innerHTML='<p style="color:var(--danger)">Error al cargar.</p>';
   }
 }
 
-// ── Modal: pasajeros ──────────────────────────────────────────────────────────
+// ── Modal pasajeros ───────────────────────────────────────────────────────────
 async function verPasajeros(viajeId) {
   document.getElementById('modal-pasajeros-title').textContent=`Pasajeros del viaje ${viajeId}`;
   document.getElementById('modal-pasajeros-header').innerHTML='';
   document.getElementById('modal-pasajeros-tbody').innerHTML=
     '<tr><td colspan="5" style="text-align:center;padding:20px"><span class="spinner"></span></td></tr>';
   abrirModal('modal-pasajeros');
-
   try {
     const d=await fetch(`/api/viaje/pasajeros/${viajeId}/`).then(r=>r.json());
     if (d.error){
@@ -866,42 +879,32 @@ async function verPasajeros(viajeId) {
       return;
     }
     pasajerosActuales=d.pasajeros||[];
-    pasajerosViajeInfo={...d.viaje||{}, viaje_id:viajeId};
-
+    pasajerosViajeInfo={...d.viaje||{},viaje_id:viajeId};
     const v=d.viaje||{};
     document.getElementById('modal-pasajeros-header').innerHTML=`
-      <span class="pasajeros-header-item">Número de viaje: <b>${viajeId}</b></span>
+      <span class="pasajeros-header-item">Viaje: <b>${viajeId}</b></span>
       <span class="pasajeros-header-item">Origen: <b>${v.origen??'—'}</b></span>
       <span class="pasajeros-header-item">Destino: <b>${v.destino??'—'}</b></span>
       <span class="pasajeros-header-item">Salida: <b>${v.salida?fmt(v.salida):'—'}</b></span>
-      <span class="pasajeros-header-item">Autobús: <b>${v.autobus??'—'}</b></span>
-    `;
-
-    if (!pasajerosActuales.length) {
+      <span class="pasajeros-header-item">Autobús: <b>${v.autobus??'—'}</b></span>`;
+    if (!pasajerosActuales.length){
       document.getElementById('modal-pasajeros-tbody').innerHTML=
-        '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Sin pasajeros registrados</td></tr>';
+        '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Sin pasajeros</td></tr>';
       return;
     }
-
     document.getElementById('modal-pasajeros-tbody').innerHTML=
-      pasajerosActuales.map((p,i)=>`
-        <tr>
-          <td>${i+1}</td>
-          <td>${p.nombre_completo??'—'}</td>
-          <td>${p.edad??'—'}</td>
-          <td>${p.numero_boleto??'—'}</td>
-          <td>${p.numero_asiento??'—'}</td>
-        </tr>`).join('');
-  } catch(e) {
+      pasajerosActuales.map((p,i)=>`<tr>
+        <td>${i+1}</td><td>${p.nombre_completo??'—'}</td><td>${p.edad??'—'}</td>
+        <td>${p.numero_boleto??'—'}</td><td>${p.numero_asiento??'—'}</td></tr>`).join('');
+  } catch(e){
     document.getElementById('modal-pasajeros-tbody').innerHTML=
-      '<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:20px">Error al cargar pasajeros.</td></tr>';
+      '<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:20px">Error.</td></tr>';
   }
 }
-
 function exportarPasajerosCSV() {
-  if (!pasajerosActuales.length){toast('No hay pasajeros para exportar','err');return;}
+  if (!pasajerosActuales.length){toast('Sin pasajeros','err');return;}
   const v=pasajerosViajeInfo;
-  const meta=`# Viaje: ${v.viaje_id??'?'} | Origen: ${v.origen??'?'} | Destino: ${v.destino??'?'} | Salida: ${v.salida??'?'}`;
+  const meta=`# Viaje: ${v.viaje_id??'?'} | Origen: ${v.origen??'?'} | Destino: ${v.destino??'?'}`;
   const csv=[meta,'Nombre completo,Edad,Número boleto,Número asiento',
     ...pasajerosActuales.map(p=>`"${p.nombre_completo??''}","${p.edad??''}","${p.numero_boleto??''}","${p.numero_asiento??''}"`)
   ].join('\n');
@@ -916,31 +919,31 @@ function exportarPasajerosCSV() {
 // ════════════════════════════════════════════════════════════
 async function recargarGestion() {
   const tabla=tablaActual.nombre; if(!tabla)return;
-  document.getElementById('gestion-tbody').innerHTML=
-    '<tr><td colspan="20"><span class="spinner"></span></td></tr>';
+  document.getElementById('gestion-tbody').innerHTML='<tr><td colspan="20"><span class="spinner"></span></td></tr>';
   const d=await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
   if (d.error){toast(d.error,'err');return;}
   document.getElementById('gestion-thead').innerHTML=
     `<tr>${d.cols.map(c=>`<th>${c}</th>`).join('')}<th>Acciones</th></tr>`;
   if (!d.rows.length){
-    document.getElementById('gestion-tbody').innerHTML=
-      '<tr><td colspan="20" style="text-align:center;color:var(--muted)">Sin registros</td></tr>';
+    document.getElementById('gestion-tbody').innerHTML='<tr><td colspan="20" style="text-align:center;color:var(--muted)">Sin registros</td></tr>';
     return;
   }
   const pk=d.cols[0];
   document.getElementById('gestion-tbody').innerHTML=d.rows.map(row=>`
     <tr>
       ${d.cols.map(c=>`<td>${row[c]??'—'}</td>`).join('')}
-      <td style="white-space:nowrap;display:flex;gap:4px">
-        <button class="btn btn-gray btn-sm"    onclick='verDetalle(${JSON.stringify(d.cols)},${JSON.stringify(row)})'>Ver</button>
-        <button class="btn btn-naranja btn-sm" onclick='abrirEditar("${tabla}","${pk}","${row[pk]}")'>Editar</button>
-        <button class="btn btn-danger btn-sm"  onclick='eliminarReg("${tabla}","${pk}","${row[pk]}")'>Eliminar</button>
+      <td style="white-space:nowrap">
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="btn btn-gray btn-sm"    onclick='verDetalle(${JSON.stringify(d.cols)},${JSON.stringify(row)})'>Ver</button>
+          <button class="btn btn-naranja btn-sm" onclick='abrirEditar("${tabla}","${pk}","${row[pk]}")'>Editar</button>
+          <button class="btn btn-danger btn-sm"  onclick='eliminarReg("${tabla}","${pk}","${row[pk]}")'>Eliminar</button>
+        </div>
       </td>
     </tr>`).join('');
   document.getElementById('gestion-info').textContent=`${d.rows.length} registro(s)`;
 }
 async function abrirInsertar() {
-  const tabla=tablaActual.nombre; if(!tabla){toast('Selecciona una tabla primero','err');return;}
+  const tabla=tablaActual.nombre; if(!tabla){toast('Selecciona una tabla','err');return;}
   const d=await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
   tablaActual.esquema=d; tablaActual.modo='insertar';
   document.getElementById('crud-modal-title').textContent=`Insertar en ${tabla}`;
@@ -1004,8 +1007,9 @@ async function eliminarReg(tabla,pk,pkv) {
 function verDetalle(cols,row) {
   document.getElementById('detalle-title').textContent=`Detalle — ${tablaActual.nombre}`;
   document.getElementById('detalle-body').innerHTML=cols.map(c=>
-    `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--border)">
-      <span style="font-weight:700;color:var(--muted)">${c}</span><span>${row[c]??'—'}</span>
+    `<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--border)">
+      <span style="font-weight:700;color:var(--muted);flex-shrink:0">${c}</span>
+      <span style="text-align:right;word-break:break-all">${row[c]??'—'}</span>
     </div>`).join('');
   abrirModal('modal-detalle');
 }
@@ -1029,7 +1033,7 @@ async function guardarConfig() {
   body.append('contrasena',      document.getElementById('cfg-pass').value.trim());
   body.append('csrfmiddlewaretoken',CSRF);
   const d=await fetch('/api/config/',{method:'POST',body}).then(r=>r.json());
-  d.ok?toast('Cambios guardados correctamente'):toast('Error: '+d.error,'err');
+  d.ok?toast('Cambios guardados'):toast('Error: '+d.error,'err');
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1043,6 +1047,18 @@ document.querySelectorAll('.modal-overlay').forEach(m=>
 );
 
 const cerrarSesion = () => { if(confirm('¿Cerrar sesión?')) window.location.href='/logout/'; };
+
+// ════════════════════════════════════════════════════════════
+//  RESIZE — recalibrar comportamiento al rotar pantalla
+// ════════════════════════════════════════════════════════════
+window.addEventListener('resize', () => {
+  if (!isMobile()) {
+    // limpiar estado mobile al pasar a tablet/desktop
+    document.getElementById('sidebar').classList.remove('mobile-open');
+    document.getElementById('sidebar-overlay').classList.remove('active');
+    document.body.style.overflow = '';
+  }
+});
 
 // ════════════════════════════════════════════════════════════
 //  INIT

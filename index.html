@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Rutas Baja Express – Conectando Baja California</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@300;400;600;700&family=Barlow+Condensed:wght@400;700;900&display=swap" rel="stylesheet">
@@ -15,21 +15,31 @@
     --negro: #0A0A0A;
     --gris-oscuro: #111111;
     --gris-medio: #1E1E1E;
-    --gris-claro: #2C2C2C;
     --texto: #E8E0D0;
     --texto-suave: #9A9080;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
   }
 
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 
   body {
     background: var(--negro);
     color: var(--texto);
     font-family: 'Barlow', sans-serif;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
   }
 
-  /* ─── HEADER STICKY ─── */
+  img { max-width: 100%; height: auto; display: block; }
+  a { -webkit-tap-highlight-color: transparent; }
+
+  /* ══════════════════════════════
+     HEADER
+  ══════════════════════════════ */
   header {
     position: fixed;
     top: 0; left: 0; right: 0;
@@ -41,70 +51,131 @@
     justify-content: space-between;
     background: rgba(10,10,10,0);
     backdrop-filter: blur(0px);
+    -webkit-backdrop-filter: blur(0px);
     border-bottom: 1px solid transparent;
     transition: background 0.4s, backdrop-filter 0.4s, border-color 0.4s;
   }
+
   header.scrolled {
     background: rgba(10,10,10,0.92);
     backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
     border-bottom-color: rgba(212,43,43,0.25);
   }
 
   .header-logo {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    text-decoration: none;
+    display: flex; align-items: center; gap: 12px;
+    text-decoration: none; flex-shrink: 0;
   }
+
   .header-logo .logo-icon {
     width: 42px; height: 42px;
-    background: var(--rojo);
-    border-radius: 8px;
+    background: var(--rojo); border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 22px;
-    color: white;
-    letter-spacing: 1px;
+    font-size: 22px; color: white; letter-spacing: 1px; flex-shrink: 0;
   }
+
   .header-logo span {
     font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 700;
-    font-size: 1.2rem;
-    color: var(--texto);
-    letter-spacing: 2px;
-    text-transform: uppercase;
+    font-weight: 700; font-size: 1.2rem;
+    color: var(--texto); letter-spacing: 2px;
+    text-transform: uppercase; white-space: nowrap;
   }
 
   nav { display: flex; gap: 32px; align-items: center; }
+
   nav a {
-    color: var(--texto-suave);
-    text-decoration: none;
-    font-size: 0.82rem;
-    font-weight: 600;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    transition: color 0.2s;
+    color: var(--texto-suave); text-decoration: none;
+    font-size: 0.82rem; font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase;
+    transition: color 0.2s; white-space: nowrap;
   }
   nav a:hover { color: var(--oro); }
 
   .btn-nav {
-    background: var(--rojo);
-    color: white !important;
-    padding: 10px 22px;
-    border-radius: 4px;
+    background: var(--rojo); color: white !important;
+    padding: 10px 22px; border-radius: 4px;
     font-size: 0.78rem !important;
     transition: background 0.2s, transform 0.15s !important;
   }
   .btn-nav:hover { background: #b82222 !important; transform: translateY(-1px); }
 
-  /* ─── HERO ─── */
+  .hamburger {
+    display: none; flex-direction: column; gap: 5px;
+    background: none; border: none; cursor: pointer; padding: 8px;
+    z-index: 1001; -webkit-tap-highlight-color: transparent;
+  }
+  .hamburger span {
+    width: 24px; height: 2px; background: var(--texto);
+    border-radius: 2px; transition: transform 0.3s, opacity 0.3s; display: block;
+  }
+  .hamburger.active span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .hamburger.active span:nth-child(2) { opacity: 0; }
+  .hamburger.active span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  .mobile-menu {
+    display: none; position: fixed; inset: 0; z-index: 999;
+    background: rgba(10,10,10,0.97);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    flex-direction: column; align-items: center; justify-content: center;
+    gap: 24px; opacity: 0; transition: opacity 0.3s;
+  }
+  .mobile-menu.open { display: flex; opacity: 1; }
+  .mobile-menu a {
+    color: var(--texto); text-decoration: none;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1.8rem; font-weight: 700;
+    letter-spacing: 4px; text-transform: uppercase;
+    transition: color 0.2s, opacity 0.3s, transform 0.3s;
+    opacity: 0; transform: translateY(20px);
+  }
+  .mobile-menu.open a { opacity: 1; transform: translateY(0); }
+  .mobile-menu.open a:nth-child(1) { transition-delay: 0.1s; }
+  .mobile-menu.open a:nth-child(2) { transition-delay: 0.15s; }
+  .mobile-menu.open a:nth-child(3) { transition-delay: 0.2s; }
+  .mobile-menu.open a:nth-child(4) { transition-delay: 0.25s; }
+  .mobile-menu.open a:nth-child(5) { transition-delay: 0.3s; }
+  .mobile-menu a:hover { color: var(--oro); }
+  .mobile-menu .btn-nav { margin-top: 16px; padding: 14px 36px; font-size: 1rem !important; }
+
+  /* ══════════════════════════════
+     TICKER
+  ══════════════════════════════ */
+  .route-ticker {
+    position: fixed; top: 72px; left: 0; right: 0;
+    z-index: 999; overflow: hidden;
+    border-top: 1px solid rgba(212,43,43,0.3);
+    border-bottom: 1px solid rgba(212,43,43,0.3);
+    background: rgba(212,43,43,0.08); padding: 10px 0;
+  }
+  .ticker-track {
+    display: flex; gap: 60px; white-space: nowrap;
+    animation: ticker 28s linear infinite;
+  }
+  .ticker-item {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.75rem; font-weight: 700;
+    letter-spacing: 3px; text-transform: uppercase; color: var(--oro);
+    display: flex; align-items: center; gap: 12px;
+  }
+  .ticker-item::before { content: "●"; color: var(--rojo); font-size: 0.5rem; }
+  @keyframes ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+  /* ══════════════════════════════
+     HERO
+     — todo en flujo normal, sin position:absolute en stats
+  ══════════════════════════════ */
   .hero {
     min-height: 100vh;
     position: relative;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
     overflow: hidden;
+    padding-top: 160px;   /* header 72 + ticker ~41 + extra */
+    padding-bottom: 80px;
   }
 
   .hero-bg {
@@ -113,165 +184,92 @@
       radial-gradient(ellipse 80% 60% at 60% 40%, rgba(212,43,43,0.18) 0%, transparent 60%),
       radial-gradient(ellipse 60% 80% at 20% 80%, rgba(245,166,35,0.08) 0%, transparent 50%),
       linear-gradient(160deg, #0A0A0A 0%, #1a0808 50%, #0A0A0A 100%);
+    pointer-events: none;
   }
 
-  /* carretera SVG animada */
   .road-svg {
-    position: absolute;
-    bottom: 0; left: 0; right: 0;
-    width: 100%;
-    height: 55%;
-    opacity: 0.18;
+    position: absolute; bottom: 0; left: 0; right: 0;
+    width: 100%; height: 55%; opacity: 0.18; pointer-events: none;
   }
 
   .grid-lines {
-    position: absolute; inset: 0;
+    position: absolute; inset: 0; pointer-events: none;
     background-image:
       linear-gradient(rgba(212,43,43,0.05) 1px, transparent 1px),
       linear-gradient(90deg, rgba(212,43,43,0.05) 1px, transparent 1px);
     background-size: 80px 80px;
   }
 
-  /* slider de rutas */
-  .route-ticker {
-    position: absolute;
-    top: 88px; left: 0; right: 0;
-    overflow: hidden;
-    border-top: 1px solid rgba(212,43,43,0.3);
-    border-bottom: 1px solid rgba(212,43,43,0.3);
-    background: rgba(212,43,43,0.08);
-    padding: 10px 0;
-  }
-  .ticker-track {
-    display: flex;
-    gap: 60px;
-    white-space: nowrap;
-    animation: ticker 28s linear infinite;
-  }
-  .ticker-item {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: var(--oro);
-    display: flex; align-items: center; gap: 12px;
-  }
-  .ticker-item::before { content: "●"; color: var(--rojo); font-size: 0.5rem; }
-  @keyframes ticker { from { transform: translateX(0) } to { transform: translateX(-50%) } }
-
   .hero-content {
     position: relative;
     text-align: center;
     padding: 0 24px;
     max-width: 900px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
+
   .hero-tag {
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 5px;
-    text-transform: uppercase;
-    color: var(--rojo);
+    font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 5px; text-transform: uppercase; color: var(--rojo);
     margin-bottom: 20px;
     display: flex; align-items: center; justify-content: center; gap: 10px;
+    animation: fadeUp 0.7s 0.2s both;
   }
   .hero-tag::before, .hero-tag::after {
-    content: "";
-    width: 40px; height: 1px;
-    background: var(--rojo);
-    opacity: 0.5;
+    content: ""; width: 40px; height: 1px; background: var(--rojo); opacity: 0.5;
   }
+
   .hero-title {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(4rem, 12vw, 9rem);
-    line-height: 0.9;
-    letter-spacing: 4px;
-    color: var(--texto);
-    margin-bottom: 0;
+    font-size: clamp(3.5rem, 12vw, 9rem);
+    line-height: 0.9; letter-spacing: 4px; color: var(--texto);
+    animation: fadeUp 0.7s 0.4s both;
   }
   .hero-title .accent { color: var(--rojo); }
-  .hero-title .gold { color: var(--oro); }
+  .hero-title .gold   { color: var(--oro); }
 
   .hero-sub {
-    font-size: clamp(1rem, 2.5vw, 1.3rem);
-    font-weight: 300;
-    color: var(--texto-suave);
-    margin: 24px auto 40px;
-    max-width: 560px;
-    line-height: 1.7;
+    font-size: clamp(0.95rem, 2.5vw, 1.3rem);
+    font-weight: 300; color: var(--texto-suave);
+    margin: 24px auto 40px; max-width: 560px; line-height: 1.7;
+    animation: fadeUp 0.7s 0.6s both;
   }
 
   .hero-cta {
     display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+    animation: fadeUp 0.7s 0.8s both;
   }
-  .btn-primary {
-    background: var(--rojo);
-    color: white;
-    padding: 16px 40px;
-    border: none;
-    border-radius: 4px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    cursor: pointer;
-    text-decoration: none;
-    transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
-    box-shadow: 0 4px 24px rgba(212,43,43,0.35);
-  }
-  .btn-primary:hover { background: #b82222; transform: translateY(-2px); box-shadow: 0 8px 32px rgba(212,43,43,0.5); }
 
-  .btn-outline {
-    background: transparent;
-    color: var(--texto);
-    padding: 16px 40px;
-    border: 1px solid rgba(232,224,208,0.25);
-    border-radius: 4px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1rem;
-    font-weight: 700;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    cursor: pointer;
-    text-decoration: none;
-    transition: border-color 0.2s, color 0.2s;
-  }
-  .btn-outline:hover { border-color: var(--oro); color: var(--oro); }
-
+  /* ── Stats: siempre en flujo, nunca absolute ── */
   .hero-stats {
-    position: absolute;
-    bottom: 48px; left: 50%; transform: translateX(-50%);
-    display: flex; gap: 60px;
+    display: flex;
+    gap: 60px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 64px;
+    padding: 0 20px;
     opacity: 0;
     animation: fadeUp 0.8s 1.2s forwards;
   }
-  .stat {
-    text-align: center;
-  }
+
+  .stat { text-align: center; }
   .stat-num {
     font-family: 'Bebas Neue', sans-serif;
-    font-size: 2.4rem;
-    color: var(--oro);
-    line-height: 1;
+    font-size: 2.4rem; color: var(--oro); line-height: 1;
   }
   .stat-label {
-    font-size: 0.68rem;
-    letter-spacing: 2.5px;
-    text-transform: uppercase;
-    color: var(--texto-suave);
-    margin-top: 4px;
+    font-size: 0.68rem; letter-spacing: 2.5px;
+    text-transform: uppercase; color: var(--texto-suave); margin-top: 4px;
   }
 
-  /* scroll indicator */
   .scroll-hint {
-    position: absolute;
-    bottom: 24px; right: 40px;
+    position: absolute; bottom: 24px; right: 40px;
     display: flex; flex-direction: column; align-items: center; gap: 8px;
-    color: var(--texto-suave);
-    font-size: 0.65rem;
-    letter-spacing: 2px;
-    text-transform: uppercase;
+    color: var(--texto-suave); font-size: 0.65rem;
+    letter-spacing: 2px; text-transform: uppercase;
   }
   .scroll-hint .line {
     width: 1px; height: 48px;
@@ -280,392 +278,303 @@
   }
   @keyframes scrollLine { 0%,100%{opacity:0.3;transform:scaleY(0.5)} 50%{opacity:1;transform:scaleY(1)} }
 
-  /* ─── SECCIONES ─── */
-  section {
-    padding: 120px 40px;
-    max-width: 1200px;
-    margin: 0 auto;
+  /* ══════════════════════════════
+     BOTONES
+  ══════════════════════════════ */
+  .btn-primary {
+    background: var(--rojo); color: white;
+    padding: 16px 40px; border: none; border-radius: 4px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    cursor: pointer; text-decoration: none;
+    transition: background 0.2s, transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 24px rgba(212,43,43,0.35);
+    display: inline-block; -webkit-tap-highlight-color: transparent;
   }
-  section.full { max-width: none; padding-left: 0; padding-right: 0; }
+  .btn-primary:hover { background: #b82222; transform: translateY(-2px); box-shadow: 0 8px 32px rgba(212,43,43,0.5); }
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-outline {
+    background: transparent; color: var(--texto);
+    padding: 16px 40px; border: 1px solid rgba(232,224,208,0.25); border-radius: 4px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 1rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase;
+    cursor: pointer; text-decoration: none;
+    transition: border-color 0.2s, color 0.2s;
+    display: inline-block; -webkit-tap-highlight-color: transparent;
+  }
+  .btn-outline:hover { border-color: var(--oro); color: var(--oro); }
+
+  /* ══════════════════════════════
+     SECCIONES
+  ══════════════════════════════ */
+  section { padding: 120px 40px; max-width: 1200px; margin: 0 auto; }
 
   .section-label {
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 5px;
-    text-transform: uppercase;
-    color: var(--rojo);
-    margin-bottom: 16px;
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 5px;
+    text-transform: uppercase; color: var(--rojo); margin-bottom: 16px;
   }
   .section-title {
     font-family: 'Bebas Neue', sans-serif;
     font-size: clamp(2.5rem, 6vw, 5rem);
-    letter-spacing: 3px;
-    line-height: 1;
-    margin-bottom: 20px;
+    letter-spacing: 3px; line-height: 1; margin-bottom: 20px;
   }
-  .section-body {
-    font-size: 1.05rem;
-    line-height: 1.8;
-    color: var(--texto-suave);
-    max-width: 600px;
-  }
+  .section-body { font-size: 1.05rem; line-height: 1.8; color: var(--texto-suave); max-width: 600px; }
 
-  /* ─── REVEAL ANIMATION ─── */
-  .reveal {
-    opacity: 0;
-    transform: translateY(50px);
-    transition: opacity 0.7s ease, transform 0.7s ease;
-  }
-  .reveal.visible {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  .reveal { opacity: 0; transform: translateY(50px); transition: opacity 0.7s ease, transform 0.7s ease; }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
   .reveal-delay-1 { transition-delay: 0.1s; }
   .reveal-delay-2 { transition-delay: 0.2s; }
   .reveal-delay-3 { transition-delay: 0.35s; }
   .reveal-delay-4 { transition-delay: 0.5s; }
 
-  /* ─── RUTAS SECTION ─── */
-  .rutas-section {
-    background: var(--gris-oscuro);
-    padding: 120px 0;
-  }
-  .rutas-inner {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 0 40px;
-  }
+  /* ══════════════════════════════
+     RUTAS
+  ══════════════════════════════ */
+  .rutas-section { background: var(--gris-oscuro); padding: 120px 0; }
+  .rutas-inner { max-width: 1200px; margin: 0 auto; padding: 0 40px; }
   .rutas-header { margin-bottom: 64px; }
+  .rutas-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2px; }
 
-  .rutas-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 2px;
-  }
   .ruta-card {
-    background: var(--gris-medio);
-    padding: 40px 32px;
-    position: relative;
-    overflow: hidden;
-    cursor: pointer;
-    transition: background 0.3s;
+    background: var(--gris-medio); padding: 40px 32px;
+    position: relative; overflow: hidden; cursor: pointer; transition: background 0.3s;
   }
   .ruta-card::before {
-    content: "";
-    position: absolute;
-    top: 0; left: 0; right: 0;
-    height: 3px;
-    background: var(--rojo);
-    transform: scaleX(0);
-    transform-origin: left;
-    transition: transform 0.35s;
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: var(--rojo); transform: scaleX(0); transform-origin: left; transition: transform 0.35s;
   }
   .ruta-card:hover::before { transform: scaleX(1); }
   .ruta-card:hover { background: #222; }
-
   .ruta-num {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 4rem;
-    color: rgba(212,43,43,0.15);
-    line-height: 1;
-    margin-bottom: 16px;
-    transition: color 0.3s;
+    font-family: 'Bebas Neue', sans-serif; font-size: 4rem;
+    color: rgba(212,43,43,0.15); line-height: 1; margin-bottom: 16px; transition: color 0.3s;
   }
   .ruta-card:hover .ruta-num { color: rgba(212,43,43,0.4); }
-
-  .ruta-route {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1.4rem;
-    font-weight: 700;
-    letter-spacing: 1px;
-    color: var(--texto);
-    margin-bottom: 8px;
-  }
-  .ruta-desc {
-    font-size: 0.85rem;
-    color: var(--texto-suave);
-    line-height: 1.6;
-    margin-bottom: 20px;
-  }
+  .ruta-route { font-family: 'Barlow Condensed', sans-serif; font-size: 1.4rem; font-weight: 700; letter-spacing: 1px; color: var(--texto); margin-bottom: 8px; }
+  .ruta-desc { font-size: 0.85rem; color: var(--texto-suave); line-height: 1.6; margin-bottom: 20px; }
   .ruta-tag {
-    display: inline-block;
-    background: rgba(212,43,43,0.12);
-    color: var(--rojo);
-    border: 1px solid rgba(212,43,43,0.25);
-    padding: 4px 12px;
-    border-radius: 2px;
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 2px;
-    text-transform: uppercase;
+    display: inline-block; background: rgba(212,43,43,0.12); color: var(--rojo);
+    border: 1px solid rgba(212,43,43,0.25); padding: 4px 12px; border-radius: 2px;
+    font-size: 0.68rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
   }
 
-  /* ─── MAPA / VISUAL ─── */
-  .mapa-section {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 80px;
-    align-items: center;
-  }
-  @media (max-width:768px) { .mapa-section { grid-template-columns: 1fr; } }
-
-  .mapa-visual {
-    position: relative;
-    aspect-ratio: 4/5;
-    background: var(--gris-medio);
-    border-radius: 12px;
-    overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.06);
-  }
+  /* ══════════════════════════════
+     MAPA
+  ══════════════════════════════ */
+  .mapa-section { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
+  .mapa-visual { position: relative; aspect-ratio: 4/5; background: var(--gris-medio); border-radius: 12px; overflow: hidden; border: 1px solid rgba(255,255,255,0.06); }
   .mapa-svg { width: 100%; height: 100%; }
 
-  /* ─── SERVICIOS ─── */
-  .servicios-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 24px;
-    margin-top: 60px;
-  }
-  .servicio-item {
-    background: var(--gris-medio);
-    border: 1px solid rgba(255,255,255,0.05);
-    border-radius: 8px;
-    padding: 32px 28px;
-    transition: border-color 0.3s, transform 0.3s;
-  }
+  /* ══════════════════════════════
+     SERVICIOS
+  ══════════════════════════════ */
+  .servicios-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; margin-top: 60px; }
+  .servicio-item { background: var(--gris-medio); border: 1px solid rgba(255,255,255,0.05); border-radius: 8px; padding: 32px 28px; transition: border-color 0.3s, transform 0.3s; }
   .servicio-item:hover { border-color: rgba(212,43,43,0.4); transform: translateY(-4px); }
-
-  .servicio-icon {
-    width: 48px; height: 48px;
-    background: rgba(212,43,43,0.12);
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    margin-bottom: 20px;
-    font-size: 1.4rem;
-  }
-  .servicio-title {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: 1px;
-    margin-bottom: 10px;
-    color: var(--texto);
-  }
+  .servicio-icon { width: 48px; height: 48px; background: rgba(212,43,43,0.12); border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; font-size: 1.4rem; }
+  .servicio-title { font-family: 'Barlow Condensed', sans-serif; font-size: 1.1rem; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px; color: var(--texto); }
   .servicio-desc { font-size: 0.85rem; color: var(--texto-suave); line-height: 1.6; }
 
-  /* ─── HORARIOS SLIDER ─── */
-  .horarios-section {
-    background: linear-gradient(135deg, #0d0d0d 0%, #160808 100%);
-    padding: 120px 0;
-    overflow: hidden;
-  }
+  /* ══════════════════════════════
+     HORARIOS
+  ══════════════════════════════ */
+  .horarios-section { background: linear-gradient(135deg, #0d0d0d 0%, #160808 100%); padding: 120px 0; overflow: hidden; }
   .horarios-inner { max-width: 1200px; margin: 0 auto; padding: 0 40px; }
-
-  .slider-container {
-    margin-top: 60px;
-    overflow: hidden;
-    position: relative;
-  }
-  .slider-track {
-    display: flex;
-    gap: 24px;
-    transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  }
-  .horario-card {
-    min-width: 300px;
-    background: var(--gris-medio);
-    border-radius: 10px;
-    padding: 32px 28px;
-    border: 1px solid rgba(255,255,255,0.06);
-    flex-shrink: 0;
-  }
-  .horario-ciudad {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1.5rem;
-    font-weight: 900;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    color: var(--texto);
-    margin-bottom: 4px;
-  }
+  .slider-container { margin-top: 60px; overflow: hidden; position: relative; touch-action: pan-y; }
+  .slider-track { display: flex; gap: 24px; transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+  .horario-card { min-width: 300px; background: var(--gris-medio); border-radius: 10px; padding: 32px 28px; border: 1px solid rgba(255,255,255,0.06); flex-shrink: 0; }
+  .horario-ciudad { font-family: 'Barlow Condensed', sans-serif; font-size: 1.5rem; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; color: var(--texto); margin-bottom: 4px; }
   .horario-destino { font-size: 0.8rem; color: var(--texto-suave); margin-bottom: 24px; }
-  .horario-tiempo {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 3rem;
-    color: var(--rojo);
-    line-height: 1;
-    margin-bottom: 4px;
-  }
+  .horario-tiempo { font-family: 'Bebas Neue', sans-serif; font-size: 3rem; color: var(--rojo); line-height: 1; margin-bottom: 4px; }
   .horario-duracion { font-size: 0.75rem; color: var(--texto-suave); letter-spacing: 1px; }
-
-  .slider-controls {
-    display: flex; gap: 12px; margin-top: 32px;
-  }
+  .slider-controls { display: flex; gap: 12px; margin-top: 32px; }
   .slider-btn {
-    width: 44px; height: 44px;
-    border: 1px solid rgba(255,255,255,0.15);
-    background: transparent;
-    border-radius: 50%;
-    color: var(--texto);
-    font-size: 1.1rem;
-    cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: background 0.2s, border-color 0.2s;
+    width: 44px; height: 44px; border: 1px solid rgba(255,255,255,0.15);
+    background: transparent; border-radius: 50%; color: var(--texto); font-size: 1.1rem;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, border-color 0.2s; -webkit-tap-highlight-color: transparent;
   }
   .slider-btn:hover { background: var(--rojo); border-color: var(--rojo); }
+  .slider-btn:active { transform: scale(0.9); }
 
-  /* ─── TESTIMONIOS ─── */
-  .testimonios-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 24px;
-    margin-top: 60px;
-  }
-  .testimonio {
-    background: var(--gris-medio);
-    border-radius: 10px;
-    padding: 32px;
-    border-left: 3px solid var(--rojo);
-    position: relative;
-  }
-  .testimonio::before {
-    content: '"';
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: 6rem;
-    color: rgba(212,43,43,0.12);
-    position: absolute;
-    top: 8px; right: 24px;
-    line-height: 1;
-  }
+  /* ══════════════════════════════
+     TESTIMONIOS
+  ══════════════════════════════ */
+  .testimonios-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-top: 60px; }
+  .testimonio { background: var(--gris-medio); border-radius: 10px; padding: 32px; border-left: 3px solid var(--rojo); position: relative; }
+  .testimonio::before { content: '"'; font-family: 'Bebas Neue', sans-serif; font-size: 6rem; color: rgba(212,43,43,0.12); position: absolute; top: 8px; right: 24px; line-height: 1; }
   .testimonio-texto { font-size: 0.95rem; color: var(--texto-suave); line-height: 1.7; margin-bottom: 20px; }
   .testimonio-autor { font-weight: 700; font-size: 0.85rem; color: var(--texto); }
   .testimonio-ciudad { font-size: 0.75rem; color: var(--texto-suave); }
 
-  /* ─── APP BANNER ─── */
-  .app-banner {
-    background: var(--rojo);
-    padding: 80px 40px;
-    text-align: center;
-    position: relative;
-    overflow: hidden;
-  }
-  .app-banner::before {
-    content: "";
-    position: absolute; inset: 0;
-    background: repeating-linear-gradient(
-      -45deg,
-      transparent,
-      transparent 20px,
-      rgba(0,0,0,0.06) 20px,
-      rgba(0,0,0,0.06) 40px
-    );
-  }
-  .app-banner-title {
-    font-family: 'Bebas Neue', sans-serif;
-    font-size: clamp(2rem, 6vw, 4.5rem);
-    letter-spacing: 4px;
-    color: white;
-    margin-bottom: 16px;
-    position: relative;
-  }
+  /* ══════════════════════════════
+     APP BANNER
+  ══════════════════════════════ */
+  .app-banner { background: var(--rojo); padding: 80px 40px; text-align: center; position: relative; overflow: hidden; }
+  .app-banner::before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(-45deg, transparent, transparent 20px, rgba(0,0,0,0.06) 20px, rgba(0,0,0,0.06) 40px); }
+  .app-banner-title { font-family: 'Bebas Neue', sans-serif; font-size: clamp(2rem, 6vw, 4.5rem); letter-spacing: 4px; color: white; margin-bottom: 16px; position: relative; }
   .app-banner-sub { font-size: 1rem; color: rgba(255,255,255,0.75); margin-bottom: 36px; position: relative; }
   .app-buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; position: relative; }
-  .app-btn {
-    background: rgba(255,255,255,0.15);
-    border: 1px solid rgba(255,255,255,0.4);
-    color: white;
-    padding: 14px 28px;
-    border-radius: 8px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-weight: 700;
-    font-size: 0.9rem;
-    letter-spacing: 1px;
-    cursor: pointer;
-    text-decoration: none;
-    backdrop-filter: blur(6px);
-    transition: background 0.2s;
-  }
+  .app-btn { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); color: white; padding: 14px 28px; border-radius: 8px; font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 0.9rem; letter-spacing: 1px; cursor: pointer; text-decoration: none; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); transition: background 0.2s; -webkit-tap-highlight-color: transparent; }
   .app-btn:hover { background: rgba(255,255,255,0.28); }
 
-  /* ─── FOOTER ─── */
-  footer {
-    background: #050505;
-    padding: 60px 40px 32px;
-    border-top: 1px solid rgba(212,43,43,0.15);
-  }
-  .footer-grid {
-    max-width: 1200px;
-    margin: 0 auto;
-    display: grid;
-    grid-template-columns: 2fr 1fr 1fr 1fr;
-    gap: 48px;
-    margin-bottom: 48px;
-  }
-  @media(max-width:768px) { .footer-grid { grid-template-columns: 1fr 1fr; } }
-
+  /* ══════════════════════════════
+     FOOTER
+  ══════════════════════════════ */
+  footer { background: #050505; padding: 60px 40px 32px; border-top: 1px solid rgba(212,43,43,0.15); }
+  .footer-grid { max-width: 1200px; margin: 0 auto 48px; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 48px; }
   .footer-brand p { font-size: 0.85rem; color: var(--texto-suave); line-height: 1.7; margin-top: 12px; }
-  .footer-col h4 {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 0.8rem;
-    font-weight: 700;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: var(--texto);
-    margin-bottom: 16px;
-  }
-  .footer-col a {
-    display: block;
-    font-size: 0.85rem;
-    color: var(--texto-suave);
-    text-decoration: none;
-    margin-bottom: 8px;
-    transition: color 0.2s;
-  }
+  .footer-col h4 { font-family: 'Barlow Condensed', sans-serif; font-size: 0.8rem; font-weight: 700; letter-spacing: 3px; text-transform: uppercase; color: var(--texto); margin-bottom: 16px; }
+  .footer-col a { display: block; font-size: 0.85rem; color: var(--texto-suave); text-decoration: none; margin-bottom: 8px; transition: color 0.2s; }
   .footer-col a:hover { color: var(--oro); }
+  .footer-bottom { max-width: 1200px; margin: 0 auto; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.06); display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; color: var(--texto-suave); flex-wrap: wrap; gap: 12px; }
 
-  .footer-bottom {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding-top: 24px;
-    border-top: 1px solid rgba(255,255,255,0.06);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.75rem;
-    color: var(--texto-suave);
-  }
+  /* ══════════════════════════════
+     DIVIDER
+  ══════════════════════════════ */
+  .divider { max-width: 1200px; margin: 0 auto; height: 1px; background: linear-gradient(90deg, transparent, rgba(212,43,43,0.3), transparent); }
 
-  /* ─── HERO ENTRY ANIMATIONS ─── */
+  /* ══════════════════════════════
+     LOGIN MODAL
+  ══════════════════════════════ */
+  .login-modal { display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); align-items: center; justify-content: center; padding: 20px; }
+  .login-modal.open { display: flex; }
+  .login-box { background: #181818; border: 1px solid rgba(212,43,43,0.3); border-radius: 12px; padding: 48px 40px; width: 100%; max-width: 420px; position: relative; animation: fadeUp 0.3s both; }
+  .login-close { position: absolute; top: 16px; right: 20px; background: none; border: none; color: #9A9080; font-size: 1.4rem; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .login-title { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; letter-spacing: 3px; margin-bottom: 4px; color: var(--texto); }
+  .login-subtitle { font-size: 0.8rem; color: var(--texto-suave); margin-bottom: 32px; letter-spacing: 1px; }
+  .login-field { margin-bottom: 20px; }
+  .login-field label { font-size: 0.75rem; letter-spacing: 2px; text-transform: uppercase; color: var(--texto-suave); display: block; margin-bottom: 8px; }
+  .login-field input { width: 100%; background: #0d0d0d; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; padding: 14px 16px; color: var(--texto); font-family: 'Barlow', sans-serif; font-size: 0.95rem; outline: none; transition: border-color 0.2s; -webkit-appearance: none; }
+  .login-field input:focus { border-color: rgba(212,43,43,0.6); }
+  .login-submit { width: 100%; margin-bottom: 16px; }
+  .login-register { background: none; border: 1px solid rgba(255,255,255,0.1); color: var(--texto-suave); padding: 10px 20px; border-radius: 6px; font-family: 'Barlow', sans-serif; font-size: 0.8rem; cursor: pointer; width: 100%; transition: border-color 0.2s, color 0.2s; -webkit-tap-highlight-color: transparent; }
+  .login-register:hover { border-color: rgba(212,43,43,0.5); color: var(--texto); }
+
+  /* ══════════════════════════════
+     ANIMATIONS
+  ══════════════════════════════ */
   @keyframes fadeUp {
     from { opacity: 0; transform: translateY(30px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  .hero-tag  { animation: fadeUp 0.7s 0.2s both; }
-  .hero-title{ animation: fadeUp 0.7s 0.4s both; }
-  .hero-sub  { animation: fadeUp 0.7s 0.6s both; }
-  .hero-cta  { animation: fadeUp 0.7s 0.8s both; }
 
-  /* ─── BUS VISUAL ─── */
-  .bus-row {
-    display: flex; align-items: center; gap: 40px; margin-top: 60px;
-  }
-  .bus-visual {
-    flex: 0 0 360px;
-    height: 200px;
-    background: var(--gris-medio);
-    border-radius: 10px;
-    display: flex; align-items: center; justify-content: center;
-    border: 1px solid rgba(255,255,255,0.06);
-    overflow: hidden;
-    position: relative;
-  }
-  .bus-visual svg { width: 90%; height: 90%; }
+  /* ══════════════════════════════
+     MOBILE ≤ 768px
+  ══════════════════════════════ */
+  @media (max-width: 768px) {
+    header { padding: 0 16px; height: 60px; }
+    .header-logo span { display: none; }
+    nav { display: none; }
+    .hamburger { display: flex; }
 
-  /* ─── DIVIDER ─── */
-  .divider {
-    max-width: 1200px; margin: 0 auto;
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(212,43,43,0.3), transparent);
+    .route-ticker { top: 60px; }
+    .ticker-track { gap: 40px; }
+    .ticker-item { font-size: 0.65rem; letter-spacing: 2px; }
+
+    .hero {
+      padding-top: 130px;
+      padding-bottom: 48px;
+      min-height: 100vh;
+      min-height: 100dvh;
+      justify-content: flex-start;
+    }
+
+    .hero-tag { font-size: 0.6rem; letter-spacing: 3px; }
+    .hero-tag::before, .hero-tag::after { width: 20px; }
+    .hero-title { font-size: clamp(3rem, 15vw, 5rem); letter-spacing: 2px; }
+    .hero-sub { font-size: 0.95rem; margin: 20px auto 32px; padding: 0 16px; }
+    .hero-cta { flex-direction: column; align-items: center; gap: 12px; }
+    .btn-primary, .btn-outline { width: 100%; max-width: 300px; text-align: center; padding: 14px 24px; font-size: 0.9rem; }
+
+    .hero-stats { gap: 24px 40px; margin-top: 40px; }
+    .stat-num { font-size: 1.8rem; }
+    .stat-label { font-size: 0.6rem; }
+
+    .scroll-hint { display: none; }
+
+    section { padding: 80px 20px; }
+    .section-title { font-size: clamp(2rem, 8vw, 3.5rem); }
+    .section-body { font-size: 0.95rem; }
+
+    .rutas-section { padding: 80px 0; }
+    .rutas-inner { padding: 0 16px; }
+    .rutas-header { margin-bottom: 40px; }
+    .rutas-grid { grid-template-columns: 1fr; gap: 2px; }
+    .ruta-card { padding: 28px 20px; }
+    .ruta-num { font-size: 3rem; }
+    .ruta-route { font-size: 1.2rem; }
+
+    .mapa-section { grid-template-columns: 1fr; gap: 40px; }
+    .mapa-visual { aspect-ratio: 3/4; max-height: 400px; }
+
+    .servicios-grid { grid-template-columns: 1fr; gap: 16px; margin-top: 40px; }
+    .servicio-item { padding: 24px 20px; display: flex; gap: 16px; align-items: flex-start; }
+    .servicio-icon { margin-bottom: 0; flex-shrink: 0; }
+    .servicio-title { margin-bottom: 6px; }
+
+    .horarios-section { padding: 80px 0; }
+    .horarios-inner { padding: 0 16px; }
+    .horario-card { min-width: 260px; padding: 24px 20px; }
+    .horario-ciudad { font-size: 1.3rem; }
+    .horario-tiempo { font-size: 2.5rem; }
+
+    .testimonios-grid { grid-template-columns: 1fr; margin-top: 40px; }
+    .testimonio { padding: 24px 20px; }
+    .testimonio::before { font-size: 4rem; }
+
+    .app-banner { padding: 60px 20px; }
+    .app-buttons { flex-direction: column; align-items: center; }
+    .app-btn { width: 100%; max-width: 260px; text-align: center; }
+
+    footer { padding: 48px 20px 24px; }
+    .footer-grid { grid-template-columns: 1fr; gap: 32px; }
+    .footer-bottom { flex-direction: column; text-align: center; gap: 8px; }
+
+    .login-box { padding: 32px 24px; }
+    .login-title { font-size: 1.6rem; }
+  }
+
+  /* ══════════════════════════════
+     SMALL MOBILE ≤ 380px
+  ══════════════════════════════ */
+  @media (max-width: 380px) {
+    .hero-title { font-size: clamp(2.5rem, 18vw, 4rem); letter-spacing: 1px; }
+    .hero-tag { font-size: 0.55rem; letter-spacing: 2px; }
+    .hero-stats { gap: 16px 24px; }
+    .stat-num { font-size: 1.5rem; }
+    .ruta-card { padding: 24px 16px; }
+    .ruta-num { font-size: 2.5rem; }
+    .login-box { padding: 28px 18px; }
+  }
+
+  /* ══════════════════════════════
+     TABLET 769–1024px
+  ══════════════════════════════ */
+  @media (min-width: 769px) and (max-width: 1024px) {
+    header { padding: 0 24px; }
+    nav { gap: 20px; }
+    nav a { font-size: 0.75rem; letter-spacing: 1.5px; }
+    section { padding: 100px 32px; }
+    .rutas-inner { padding: 0 32px; }
+    .horarios-inner { padding: 0 32px; }
+    .mapa-section { gap: 48px; }
+    .rutas-grid { grid-template-columns: repeat(2, 1fr); }
+    .servicios-grid { grid-template-columns: repeat(3, 1fr); }
+    .testimonios-grid { grid-template-columns: repeat(2, 1fr); }
+    .footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; }
+  }
+
+  /* ══════════════════════════════
+     SAFE AREAS
+  ══════════════════════════════ */
+  @supports (padding-top: env(safe-area-inset-top)) {
+    @media (max-width: 768px) {
+      header { padding-top: var(--safe-top); padding-left: calc(16px + var(--safe-left)); padding-right: calc(16px + var(--safe-right)); }
+      .route-ticker { top: calc(60px + var(--safe-top)); }
+      footer { padding-bottom: calc(24px + var(--safe-bottom)); }
+    }
   }
 </style>
 </head>
@@ -682,12 +591,24 @@
     <a href="#servicios">Servicios</a>
     <a href="#horarios">Horarios</a>
     <a href="#contacto">Contacto</a>
-    <a href="http://127.0.0.1:8000/ok/" class="btn-nav">Acceder</a>
+    <a href="#login" class="btn-nav">Acceder</a>
   </nav>
+  <button class="hamburger" id="hamburger" aria-label="Menú">
+    <span></span><span></span><span></span>
+  </button>
 </header>
 
+<!-- ─── MOBILE MENU ─── -->
+<div class="mobile-menu" id="mobileMenu">
+  <a href="#rutas" onclick="closeMenu()">Rutas</a>
+  <a href="#servicios" onclick="closeMenu()">Servicios</a>
+  <a href="#horarios" onclick="closeMenu()">Horarios</a>
+  <a href="#contacto" onclick="closeMenu()">Contacto</a>
+  <a href="/ok/" class="btn-nav">Acceder</a>
+</div>
+
 <!-- ─── TICKER ─── -->
-<div class="route-ticker" style="position:fixed;top:72px;left:0;right:0;z-index:999">
+<div class="route-ticker">
   <div class="ticker-track">
     <span class="ticker-item">Tijuana – Ensenada</span>
     <span class="ticker-item">Mexicali – Tecate</span>
@@ -705,17 +626,16 @@
 </div>
 
 <!-- ─── HERO ─── -->
-<div class="hero" style="padding-top:130px;">
+<div class="hero">
   <div class="hero-bg"></div>
   <div class="grid-lines"></div>
 
-  <!-- SVG carretera de fondo -->
   <svg class="road-svg" viewBox="0 0 1440 500" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M0 500 L720 120 L1440 500" fill="none" stroke="rgba(212,43,43,0.6)" stroke-width="2"/>
     <path d="M0 500 L720 160 L1440 500" fill="none" stroke="rgba(212,43,43,0.25)" stroke-width="1"/>
     <line x1="720" y1="120" x2="720" y2="500" stroke="rgba(245,166,35,0.4)" stroke-width="3" stroke-dasharray="18 14"/>
     <path d="M120 500 L720 130 L1320 500" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="80"/>
-    <circle cx="720" cy="120" r="6" fill="var(--rojo)" opacity="0.8">
+    <circle cx="720" cy="120" r="6" fill="#D42B2B" opacity="0.8">
       <animate attributeName="opacity" values="0.8;0.3;0.8" dur="2s" repeatCount="indefinite"/>
     </circle>
   </svg>
@@ -732,31 +652,16 @@
       <a href="#rutas" class="btn-primary">Ver rutas disponibles</a>
       <a href="#horarios" class="btn-outline">Consultar horarios</a>
     </div>
-  </div>
-
-  <div class="hero-stats">
-    <div class="stat">
-      <div class="stat-num">18+</div>
-      <div class="stat-label">Rutas activas</div>
-    </div>
-    <div class="stat">
-      <div class="stat-num">6</div>
-      <div class="stat-label">Ciudades</div>
-    </div>
-    <div class="stat">
-      <div class="stat-num">98%</div>
-      <div class="stat-label">Puntualidad</div>
-    </div>
-    <div class="stat">
-      <div class="stat-num">50K+</div>
-      <div class="stat-label">Pasajeros/mes</div>
+    <!-- Stats dentro del flujo, nunca position:absolute -->
+    <div class="hero-stats">
+      <div class="stat"><div class="stat-num">18+</div><div class="stat-label">Rutas activas</div></div>
+      <div class="stat"><div class="stat-num">6</div><div class="stat-label">Ciudades</div></div>
+      <div class="stat"><div class="stat-num">98%</div><div class="stat-label">Puntualidad</div></div>
+      <div class="stat"><div class="stat-num">50K+</div><div class="stat-label">Pasajeros/mes</div></div>
     </div>
   </div>
 
-  <div class="scroll-hint">
-    <span>Scroll</span>
-    <div class="line"></div>
-  </div>
+  <div class="scroll-hint"><span>Scroll</span><div class="line"></div></div>
 </div>
 
 <!-- ─── RUTAS ─── -->
@@ -768,42 +673,12 @@
       <p class="section-body">Cubrimos las principales conexiones de la península con salidas frecuentes y atención personalizada.</p>
     </div>
     <div class="rutas-grid">
-      <div class="ruta-card reveal reveal-delay-1">
-        <div class="ruta-num">01</div>
-        <div class="ruta-route">Tijuana → Ensenada</div>
-        <div class="ruta-desc">Ruta costera con vistas al Pacífico. Servicio express sin paradas intermedias.</div>
-        <span class="ruta-tag">Express</span>
-      </div>
-      <div class="ruta-card reveal reveal-delay-2">
-        <div class="ruta-num">02</div>
-        <div class="ruta-route">Mexicali → Tecate</div>
-        <div class="ruta-desc">Conexión rápida entre la capital estatal y Tecate. Salidas cada hora.</div>
-        <span class="ruta-tag">Frecuente</span>
-      </div>
-      <div class="ruta-card reveal reveal-delay-3">
-        <div class="ruta-num">03</div>
-        <div class="ruta-route">Tijuana → Rosarito</div>
-        <div class="ruta-desc">La ruta más transitada del norte. Autobuses modernos con aire acondicionado.</div>
-        <span class="ruta-tag">Popular</span>
-      </div>
-      <div class="ruta-card reveal reveal-delay-4">
-        <div class="ruta-num">04</div>
-        <div class="ruta-route">La Paz → Los Cabos</div>
-        <div class="ruta-desc">Recorre el sur de la península con servicio de lujo hasta el Cabo.</div>
-        <span class="ruta-tag">Premium</span>
-      </div>
-      <div class="ruta-card reveal reveal-delay-1">
-        <div class="ruta-num">05</div>
-        <div class="ruta-route">Mexicali → San Felipe</div>
-        <div class="ruta-desc">Hacia el Mar de Cortés. Salidas matutinas y vespertinas.</div>
-        <span class="ruta-tag">Turística</span>
-      </div>
-      <div class="ruta-card reveal reveal-delay-2">
-        <div class="ruta-num">06</div>
-        <div class="ruta-route">Ensenada → Rosarito</div>
-        <div class="ruta-desc">Conexión entre los dos principales destinos turísticos del norte.</div>
-        <span class="ruta-tag">Express</span>
-      </div>
+      <div class="ruta-card reveal reveal-delay-1"><div class="ruta-num">01</div><div class="ruta-route">Tijuana → Ensenada</div><div class="ruta-desc">Ruta costera con vistas al Pacífico. Servicio express sin paradas intermedias.</div><span class="ruta-tag">Express</span></div>
+      <div class="ruta-card reveal reveal-delay-2"><div class="ruta-num">02</div><div class="ruta-route">Mexicali → Tecate</div><div class="ruta-desc">Conexión rápida entre la capital estatal y Tecate. Salidas cada hora.</div><span class="ruta-tag">Frecuente</span></div>
+      <div class="ruta-card reveal reveal-delay-3"><div class="ruta-num">03</div><div class="ruta-route">Tijuana → Rosarito</div><div class="ruta-desc">La ruta más transitada del norte. Autobuses modernos con aire acondicionado.</div><span class="ruta-tag">Popular</span></div>
+      <div class="ruta-card reveal reveal-delay-4"><div class="ruta-num">04</div><div class="ruta-route">La Paz → Los Cabos</div><div class="ruta-desc">Recorre el sur de la península con servicio de lujo hasta el Cabo.</div><span class="ruta-tag">Premium</span></div>
+      <div class="ruta-card reveal reveal-delay-1"><div class="ruta-num">05</div><div class="ruta-route">Mexicali → San Felipe</div><div class="ruta-desc">Hacia el Mar de Cortés. Salidas matutinas y vespertinas.</div><span class="ruta-tag">Turística</span></div>
+      <div class="ruta-card reveal reveal-delay-2"><div class="ruta-num">06</div><div class="ruta-route">Ensenada → Rosarito</div><div class="ruta-desc">Conexión entre los dos principales destinos turísticos del norte.</div><span class="ruta-tag">Express</span></div>
     </div>
   </div>
 </div>
@@ -817,82 +692,31 @@
       <div class="section-label">Quiénes somos</div>
       <h2 class="section-title">BAJA CALIFORNIA<br>DE PUNTA A PUNTA</h2>
       <p class="section-body">Rutas Baja Express nació con la misión de hacer el transporte terrestre más eficiente, seguro y accesible para todos los bajacalifornianos.<br><br>Nuestra flota moderna y nuestros operadores certificados garantizan que cada viaje sea una experiencia confiable, sin importar el destino.</p>
-      <br>
-      <a href="#" class="btn-outline" style="display:inline-block;margin-top:8px;">Conoce más →</a>
+      <br><a href="#" class="btn-outline" style="display:inline-block;margin-top:8px;">Conoce más →</a>
     </div>
-
-    <!-- Mapa estilizado de Baja California SVG -->
     <div class="mapa-visual reveal reveal-delay-2">
       <svg class="mapa-svg" viewBox="0 0 300 500" xmlns="http://www.w3.org/2000/svg">
         <defs>
-          <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#1a0808"/>
-            <stop offset="100%" stop-color="#0d0d0d"/>
-          </radialGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="3" result="blur"/>
-            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-          </filter>
+          <radialGradient id="bgGrad" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#1a0808"/><stop offset="100%" stop-color="#0d0d0d"/></radialGradient>
+          <filter id="glow"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
         </defs>
         <rect width="300" height="500" fill="url(#bgGrad)"/>
-
-        <!-- Forma simplificada de Baja California -->
-        <path d="M140 30 L170 35 L185 55 L180 80 L175 120 L170 160 L165 200
-                 L160 240 L155 280 L148 320 L140 360 L130 400 L120 440
-                 L108 470 L95 490 L82 480 L90 450 L100 410 L108 370
-                 L115 330 L122 290 L128 250 L132 210 L135 170 L138 130
-                 L138 90 L135 60 Z"
-              fill="rgba(212,43,43,0.08)"
-              stroke="rgba(212,43,43,0.5)"
-              stroke-width="1.5"/>
-
-        <!-- Ciudades -->
-        <!-- Tijuana -->
-        <circle cx="145" cy="50" r="6" fill="var(--rojo)" filter="url(#glow)">
-          <animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite"/>
-        </circle>
+        <path d="M140 30 L170 35 L185 55 L180 80 L175 120 L170 160 L165 200 L160 240 L155 280 L148 320 L140 360 L130 400 L120 440 L108 470 L95 490 L82 480 L90 450 L100 410 L108 370 L115 330 L122 290 L128 250 L132 210 L135 170 L138 130 L138 90 L135 60 Z" fill="rgba(212,43,43,0.08)" stroke="rgba(212,43,43,0.5)" stroke-width="1.5"/>
+        <circle cx="145" cy="50" r="6" fill="#D42B2B" filter="url(#glow)"><animate attributeName="r" values="6;8;6" dur="2s" repeatCount="indefinite"/></circle>
         <text x="155" y="55" fill="#E8E0D0" font-size="9" font-family="Barlow Condensed, sans-serif" font-weight="700" letter-spacing="1">TIJUANA</text>
-
-        <!-- Mexicali -->
-        <circle cx="175" cy="62" r="5" fill="var(--oro)" filter="url(#glow)">
-          <animate attributeName="r" values="5;7;5" dur="2.5s" repeatCount="indefinite"/>
-        </circle>
+        <circle cx="175" cy="62" r="5" fill="#F5A623" filter="url(#glow)"><animate attributeName="r" values="5;7;5" dur="2.5s" repeatCount="indefinite"/></circle>
         <text x="182" y="66" fill="#E8E0D0" font-size="8" font-family="Barlow Condensed, sans-serif" font-weight="700" letter-spacing="1">MEXICALI</text>
-
-        <!-- Tecate -->
-        <circle cx="162" cy="72" r="4" fill="#9A9080"/>
-        <text x="168" y="76" fill="#9A9080" font-size="7" font-family="Barlow Condensed, sans-serif">TECATE</text>
-
-        <!-- Rosarito -->
-        <circle cx="138" cy="80" r="4" fill="#9A9080"/>
-        <text x="100" y="84" fill="#9A9080" font-size="7" font-family="Barlow Condensed, sans-serif">ROSARITO</text>
-
-        <!-- Ensenada -->
-        <circle cx="133" cy="120" r="5" fill="var(--rojo)" opacity="0.8"/>
-        <text x="98" y="124" fill="#E8E0D0" font-size="8" font-family="Barlow Condensed, sans-serif" font-weight="700">ENSENADA</text>
-
-        <!-- San Felipe -->
-        <circle cx="170" cy="130" r="4" fill="#9A9080"/>
-        <text x="176" y="134" fill="#9A9080" font-size="7" font-family="Barlow Condensed, sans-serif">SAN FELIPE</text>
-
-        <!-- La Paz -->
-        <circle cx="125" cy="390" r="5" fill="var(--rojo)" opacity="0.8"/>
-        <text x="88" y="394" fill="#E8E0D0" font-size="8" font-family="Barlow Condensed, sans-serif" font-weight="700">LA PAZ</text>
-
-        <!-- Los Cabos -->
-        <circle cx="95" cy="465" r="5" fill="var(--oro)" filter="url(#glow)">
-          <animate attributeName="r" values="5;7;5" dur="3s" repeatCount="indefinite"/>
-        </circle>
+        <circle cx="162" cy="72" r="4" fill="#9A9080"/><text x="168" y="76" fill="#9A9080" font-size="7" font-family="Barlow Condensed, sans-serif">TECATE</text>
+        <circle cx="138" cy="80" r="4" fill="#9A9080"/><text x="100" y="84" fill="#9A9080" font-size="7" font-family="Barlow Condensed, sans-serif">ROSARITO</text>
+        <circle cx="133" cy="120" r="5" fill="#D42B2B" opacity="0.8"/><text x="98" y="124" fill="#E8E0D0" font-size="8" font-family="Barlow Condensed, sans-serif" font-weight="700">ENSENADA</text>
+        <circle cx="170" cy="130" r="4" fill="#9A9080"/><text x="176" y="134" fill="#9A9080" font-size="7" font-family="Barlow Condensed, sans-serif">SAN FELIPE</text>
+        <circle cx="125" cy="390" r="5" fill="#D42B2B" opacity="0.8"/><text x="88" y="394" fill="#E8E0D0" font-size="8" font-family="Barlow Condensed, sans-serif" font-weight="700">LA PAZ</text>
+        <circle cx="95" cy="465" r="5" fill="#F5A623" filter="url(#glow)"><animate attributeName="r" values="5;7;5" dur="3s" repeatCount="indefinite"/></circle>
         <text x="58" y="469" fill="#E8E0D0" font-size="8" font-family="Barlow Condensed, sans-serif" font-weight="700">LOS CABOS</text>
-
-        <!-- Líneas de ruta -->
         <line x1="145" y1="50" x2="138" y2="80" stroke="rgba(212,43,43,0.5)" stroke-width="1" stroke-dasharray="5 4"/>
         <line x1="138" y1="80" x2="133" y2="120" stroke="rgba(212,43,43,0.5)" stroke-width="1" stroke-dasharray="5 4"/>
         <line x1="145" y1="50" x2="162" y2="72" stroke="rgba(245,166,35,0.4)" stroke-width="1" stroke-dasharray="5 4"/>
-        <line x1="133" y1="120" x2="138" y2="80" stroke="rgba(212,43,43,0.3)" stroke-width="1" stroke-dasharray="5 4"/>
         <line x1="125" y1="390" x2="95" y2="465" stroke="rgba(212,43,43,0.5)" stroke-width="1" stroke-dasharray="5 4"/>
-
-        <!-- etiqueta -->
         <text x="150" y="495" fill="rgba(154,144,128,0.4)" font-size="7" font-family="Barlow Condensed" letter-spacing="2" text-anchor="middle">BAJA CALIFORNIA · MÉXICO</text>
       </svg>
     </div>
@@ -909,40 +733,16 @@
     <p class="section-body">Cada unidad está equipada para hacer tu viaje lo más cómodo posible.</p>
   </div>
   <div class="servicios-grid">
-    <div class="servicio-item reveal reveal-delay-1">
-      <div class="servicio-icon">❄️</div>
-      <div class="servicio-title">Clima controlado</div>
-      <div class="servicio-desc">Aire acondicionado en todas nuestras unidades para un viaje confortable.</div>
-    </div>
-    <div class="servicio-item reveal reveal-delay-2">
-      <div class="servicio-icon">📶</div>
-      <div class="servicio-title">Wi-Fi a bordo</div>
-      <div class="servicio-desc">Conexión estable durante todo el trayecto en rutas seleccionadas.</div>
-    </div>
-    <div class="servicio-item reveal reveal-delay-3">
-      <div class="servicio-icon">💺</div>
-      <div class="servicio-title">Asientos reclinables</div>
-      <div class="servicio-desc">Descansa en asientos ergonómicos con espacio amplio para tus piernas.</div>
-    </div>
-    <div class="servicio-item reveal reveal-delay-4">
-      <div class="servicio-icon">🎫</div>
-      <div class="servicio-title">Boletos en línea</div>
-      <div class="servicio-desc">Compra y reserva tus boletos desde cualquier dispositivo, sin filas.</div>
-    </div>
-    <div class="servicio-item reveal reveal-delay-1">
-      <div class="servicio-icon">🛡️</div>
-      <div class="servicio-title">Seguridad garantizada</div>
-      <div class="servicio-desc">Operadores certificados y GPS en tiempo real en toda la flota.</div>
-    </div>
-    <div class="servicio-item reveal reveal-delay-2">
-      <div class="servicio-icon">🧳</div>
-      <div class="servicio-title">Portaequipaje</div>
-      <div class="servicio-desc">Espacio para maletas en bodega sin costo adicional.</div>
-    </div>
+    <div class="servicio-item reveal reveal-delay-1"><div class="servicio-icon">❄️</div><div><div class="servicio-title">Clima controlado</div><div class="servicio-desc">Aire acondicionado en todas nuestras unidades para un viaje confortable.</div></div></div>
+    <div class="servicio-item reveal reveal-delay-2"><div class="servicio-icon">📶</div><div><div class="servicio-title">Wi-Fi a bordo</div><div class="servicio-desc">Conexión estable durante todo el trayecto en rutas seleccionadas.</div></div></div>
+    <div class="servicio-item reveal reveal-delay-3"><div class="servicio-icon">💺</div><div><div class="servicio-title">Asientos reclinables</div><div class="servicio-desc">Descansa en asientos ergonómicos con espacio amplio para tus piernas.</div></div></div>
+    <div class="servicio-item reveal reveal-delay-4"><div class="servicio-icon">🎫</div><div><div class="servicio-title">Boletos en línea</div><div class="servicio-desc">Compra y reserva tus boletos desde cualquier dispositivo, sin filas.</div></div></div>
+    <div class="servicio-item reveal reveal-delay-1"><div class="servicio-icon">🛡️</div><div><div class="servicio-title">Seguridad garantizada</div><div class="servicio-desc">Operadores certificados y GPS en tiempo real en toda la flota.</div></div></div>
+    <div class="servicio-item reveal reveal-delay-2"><div class="servicio-icon">🧳</div><div><div class="servicio-title">Portaequipaje</div><div class="servicio-desc">Espacio para maletas en bodega sin costo adicional.</div></div></div>
   </div>
 </section>
 
-<!-- ─── HORARIOS SLIDER ─── -->
+<!-- ─── HORARIOS ─── -->
 <div class="horarios-section" id="horarios">
   <div class="horarios-inner">
     <div class="reveal">
@@ -950,48 +750,16 @@
       <h2 class="section-title">HORARIOS</h2>
       <p class="section-body">Salidas frecuentes durante todo el día para que viajes cuando más te convenga.</p>
     </div>
-
     <div class="slider-container reveal reveal-delay-1">
       <div class="slider-track" id="sliderTrack">
-        <div class="horario-card">
-          <div class="horario-ciudad">Tijuana</div>
-          <div class="horario-destino">→ Ensenada</div>
-          <div class="horario-tiempo">06:00</div>
-          <div class="horario-duracion">Duración estimada: 1h 45min</div>
-        </div>
-        <div class="horario-card">
-          <div class="horario-ciudad">Mexicali</div>
-          <div class="horario-destino">→ Tecate</div>
-          <div class="horario-tiempo">07:30</div>
-          <div class="horario-duracion">Duración estimada: 1h 15min</div>
-        </div>
-        <div class="horario-card">
-          <div class="horario-ciudad">Tijuana</div>
-          <div class="horario-destino">→ Rosarito</div>
-          <div class="horario-tiempo">08:00</div>
-          <div class="horario-duracion">Duración estimada: 40min</div>
-        </div>
-        <div class="horario-card">
-          <div class="horario-ciudad">Ensenada</div>
-          <div class="horario-destino">→ Rosarito</div>
-          <div class="horario-tiempo">09:15</div>
-          <div class="horario-duracion">Duración estimada: 1h 20min</div>
-        </div>
-        <div class="horario-card">
-          <div class="horario-ciudad">La Paz</div>
-          <div class="horario-destino">→ Los Cabos</div>
-          <div class="horario-tiempo">10:00</div>
-          <div class="horario-duracion">Duración estimada: 2h 10min</div>
-        </div>
-        <div class="horario-card">
-          <div class="horario-ciudad">Mexicali</div>
-          <div class="horario-destino">→ San Felipe</div>
-          <div class="horario-tiempo">11:30</div>
-          <div class="horario-duracion">Duración estimada: 2h 30min</div>
-        </div>
+        <div class="horario-card"><div class="horario-ciudad">Tijuana</div><div class="horario-destino">→ Ensenada</div><div class="horario-tiempo">06:00</div><div class="horario-duracion">Duración estimada: 1h 45min</div></div>
+        <div class="horario-card"><div class="horario-ciudad">Mexicali</div><div class="horario-destino">→ Tecate</div><div class="horario-tiempo">07:30</div><div class="horario-duracion">Duración estimada: 1h 15min</div></div>
+        <div class="horario-card"><div class="horario-ciudad">Tijuana</div><div class="horario-destino">→ Rosarito</div><div class="horario-tiempo">08:00</div><div class="horario-duracion">Duración estimada: 40min</div></div>
+        <div class="horario-card"><div class="horario-ciudad">Ensenada</div><div class="horario-destino">→ Rosarito</div><div class="horario-tiempo">09:15</div><div class="horario-duracion">Duración estimada: 1h 20min</div></div>
+        <div class="horario-card"><div class="horario-ciudad">La Paz</div><div class="horario-destino">→ Los Cabos</div><div class="horario-tiempo">10:00</div><div class="horario-duracion">Duración estimada: 2h 10min</div></div>
+        <div class="horario-card"><div class="horario-ciudad">Mexicali</div><div class="horario-destino">→ San Felipe</div><div class="horario-tiempo">11:30</div><div class="horario-duracion">Duración estimada: 2h 30min</div></div>
       </div>
     </div>
-
     <div class="slider-controls">
       <button class="slider-btn" id="prevBtn">&#8592;</button>
       <button class="slider-btn" id="nextBtn">&#8594;</button>
@@ -1006,21 +774,9 @@
     <h2 class="section-title">VIAJEROS SATISFECHOS</h2>
   </div>
   <div class="testimonios-grid">
-    <div class="testimonio reveal reveal-delay-1">
-      <p class="testimonio-texto">Viajo de Tijuana a Ensenada cada semana por trabajo. Con Rutas Baja Express llego siempre a tiempo y el servicio es excelente. ¡No cambiaría este bus por nada!</p>
-      <div class="testimonio-autor">Carlos Mendoza</div>
-      <div class="testimonio-ciudad">Tijuana, B.C.</div>
-    </div>
-    <div class="testimonio reveal reveal-delay-2">
-      <p class="testimonio-texto">La ruta La Paz – Los Cabos es cómoda, limpia y puntual. Los asientos son amplios y el Wi-Fi funciona perfecto. Muy recomendable para turistas.</p>
-      <div class="testimonio-autor">Ana Luisa Flores</div>
-      <div class="testimonio-ciudad">La Paz, B.C.S.</div>
-    </div>
-    <div class="testimonio reveal reveal-delay-3">
-      <p class="testimonio-texto">Compré mi boleto en la app y fue facilísimo. Llegué a la terminal, abordé sin problema. El chofer fue muy amable y llegamos antes de lo esperado.</p>
-      <div class="testimonio-autor">Roberto Sánchez</div>
-      <div class="testimonio-ciudad">Mexicali, B.C.</div>
-    </div>
+    <div class="testimonio reveal reveal-delay-1"><p class="testimonio-texto">Viajo de Tijuana a Ensenada cada semana por trabajo. Con Rutas Baja Express llego siempre a tiempo y el servicio es excelente. ¡No cambiaría este bus por nada!</p><div class="testimonio-autor">Carlos Mendoza</div><div class="testimonio-ciudad">Tijuana, B.C.</div></div>
+    <div class="testimonio reveal reveal-delay-2"><p class="testimonio-texto">La ruta La Paz – Los Cabos es cómoda, limpia y puntual. Los asientos son amplios y el Wi-Fi funciona perfecto. Muy recomendable para turistas.</p><div class="testimonio-autor">Ana Luisa Flores</div><div class="testimonio-ciudad">La Paz, B.C.S.</div></div>
+    <div class="testimonio reveal reveal-delay-3"><p class="testimonio-texto">Compré mi boleto en la app y fue facilísimo. Llegué a la terminal, abordé sin problema. El chofer fue muy amable y llegamos antes de lo esperado.</p><div class="testimonio-autor">Roberto Sánchez</div><div class="testimonio-ciudad">Mexicali, B.C.</div></div>
   </div>
 </section>
 
@@ -1041,34 +797,20 @@
     <div class="section-label">Acceso operadores</div>
     <h2 class="section-title" style="margin:0 auto 16px;">¿ERES TAQUILLERO?</h2>
     <p class="section-body" style="margin:0 auto 40px;">Accede al sistema de gestión de boletos y rutas de Rutas Baja Express.</p>
-    <a href="http://127.0.0.1:8000/login/" class="btn-primary">Iniciar sesión →</a>
+    <a href="/login/" class="btn-primary">Iniciar sesión →</a>
   </div>
 </section>
 
 <!-- ─── LOGIN MODAL ─── -->
-<div id="loginModal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.85);backdrop-filter:blur(10px);align-items:center;justify-content:center;">
-  <div style="background:#181818;border:1px solid rgba(212,43,43,0.3);border-radius:12px;padding:48px 40px;width:100%;max-width:420px;margin:20px;position:relative;animation:fadeUp 0.3s both;">
-    <button onclick="closeLogin()" style="position:absolute;top:16px;right:20px;background:none;border:none;color:#9A9080;font-size:1.4rem;cursor:pointer;">✕</button>
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:3px;margin-bottom:4px;color:var(--texto);">ACCESO</div>
-    <div style="font-size:0.8rem;color:var(--texto-suave);margin-bottom:32px;letter-spacing:1px;">RUTAS BAJA EXPRESS · OPERADORES</div>
-    <div style="margin-bottom:20px;">
-      <label style="font-size:0.75rem;letter-spacing:2px;text-transform:uppercase;color:var(--texto-suave);display:block;margin-bottom:8px;">Usuario</label>
-      <input id="mUsuario" type="text" placeholder="Ingresa tu usuario…"
-        style="width:100%;background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:14px 16px;color:var(--texto);font-family:'Barlow',sans-serif;font-size:0.95rem;outline:none;transition:border-color 0.2s;"
-        onfocus="this.style.borderColor='rgba(212,43,43,0.6)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'">
-    </div>
-    <div style="margin-bottom:28px;">
-      <label style="font-size:0.75rem;letter-spacing:2px;text-transform:uppercase;color:var(--texto-suave);display:block;margin-bottom:8px;">Contraseña</label>
-      <input id="mPassword" type="password" placeholder="••••••••••"
-        style="width:100%;background:#0d0d0d;border:1px solid rgba(255,255,255,0.1);border-radius:6px;padding:14px 16px;color:var(--texto);font-family:'Barlow',sans-serif;font-size:0.95rem;outline:none;transition:border-color 0.2s;"
-        onfocus="this.style.borderColor='rgba(212,43,43,0.6)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'">
-    </div>
-    <button onclick="handleLogin()" class="btn-primary" style="width:100%;border:none;font-size:1rem;cursor:pointer;">Iniciar sesión</button>
-    <div style="margin-top:16px;text-align:center;">
-      <button style="background:none;border:1px solid rgba(255,255,255,0.1);color:var(--texto-suave);padding:10px 20px;border-radius:6px;font-family:'Barlow',sans-serif;font-size:0.8rem;cursor:pointer;width:100%;margin-top:8px;">
-        Registrar nuevo taquillero
-      </button>
-    </div>
+<div class="login-modal" id="loginModal">
+  <div class="login-box">
+    <button class="login-close" onclick="closeLogin()">✕</button>
+    <div class="login-title">ACCESO</div>
+    <div class="login-subtitle">RUTAS BAJA EXPRESS · OPERADORES</div>
+    <div class="login-field"><label>Usuario</label><input id="mUsuario" type="text" placeholder="Ingresa tu usuario…"></div>
+    <div class="login-field"><label>Contraseña</label><input id="mPassword" type="password" placeholder="••••••••••"></div>
+    <button onclick="handleLogin()" class="btn-primary login-submit">Iniciar sesión</button>
+    <button class="login-register">Registrar nuevo taquillero</button>
   </div>
 </div>
 
@@ -1077,32 +819,14 @@
   <div class="footer-grid">
     <div class="footer-brand">
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
-        <div style="width:36px;height:36px;background:var(--rojo);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:18px;color:white;">RBE</div>
+        <div style="width:36px;height:36px;background:var(--rojo);border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Bebas Neue';font-size:18px;color:white;flex-shrink:0;">RBE</div>
         <span style="font-family:'Barlow Condensed';font-weight:700;letter-spacing:2px;font-size:0.95rem;">Rutas Baja Express</span>
       </div>
       <p>Conectando Baja California desde el norte hasta el sur con el mejor servicio de transporte terrestre.</p>
     </div>
-    <div class="footer-col">
-      <h4>Rutas</h4>
-      <a href="#">Tijuana – Ensenada</a>
-      <a href="#">Mexicali – Tecate</a>
-      <a href="#">La Paz – Los Cabos</a>
-      <a href="#">Tijuana – Rosarito</a>
-    </div>
-    <div class="footer-col">
-      <h4>Empresa</h4>
-      <a href="#">Nosotros</a>
-      <a href="#">Flota</a>
-      <a href="#">Seguridad</a>
-      <a href="#">Trabaja con nosotros</a>
-    </div>
-    <div class="footer-col">
-      <h4>Soporte</h4>
-      <a href="#">Centro de ayuda</a>
-      <a href="#">Términos y condiciones</a>
-      <a href="#">Privacidad</a>
-      <a href="#">Contacto</a>
-    </div>
+    <div class="footer-col"><h4>Rutas</h4><a href="#">Tijuana – Ensenada</a><a href="#">Mexicali – Tecate</a><a href="#">La Paz – Los Cabos</a><a href="#">Tijuana – Rosarito</a></div>
+    <div class="footer-col"><h4>Empresa</h4><a href="#">Nosotros</a><a href="#">Flota</a><a href="#">Seguridad</a><a href="#">Trabaja con nosotros</a></div>
+    <div class="footer-col"><h4>Soporte</h4><a href="#">Centro de ayuda</a><a href="#">Términos y condiciones</a><a href="#">Privacidad</a><a href="#">Contacto</a></div>
   </div>
   <div class="footer-bottom">
     <span>© 2025 Rutas Baja Express. Todos los derechos reservados.</span>
@@ -1111,48 +835,76 @@
 </footer>
 
 <script>
-  // ─── Header scroll ───
+  // Header scroll
   const header = document.getElementById('header');
   window.addEventListener('scroll', () => {
     header.classList.toggle('scrolled', window.scrollY > 40);
   });
 
-  // ─── Reveal on scroll ───
+  // Mobile menu
+  const hamburger = document.getElementById('hamburger');
+  const mobileMenu = document.getElementById('mobileMenu');
+  hamburger.addEventListener('click', () => {
+    hamburger.classList.toggle('active');
+    mobileMenu.classList.toggle('open');
+    document.body.style.overflow = mobileMenu.classList.contains('open') ? 'hidden' : '';
+  });
+  function closeMenu() {
+    hamburger.classList.remove('active');
+    mobileMenu.classList.remove('open');
+    document.body.style.overflow = '';
+  }
+
+  // Reveal on scroll
   const reveals = document.querySelectorAll('.reveal');
   const observer = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      if (e.isIntersecting) { e.target.classList.add('visible'); }
-    });
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
   }, { threshold: 0.12 });
   reveals.forEach(el => observer.observe(el));
 
-  // ─── Slider ───
+  // Slider
   let sliderIndex = 0;
   const track = document.getElementById('sliderTrack');
   const cards = track.querySelectorAll('.horario-card');
-  const cardW = 300 + 24;
+  let cardW = 324;
 
-  document.getElementById('nextBtn').addEventListener('click', () => {
-    sliderIndex = Math.min(sliderIndex + 1, cards.length - 3);
+  function updateCardWidth() {
+    cardW = (window.innerWidth <= 768 ? 260 : 300) + 24;
+  }
+  function updateSlider() {
+    const maxIndex = Math.max(0, cards.length - Math.floor(track.parentElement.offsetWidth / cardW));
+    sliderIndex = Math.min(Math.max(sliderIndex, 0), maxIndex);
     track.style.transform = `translateX(-${sliderIndex * cardW}px)`;
-  });
-  document.getElementById('prevBtn').addEventListener('click', () => {
-    sliderIndex = Math.max(sliderIndex - 1, 0);
-    track.style.transform = `translateX(-${sliderIndex * cardW}px)`;
-  });
+  }
+  document.getElementById('nextBtn').addEventListener('click', () => { updateCardWidth(); sliderIndex++; updateSlider(); });
+  document.getElementById('prevBtn').addEventListener('click', () => { updateCardWidth(); sliderIndex--; updateSlider(); });
 
-  // ─── Login modal ───
+  let touchStartX = 0;
+  const sliderContainer = document.querySelector('.slider-container');
+  sliderContainer.addEventListener('touchstart', e => { touchStartX = e.changedTouches[0].screenX; }, { passive: true });
+  sliderContainer.addEventListener('touchend', e => {
+    const diff = touchStartX - e.changedTouches[0].screenX;
+    if (Math.abs(diff) > 50) { updateCardWidth(); sliderIndex += diff > 0 ? 1 : -1; updateSlider(); }
+  }, { passive: true });
+
+  // Login modal
   const modal = document.getElementById('loginModal');
-  function openLogin(e) { e.preventDefault(); modal.style.display = 'flex'; }
-  function closeLogin() { modal.style.display = 'none'; }
-  modal.addEventListener('click', (e) => { if (e.target === modal) closeLogin(); });
-
+  function closeLogin() { modal.classList.remove('open'); document.body.style.overflow = ''; }
+  modal.addEventListener('click', e => { if (e.target === modal) closeLogin(); });
   function handleLogin() {
     const u = document.getElementById('mUsuario').value;
     const p = document.getElementById('mPassword').value;
     if (u && p) { alert('Iniciando sesión como: ' + u); closeLogin(); }
     else { alert('Por favor completa todos los campos'); }
   }
+
+  // Resize
+  window.addEventListener('resize', () => {
+    updateCardWidth(); updateSlider();
+    if (window.innerWidth > 768) closeMenu();
+  });
+
+  updateCardWidth();
 </script>
 </body>
 </html>
