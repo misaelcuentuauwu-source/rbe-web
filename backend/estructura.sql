@@ -51,8 +51,15 @@ CREATE TABLE pasajero (
     paNombre VARCHAR(30) NOT NULL,
     paPrimerApell VARCHAR(30) NOT NULL,
     paSegundoApell VARCHAR(30),
-    fechaNacimiento DATE NOT NULL,
-    edad INT
+    fechaNacimiento DATE NOT NULL
+);
+
+CREATE TABLE cuenta_pasajero (
+    pasajero_num INT PRIMARY KEY AUTO_INCREMENT,
+    correo VARCHAR(100) NOT NULL UNIQUE,
+    clave VARCHAR(255) NOT NULL,
+    foto MEDIUMBLOB,
+    FOREIGN KEY (pasajero_num) REFERENCES pasajero(num)
 );
 
 CREATE TABLE modelo (
