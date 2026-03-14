@@ -1,4 +1,4 @@
--- Active: 1760978807635@@127.0.0.1@3306@mysql
+-- Active: 1772565691688@@127.0.0.1@3306@rbe
 -- ============================================================
 -- RBE - Rutas Baja Express
 -- Script completo: schema + datos
@@ -937,3 +937,19 @@ SELECT 'viajes marzo'   AS tabla, COUNT(*) AS total FROM viaje WHERE fecHoraSali
 
 -- Prueba de la vista
 SELECT num, paNombre, paPrimerApell, edad FROM vista_pasajeros_edad LIMIT 5;
+
+SELECT * FROM viaje_asiento WHERE viaje = 100 AND ocupado = 1;
+
+INSERT INTO viaje_asiento (asiento, viaje, ocupado)
+SELECT a.numero, v.numero, 0
+FROM viaje v
+JOIN asiento a ON a.autobus = v.autobus
+WHERE v.numero IN (47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67);
+
+UPDATE viaje_asiento va
+JOIN ticket t ON t.asiento = va.asiento AND t.viaje = va.viaje
+SET va.ocupado = 1
+WHERE va.viaje IN (47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67);
+SELECT * FROM viaje_asiento WHERE viaje = 62 AND ocupado = 1;
+
+SELECT * FROM cuenta_pasajero ORDER BY pasajero_num DESC LIMIT 5;

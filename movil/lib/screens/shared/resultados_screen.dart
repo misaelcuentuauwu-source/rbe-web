@@ -14,6 +14,7 @@ class ResultadosScreen extends StatefulWidget {
   final DateTime fecha;
   final Map<String, int> pasajeros;
   final int vendedorId;
+  final String? correoCliente;
 
   const ResultadosScreen({
     super.key,
@@ -24,6 +25,7 @@ class ResultadosScreen extends StatefulWidget {
     required this.fecha,
     required this.pasajeros,
     required this.vendedorId,
+    this.correoCliente,
   });
 
   @override
@@ -493,6 +495,7 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
                                 horaSalida: _formatHora(viaje['fechorasalida']),
                                 precio: ruta['precio'],
                                 vendedorId: widget.vendedorId,
+                                correoCliente: widget.correoCliente,
                               ),
                             ),
                           );

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'inicio_screen.dart';
+import '../shared/inicio_screen.dart';
 import 'perfil_screen.dart';
 import 'historial_screen.dart';
-import 'buscar_boleto_screen.dart';
+import '../shared/buscar_boleto_screen.dart';
 
 class HomeNavigationScreen extends StatefulWidget {
   final Map<String, dynamic> taquillero;

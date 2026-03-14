@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'home_screen.dart';
+import '../taquillero/home_screen.dart';
 import '../../main.dart';
 
 class ResumenCompraScreen extends StatelessWidget {

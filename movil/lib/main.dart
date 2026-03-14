@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'firebase_options.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
 import 'screens/taquillero/home_screen.dart';
-import 'screens/taquillero/seat_selection_screen.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
+import 'screens/shared/seat_selection_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const MyApp());
 }
 
@@ -89,7 +93,6 @@ class HomeScreen extends StatelessWidget {
 
   Widget _buildPortrait(BuildContext context, bool isTablet) {
     final screenHeight = MediaQuery.of(context).size.height;
-
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),

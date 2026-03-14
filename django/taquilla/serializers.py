@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from django.db import connection
 from .models import Viaje, Ruta, Terminal, Ciudad, EdoViaje, ViajeAsiento, Asiento, TipoAsiento
 
 class CiudadSerializer(serializers.ModelSerializer):
@@ -48,8 +49,13 @@ class ViajeListSerializer(serializers.ModelSerializer):
     asientos_disponibles = serializers.SerializerMethodField()
 
     def get_asientos_disponibles(self, viaje):
+        with connection.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM viaje_asiento WHERE viaje = %s AND ocupado = 1",
+                [viaje.numero]
+            )
+            ocupados = cur.fetchone()[0]
         total = Asiento.objects.filter(autobus=viaje.autobus).count()
-        ocupados = ViajeAsiento.objects.filter(viaje=viaje, ocupado=1).count()
         return total - ocupados
 
     class Meta:
@@ -64,7 +70,12 @@ class ViajeSerializer(serializers.ModelSerializer):
 
     def get_asientos(self, viaje):
         asientos = Asiento.objects.filter(autobus=viaje.autobus)
-        ocupados = ViajeAsiento.objects.filter(viaje=viaje, ocupado=1).values_list('asiento_id', flat=True)
+        with connection.cursor() as cur:
+            cur.execute(
+                "SELECT asiento FROM viaje_asiento WHERE viaje = %s AND ocupado = 1",
+                [viaje.numero]
+            )
+            ocupados = set(row[0] for row in cur.fetchall())
         resultado = []
         for asiento in asientos:
             resultado.append({

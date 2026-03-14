@@ -102,7 +102,6 @@ class Pasajero(models.Model):
     paprimerapell = models.CharField(db_column='paPrimerApell', max_length=30)  # Field name made lowercase.
     pasegundoapell = models.CharField(db_column='paSegundoApell', max_length=30, blank=True, null=True)  # Field name made lowercase.
     fechanacimiento = models.DateField(db_column='fechaNacimiento')  # Field name made lowercase.
-    edad = models.IntegerField(blank=True, null=True)
 
     class Meta:
         managed = False
@@ -218,3 +217,19 @@ class ViajeAsiento(models.Model):
         managed = False
         db_table = 'viaje_asiento'
         unique_together = (('asiento', 'viaje'),)
+
+class CuentaPasajero(models.Model):
+    pasajero_num = models.OneToOneField(
+        Pasajero, models.DO_NOTHING,
+        db_column='pasajero_num',
+        primary_key=True
+    )
+    correo = models.CharField(unique=True, max_length=100)
+    clave = models.CharField(max_length=255, blank=True, null=True)
+    firebase_uid = models.CharField(unique=True, max_length=128, blank=True, null=True)
+    proveedor = models.CharField(max_length=50, default='local')
+    foto = models.CharField(max_length=200, blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'cuenta_pasajero'

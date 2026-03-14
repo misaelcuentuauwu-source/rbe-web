@@ -10,6 +10,7 @@ class DatosBoletoScreen extends StatefulWidget {
   final String horaSalida;
   final String precio;
   final int vendedorId;
+  final String? correoCliente;
 
   const DatosBoletoScreen({
     super.key,
@@ -20,6 +21,7 @@ class DatosBoletoScreen extends StatefulWidget {
     required this.horaSalida,
     required this.precio,
     required this.vendedorId,
+    this.correoCliente,
   });
 
   @override
@@ -38,6 +40,15 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
   void initState() {
     super.initState();
     _generarPasajeros();
+    // Si es cliente, prellenar el correo del contacto
+    if (widget.correoCliente != null && pasajerosList.isNotEmpty) {
+      final contacto = pasajerosList.firstWhere(
+        (p) => p['esContacto'] == true,
+        orElse: () => pasajerosList.first,
+      );
+      (contacto['correoCtrl'] as TextEditingController).text =
+          widget.correoCliente!;
+    }
   }
 
   void _generarPasajeros() {
@@ -305,25 +316,60 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                   ),
                 ),
                 if (esContacto) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
+                  const SizedBox(height: 10),
+                  _buildCampo(
+                    ctrl: pasajero['telefonoCtrl'],
+                    label: 'Teléfono de contacto',
+                    icono: Icons.phone_outlined,
+                    requerido: true,
+                    soloNumeros: true,
+                  ),
+                  const SizedBox(height: 10),
+                  if (widget.correoCliente == null)
+                    _buildCampo(
+                      ctrl: pasajero['correoCtrl'],
+                      label: 'Correo electrónico',
+                      icono: Icons.email_outlined,
+                      requerido: true,
+                      esCorreo: true,
                     ),
-                    decoration: BoxDecoration(
-                      color: naranja.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Contacto',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: naranja,
+                  if (widget.correoCliente != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.grey.shade300),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.email_outlined, size: 18, color: azul),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Correo electrónico',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Color(0xFF6B8FA8),
+                                ),
+                              ),
+                              Text(
+                                widget.correoCliente!,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Color(0xFF1C2D3A),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                  ),
                 ],
               ],
             ),

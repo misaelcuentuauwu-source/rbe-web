@@ -6,8 +6,16 @@ import '../../config.dart';
 import 'resultados_screen.dart';
 
 class InicioScreen extends StatefulWidget {
-  final int vendedorId;
-  const InicioScreen({super.key, required this.vendedorId});
+  final int? vendedorId;
+  final int? clienteId;
+  final String? correoCliente;
+
+  const InicioScreen({
+    super.key,
+    this.vendedorId,
+    this.clienteId,
+    this.correoCliente,
+  });
 
   @override
   State<InicioScreen> createState() => _InicioScreenState();
@@ -151,7 +159,8 @@ class _InicioScreenState extends State<InicioScreen> {
             'inapam': inapam,
             'discapacidad': discapacidad,
           },
-          vendedorId: widget.vendedorId,
+          vendedorId: widget.vendedorId ?? widget.clienteId ?? 0,
+          correoCliente: widget.correoCliente,
         ),
       ),
     );
