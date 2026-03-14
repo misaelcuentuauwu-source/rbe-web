@@ -538,3 +538,106 @@ def api_terminales(request):
     terminales = Terminal.objects.all()
     serializer = TerminalSerializer(terminales, many=True)
     return Response(serializer.data)
+
+# ─── Detalle autobús ──────────────────────────────────────────────────────────
+
+@admin_requerido
+def autobus_detalle(request, bus_id):
+    from django.db import connection
+    try:
+        with connection.cursor() as cur:
+            # Info general del autobús
+            cur.execute("""
+                SELECT a.numero, a.placas, ma.nombre AS marca,
+                       mo.nombre AS modelo, mo.ano AS anio, mo.numasientos
+                FROM autobus a
+                JOIN modelo mo ON a.modelo = mo.numero
+                JOIN marca  ma ON mo.marca  = ma.numero
+                WHERE a.numero = %s
+            """, [bus_id])
+            row = cur.fetchone()
+            if not row:
+                return JsonResponse({'error': f'Autobús #{bus_id} no encontrado'}, status=404)
+            numero, placas, marca, modelo, anio, num_asientos = row
+
+            # Tipos de asiento
+            cur.execute("""
+                SELECT ta.descripcion, ta.codigo, COUNT(*) AS cantidad
+                FROM asiento a
+                JOIN tipo_asiento ta ON a.tipo = ta.codigo
+                WHERE a.autobus = %s
+                GROUP BY a.tipo
+                ORDER BY cantidad DESC
+            """, [bus_id])
+            tipos = [
+                {'descripcion': r[0], 'codigo': r[1], 'cantidad': r[2]}
+                for r in cur.fetchall()
+            ]
+
+        return JsonResponse({
+            'numero':       numero,
+            'placas':       placas,
+            'marca':        marca,
+            'modelo':       modelo,
+            'anio':         anio,
+            'num_asientos': num_asientos,
+            'tipos_asiento': tipos,
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ─── Pasajeros de un viaje ────────────────────────────────────────────────────
+
+@admin_requerido
+def viaje_pasajeros(request, viaje_id):
+    from django.db import connection
+    try:
+        with connection.cursor() as cur:
+            # Info del viaje
+            cur.execute("""
+                SELECT corig.nombre, cdest.nombre,
+                       v.fecHoraSalida, v.autobus
+                FROM viaje v
+                JOIN ruta r        ON v.ruta      = r.codigo
+                JOIN terminal tor  ON r.origen     = tor.numero
+                JOIN terminal tdes ON r.destino    = tdes.numero
+                JOIN ciudad corig  ON tor.ciudad   = corig.clave
+                JOIN ciudad cdest  ON tdes.ciudad  = cdest.clave
+                WHERE v.numero = %s
+            """, [viaje_id])
+            info = cur.fetchone()
+            if not info:
+                return JsonResponse({'error': f'Viaje #{viaje_id} no encontrado'}, status=404)
+            origen, destino, salida, autobus = info
+
+            # Pasajeros
+            cur.execute("""
+                SELECT
+                    CONCAT(p.paNombre, ' ', p.paPrimerApell,
+                           CASE WHEN p.paSegundoApell IS NOT NULL
+                                THEN CONCAT(' ', p.paSegundoApell) ELSE '' END) AS nombre_completo,
+                    TIMESTAMPDIFF(YEAR, p.fechaNacimiento, CURDATE()) AS edad,
+                    t.codigo  AS numero_boleto,
+                    t.asiento AS numero_asiento
+                FROM ticket t
+                JOIN pasajero p ON t.pasajero = p.num
+                WHERE t.viaje = %s
+                ORDER BY t.asiento ASC, p.paNombre ASC
+            """, [viaje_id])
+            cols = [d[0] for d in cur.description]
+            pasajeros = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+        salida_str = salida.isoformat() if hasattr(salida, 'isoformat') else str(salida)
+
+        return JsonResponse({
+            'viaje': {
+                'origen':  origen,
+                'destino': destino,
+                'salida':  salida_str,
+                'autobus': autobus,
+            },
+            'pasajeros': pasajeros,
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)

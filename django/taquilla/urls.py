@@ -35,4 +35,7 @@ urlpatterns = [
     path('api/viajes/',              views.api_viajes,             name='api_viajes'),
     path('api/viajes/<int:id>/',     views.api_viaje_detalle,      name='api_viaje_detalle'),
     path('api/terminales/',          views.api_terminales,         name='api_terminales'),
+    # Detalle autobus y pasajeros (usados desde panel_admin.html)
+    path('api/autobus/detalle/<int:bus_id>/',   views.autobus_detalle, name='autobus_detalle'),
+    path('api/viaje/pasajeros/<int:viaje_id>/', views.viaje_pasajeros, name='viaje_pasajeros'),
 ]
