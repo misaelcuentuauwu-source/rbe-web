@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rutas Baja Express — Acceso</title>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Sora:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --azul:    #1181c3;
+      --azul-d:  #0a5a8a;
+      --azul-gl: rgba(17,129,195,.12);
+      --naranja: #ed7237;
+      --nar-d:   #c75a22;
+      --bg:      #080f18;
+      --surface: #0d1b2a;
+      --card:    #101f30;
+      --border:  #1a3349;
+      --border2: #243f58;
+      --text:    #e8edf2;
+      --muted:   #5f8099;
+      --muted2:  #8aabbf;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Sora', sans-serif;
+    }
+
+    /* ── Fondo animado ── */
+    .bg-layer {
+      position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+    }
+    .bg-layer::before {
+      content: '';
+      position: absolute;
+      top: -30%; left: 50%; transform: translateX(-50%);
+      width: 140%; height: 80%;
+      background: radial-gradient(ellipse at center, rgba(17,129,195,.14) 0%, transparent 65%);
+      animation: pulse 8s ease-in-out infinite;
+    }
+    .bg-layer::after {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        repeating-linear-gradient(90deg, transparent 0, transparent 59px, rgba(255,255,255,.018) 59px, rgba(255,255,255,.018) 60px),
+        repeating-linear-gradient(180deg, transparent 0, transparent 39px, rgba(255,255,255,.012) 39px, rgba(255,255,255,.012) 40px);
+    }
+    @keyframes pulse {
+      0%,100% { opacity:.7; transform: translateX(-50%) scale(1); }
+      50%      { opacity:1;  transform: translateX(-50%) scale(1.08); }
+    }
+
+    /* ── Botón volver ── */
+    .btn-back {
+      position: fixed; top: 20px; left: 20px; z-index: 100;
+      display: flex; align-items: center; gap: 7px;
+      padding: 9px 16px;
+      background: rgba(13,27,42,.7);
+      border: 1px solid var(--border2);
+      border-radius: 10px;
+      color: var(--muted2);
+      font-family: 'Sora', sans-serif; font-size: 12px; font-weight: 600;
+      letter-spacing: .05em; text-decoration: none;
+      backdrop-filter: blur(12px);
+      transition: all .2s;
+    }
+    .btn-back:hover { border-color: var(--azul); color: var(--text); background: rgba(17,129,195,.12); }
+    .btn-back:hover svg { transform: translateX(-3px); }
+    .btn-back svg { transition: transform .2s; }
+
+    /* ── Layout principal ── */
+    .page {
+      position: relative; z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 460px;
+      min-height: 100vh;
+    }
+
+    /* ── Panel izquierdo (brand) ── */
+    .brand-panel {
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 80px 64px;
+      border-right: 1px solid var(--border);
+    }
+
+    .brand-eyebrow {
+      font-size: 10px; font-weight: 700; letter-spacing: .3em; text-transform: uppercase;
+      color: var(--naranja); margin-bottom: 28px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .brand-eyebrow::before { content:''; display:inline-block; width:24px; height:2px; background: var(--naranja); border-radius:2px; }
+
+    .brand-logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: clamp(56px, 7vw, 96px);
+      line-height: .88; letter-spacing: 2px;
+      color: var(--text); margin-bottom: 32px;
+    }
+    .brand-logo em { font-style: normal; color: var(--azul); }
+
+    .brand-rule {
+      width: 52px; height: 3px;
+      background: linear-gradient(90deg, var(--naranja), var(--azul));
+      border-radius: 2px; margin-bottom: 32px;
+    }
+
+    .brand-desc {
+      font-size: 14px; font-weight: 300; color: var(--muted);
+      line-height: 1.8; max-width: 320px; margin-bottom: 48px;
+    }
+
+    /* Bus animado */
+    .route-widget { max-width: 340px; }
+    .route-track {
+      display: flex; align-items: center; gap: 0;
+      margin-bottom: 10px; position: relative;
+    }
+    .route-dot {
+      width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0;
+      box-shadow: 0 0 10px currentColor;
+    }
+    .route-dot.o { background: var(--naranja); color: var(--naranja); }
+    .route-dot.d { background: var(--azul); color: var(--azul); }
+    .route-track-line {
+      flex: 1; height: 2px; position: relative; margin: 0 4px;
+      background: repeating-linear-gradient(90deg, var(--border2) 0, var(--border2) 8px, transparent 8px, transparent 16px);
+    }
+    .bus-icon {
+      position: absolute; top: 50%; transform: translateY(-50%);
+      font-size: 17px; animation: driveBus 5s linear infinite;
+    }
+    @keyframes driveBus { from { left: 2%; } to { left: 88%; } }
+    .route-cities {
+      display: flex; justify-content: space-between;
+      font-size: 10px; font-weight: 700; letter-spacing: .15em;
+      text-transform: uppercase; color: var(--muted);
+    }
+
+    /* Stats */
+    .brand-stats {
+      display: flex; gap: 36px; margin-top: 44px;
+      padding-top: 36px; border-top: 1px solid var(--border);
+    }
+    .stat-item {}
+    .stat-num { font-family: 'Bebas Neue', sans-serif; font-size: 2rem; color: var(--azul); line-height:1; }
+    .stat-label { font-size: 10px; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; margin-top: 2px; }
+
+    /* ── Panel derecho (form) ── */
+    .form-panel {
+      display: flex; flex-direction: column; justify-content: center;
+      padding: 60px 44px;
+      background: var(--card);
+      border-left: 1px solid var(--border);
+      overflow-y: auto;
+    }
+
+    .form-title { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+    .form-sub { font-size: 13px; color: var(--muted); margin-bottom: 28px; }
+
+    /* Mensajes Django */
+    .messages { margin-bottom: 18px; }
+    .msg {
+      padding: 11px 15px; border-radius: 8px; font-size: 13px;
+      margin-bottom: 8px; display: flex; align-items: center; gap: 8px;
+    }
+    .msg.error   { background: rgba(192,57,43,.12); border: 1px solid rgba(192,57,43,.4); color: #e87070; }
+    .msg.success { background: rgba(39,174,96,.1);  border: 1px solid rgba(39,174,96,.4);  color: #6ddd9a; }
+
+    /* Tabs */
+    .tabs {
+      display: flex; gap: 3px;
+      background: rgba(0,0,0,.3); border-radius: 10px; padding: 4px;
+      margin-bottom: 28px;
+    }
+    .tab-btn {
+      flex: 1; padding: 10px 8px; border: none; border-radius: 7px;
+      background: transparent; color: var(--muted);
+      font-family: 'Sora', sans-serif; font-size: 12px; font-weight: 600;
+      letter-spacing: .06em; text-transform: uppercase; cursor: pointer;
+      transition: all .22s;
+    }
+    .tab-btn.active { background: var(--azul); color: #fff; box-shadow: 0 2px 12px rgba(17,129,195,.35); }
+
+    .form-section { display: none; }
+    .form-section.active { display: block; animation: fadeIn .25s ease; }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: translateY(0); } }
+
+    /* Campos */
+    .field { margin-bottom: 16px; }
+    label {
+      display: block; font-size: 10px; font-weight: 700;
+      letter-spacing: .18em; text-transform: uppercase;
+      color: var(--muted2); margin-bottom: 8px;
+    }
+    input, select {
+      width: 100%; padding: 13px 15px;
+      background: rgba(0,0,0,.35); border: 1px solid var(--border2);
+      border-radius: 9px; color: var(--text);
+      font-family: 'Sora', sans-serif; font-size: 14px;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+      -webkit-appearance: none; appearance: none;
+    }
+    input::placeholder { color: #2e4d66; }
+    input:focus, select:focus {
+      border-color: var(--azul);
+      box-shadow: 0 0 0 3px rgba(17,129,195,.15);
+    }
+    select option { background: #0d1b2a; }
+
+    /* Input icon wrapper */
+    .input-wrap { position: relative; }
+    .input-wrap .ico {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); font-size: 15px; pointer-events: none;
+    }
+    .input-wrap input { padding-left: 40px; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+    /* ── CORREGIDO Bug 2: Checkbox supervisor ── */
+    .checkbox-row {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 16px; cursor: pointer;
+      padding: 10px 12px;
+      border: 1px solid var(--border2);
+      border-radius: 9px;
+      background: rgba(0,0,0,.2);
+      transition: border-color .2s, background .2s;
+      user-select: none;
+    }
+    .checkbox-row:hover {
+      border-color: var(--naranja);
+      background: rgba(237,114,55,.07);
+    }
+    /* Ocultar el input nativo y reemplazar con custom */
+    .checkbox-row input[type=checkbox] {
+      /* Reset total de los estilos heredados de "input" */
+      -webkit-appearance: checkbox !important;
+      appearance: checkbox !important;
+      width: 18px !important;
+      height: 18px !important;
+      min-width: 18px !important;
+      padding: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      background: none !important;
+      box-shadow: none !important;
+      cursor: pointer;
+      accent-color: var(--naranja);
+      flex-shrink: 0;
+    }
+    .checkbox-row .cb-label { font-size: 13px; color: var(--muted2); flex: 1; }
+    /* Indicador visual cuando está marcado */
+    .checkbox-row:has(input:checked) {
+      border-color: var(--naranja);
+      background: rgba(237,114,55,.1);
+    }
+    .checkbox-row:has(input:checked) .cb-label {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .cb-check-icon {
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    .checkbox-row:has(input:checked) .cb-check-icon {
+      opacity: 1;
+    }
+
+    /* Botones */
+    .btn-primary {
+      width: 100%; padding: 14px; border: none; border-radius: 9px;
+      color: #fff; font-family: 'Sora', sans-serif;
+      font-size: 13px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+      cursor: pointer; transition: opacity .2s, transform .1s, box-shadow .2s;
+    }
+    .btn-primary.azul {
+      background: linear-gradient(135deg, var(--azul) 0%, var(--azul-d) 100%);
+      box-shadow: 0 4px 20px rgba(17,129,195,.3);
+    }
+    .btn-primary.naranja {
+      background: linear-gradient(135deg, var(--naranja) 0%, var(--nar-d) 100%);
+      box-shadow: 0 4px 20px rgba(237,114,55,.3);
+    }
+    .btn-primary:hover { opacity:.88; box-shadow: none; }
+    .btn-primary:active { transform: scale(.98); }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 200;
+      background: rgba(0,0,0,.75); backdrop-filter: blur(8px);
+      display: none; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--card); border: 1px solid var(--border2);
+      border-radius: 16px; padding: 36px; width: 100%; max-width: 360px;
+      animation: modalIn .25s ease;
+    }
+    @keyframes modalIn { from { opacity:0; transform: scale(.93) translateY(14px); } to { opacity:1; transform: scale(1) translateY(0); } }
+    .modal-box h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+    .modal-box p { font-size: 13px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
+    .modal-box .field { margin-bottom: 20px; }
+    .modal-actions { display: flex; gap: 10px; }
+    .btn-ghost {
+      flex: 1; padding: 12px; border: 1px solid var(--border2); border-radius: 8px;
+      background: transparent; color: var(--muted2);
+      font-family: 'Sora', sans-serif; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all .2s;
+    }
+    .btn-ghost:hover { border-color: var(--azul); color: var(--text); }
+
+    /* Error inline del modal */
+    .modal-error {
+      display: none;
+      background: rgba(192,57,43,.15);
+      border: 1px solid rgba(192,57,43,.4);
+      color: #e87070;
+      border-radius: 8px;
+      padding: 10px 13px;
+      font-size: 12px;
+      margin-bottom: 14px;
+    }
+    .modal-error.visible { display: block; }
+
+    /* ── RESPONSIVE MOBILE ── */
+    @media (max-width: 800px) {
+      .page { grid-template-columns: 1fr; min-height: 100vh; }
+
+      .brand-panel {
+        padding: 100px 28px 36px;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        justify-content: flex-start;
+      }
+
+      .brand-logo { font-size: clamp(48px, 14vw, 72px); margin-bottom: 20px; }
+      .brand-desc { font-size: 13px; margin-bottom: 28px; }
+      .brand-stats { gap: 24px; margin-top: 28px; padding-top: 24px; }
+      .stat-num { font-size: 1.6rem; }
+
+      .form-panel {
+        border-left: none;
+        border-top: 1px solid var(--border);
+        padding: 36px 24px 48px;
+        justify-content: flex-start;
+      }
+    }
+
+    /* Landscape móvil */
+    @media (max-width: 800px) and (orientation: landscape) {
+      .page { grid-template-columns: 1fr 1fr; min-height: 100vh; }
+      .brand-panel {
+        padding: 60px 32px 32px;
+        border-right: 1px solid var(--border);
+        border-bottom: none;
+        overflow-y: auto;
+      }
+      .form-panel {
+        border-left: 1px solid var(--border);
+        border-top: none;
+        padding: 60px 28px 32px;
+        overflow-y: auto;
+      }
+      .brand-logo { font-size: 48px; }
+      .brand-stats { display: none; }
+      .route-widget { display: none; }
+    }
+
+    /* Tablet */
+    @media (min-width: 801px) and (max-width: 1100px) {
+      .brand-panel { padding: 80px 40px; }
+      .form-panel { padding: 60px 36px; }
+      .page { grid-template-columns: 1fr 400px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="bg-layer"></div>
+
+<a href="/" class="btn-back">
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+       stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 12H5M12 5l-7 7 7 7"/>
+  </svg>
+  Inicio
+</a>
+
+<div class="page">
+
+  <!-- ── Panel izquierdo ── -->
+  <div class="brand-panel">
+    <div class="brand-eyebrow">Sistema de Taquilla</div>
+    <div class="brand-logo">Rutas<br><em>Baja</em><br>Express</div>
+    <div class="brand-rule"></div>
+    <p class="brand-desc">Plataforma interna de gestión de viajes, tickets y operaciones para taquilleros y administradores de Baja California.</p>
+
+    <div class="route-widget">
+      <div class="route-track">
+        <div class="route-dot o"></div>
+        <div class="route-track-line">
+          <span class="bus-icon">🚌</span>
+        </div>
+        <div class="route-dot d"></div>
+      </div>
+      <div class="route-cities">
+        <span>Tijuana</span>
+        <span>La Paz</span>
+      </div>
+    </div>
+
+    <div class="brand-stats">
+      <div class="stat-item">
+        <div class="stat-num">18+</div>
+        <div class="stat-label">Rutas</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">6</div>
+        <div class="stat-label">Ciudades</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">98%</div>
+        <div class="stat-label">Puntualidad</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Panel derecho ── -->
+  <div class="form-panel">
+    <div class="form-title">Bienvenido de nuevo</div>
+    <div class="form-sub">Accede con tus credenciales de taquillero</div>
+
+    <!-- Mensajes Django -->
+    {% if messages %}
+    <div class="messages">
+      {% for message in messages %}
+      <div class="msg {{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-btn-login" onclick="switchTab('login', this)">Iniciar sesión</button>
+      <button class="tab-btn" id="tab-btn-registro" onclick="abrirModalClave(this)">Registrarse</button>
+    </div>
+
+    <!-- ── LOGIN ── -->
+    <div class="form-section active" id="tab-login">
+      <form method="POST" action="{% url 'login' %}">
+        {% csrf_token %}
+        <div class="field">
+          <label>Usuario</label>
+          <div class="input-wrap">
+            <span class="ico">👤</span>
+            <input type="text" name="usuario" placeholder="tu_usuario" autocomplete="username" required />
+          </div>
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <div class="input-wrap">
+            <span class="ico">🔒</span>
+            <input type="password" name="contrasena" placeholder="••••••••" autocomplete="current-password" required />
+          </div>
+        </div>
+        <div style="margin-bottom:20px;"></div>
+        <button type="submit" class="btn-primary azul">Acceder al sistema</button>
+      </form>
+    </div>
+
+    <!-- ── REGISTRO ── -->
+    <div class="form-section" id="tab-registro">
+      <form method="POST" action="{% url 'registro' %}">
+        {% csrf_token %}
+        <!-- La clave maestra ya fue verificada vía AJAX; se envía aquí como campo oculto -->
+        <input type="hidden" name="clave_maestra" id="clave-hidden" />
+
+        <div class="grid-2">
+          <div class="field">
+            <label>Nombre *</label>
+            <input type="text" name="nombre" placeholder="María" required />
+          </div>
+          <div class="field">
+            <label>1er Apellido *</label>
+            <input type="text" name="primer_apellido" placeholder="García" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>2do Apellido</label>
+          <input type="text" name="segundo_apellido" placeholder="Opcional" />
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label>Usuario *</label>
+            <input type="text" name="usuario" placeholder="m.garcia" required />
+          </div>
+          <div class="field">
+            <label>Contraseña *</label>
+            <input type="password" name="contrasena" placeholder="••••••••" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Terminal</label>
+          <select name="terminal">
+            {% for terminal in terminales %}
+            <option value="{{ terminal.numero }}">{{ terminal.nombre }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- CORREGIDO Bug 2: checkbox con estilo visible y palomita de confirmación -->
+        <label class="checkbox-row">
+          <input type="checkbox" name="supervisa" id="cb-supervisa" />
+          <span class="cb-label">Registrar como supervisor</span>
+          <span class="cb-check-icon">✅</span>
+        </label>
+
+        <button type="submit" class="btn-primary naranja">Registrar taquillero</button>
+      </form>
+    </div>
+
+  </div><!-- /form-panel -->
+</div><!-- /page -->
+
+<!-- ── Modal clave maestra ── -->
+<div class="modal-overlay" id="modal-clave">
+  <div class="modal-box">
+    <h3>🔐 Verificación requerida</h3>
+    <p>Solo el administrador puede registrar nuevos taquilleros. Ingresa la clave maestra para continuar.</p>
+    <!-- CORREGIDO Bug 1: mensaje de error visible dentro del modal -->
+    <div class="modal-error" id="modal-clave-error">Clave maestra incorrecta. Inténtalo de nuevo.</div>
+    <div class="field">
+      <label>Clave maestra</label>
+      <input type="password" id="clave-input" placeholder="••••••••" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn-primary azul" id="btn-verificar" style="flex:1;padding:12px;" onclick="confirmarClave()">Verificar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const CSRF = '{{ csrf_token }}';
+
+  function switchTab(tab, btn) {
+    document.querySelectorAll('.form-section').forEach(s => s.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    if (btn) btn.classList.add('active');
+  }
+
+  function abrirModalClave(btn) {
+    window._tabBtn = btn;
+    document.getElementById('clave-input').value = '';
+    document.getElementById('modal-clave-error').classList.remove('visible');
+    document.getElementById('modal-clave').classList.add('open');
+    setTimeout(() => document.getElementById('clave-input').focus(), 120);
+  }
+
+  function cerrarModal() {
+    document.getElementById('modal-clave').classList.remove('open');
+    // Asegurarse de que el tab activo siga siendo "login" si se cancela
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-btn-login').classList.add('active');
+    switchTab('login', null);
+  }
+
+  // CORREGIDO Bug 1: verificar clave vía AJAX antes de mostrar el formulario
+  async function confirmarClave() {
+    const clave = document.getElementById('clave-input').value.trim();
+    if (!clave) return;
+
+    const btn = document.getElementById('btn-verificar');
+    btn.textContent = 'Verificando…';
+    btn.disabled = true;
+
+    try {
+      const resp = await fetch('/api/verificar-clave/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ clave })
+      });
+      const data = await resp.json();
+
+      if (data.ok) {
+        // Clave correcta: guardar en el campo oculto y mostrar el formulario
+        document.getElementById('clave-hidden').value = clave;
+        document.getElementById('modal-clave').classList.remove('open');
+        // Activar tab de registro
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        if (window._tabBtn) window._tabBtn.classList.add('active');
+        switchTab('registro', window._tabBtn);
+      } else {
+        // Clave incorrecta: mostrar error dentro del modal, NO redirigir
+        const errEl = document.getElementById('modal-clave-error');
+        errEl.textContent = data.error || 'Clave maestra incorrecta. Inténtalo de nuevo.';
+        errEl.classList.add('visible');
+        document.getElementById('clave-input').value = '';
+        document.getElementById('clave-input').focus();
+      }
+    } catch (e) {
+      const errEl = document.getElementById('modal-clave-error');
+      errEl.textContent = 'Error de conexión. Inténtalo de nuevo.';
+      errEl.classList.add('visible');
+    } finally {
+      btn.textContent = 'Verificar';
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById('clave-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') confirmarClave();
+    if (e.key === 'Escape') cerrarModal();
+  });
+
+  document.getElementById('modal-clave').addEventListener('click', e => {
+    if (e.target === e.currentTarget) cerrarModal();
+  });
+
+  // Si Django devolvió un mensaje de éxito, mantenerse en login (no abrir registro)
+  {% if messages %}
+  {% for message in messages %}
+  {% if message.tags == 'success' %}
+  switchTab('login', document.getElementById('tab-btn-login'));
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+</script>
+</body>
+</html>

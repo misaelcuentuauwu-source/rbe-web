@@ -1,0 +1,20 @@
+# --- Python/Django Cache ---
+**/__pycache__/
+*.py[cod]
+*.class
+
+# --- Entornos Virtuales ---
+venv/
+django/venv/
+env/
+.venv/
+
+# --- VS Code y Sistema ---
+.vscode/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Flutter (opcional por si las moscas) ---
+movil/.dart_tool/
+movil/build/

@@ -1,0 +1,153 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Rutas Baja Express - Panel Administrador</title>
+    <link rel="stylesheet" href="{% static 'dashboard/salidas.css' %}">
+</head>
+<body>
+
+<div class="container">
+
+    <aside class="sidebar">
+        <h2 class="logo">Rutas Baja Express</h2>
+
+        <nav class="menu">
+            <button>KPI's</button>
+            <button class="active">Salidas</button>
+            <button>Agregar Viaje</button>
+            <button>Historial de Viajes</button>
+            <button>Gestión ▾</button>
+        </nav>
+
+        <div class="sidebar-footer">
+            <button class="config">Configuración</button>
+            <button class="logout">Cerrar sesión</button>
+        </div>
+    </aside>
+
+    <main class="main">
+
+        <header class="header">
+            <button class="menu-btn">☰</button>
+        </header>
+
+        <section class="content">
+            <h1>Salidas</h1>
+            
+            
+
+            <div class="filters">
+
+                <div class="filters-top">
+                    <label>
+                        Fecha:
+                        <input type="date">
+                    </label>
+
+                    <label>
+                        Origen:
+                        <select>
+                            <option>-- Todas --</option>
+                        </select>
+                    </label>
+
+                    <label>
+                        Destino:
+                        <select>
+                            <option>-- Todas --</option>
+                        </select>
+                    </label>
+                </div>
+
+                <div class="filters-bottom">
+                    <button class="btn orange" disabled>Filtrar</button>
+                    <button class="btn gray">Limpiar Filtros</button>
+                    <button class="btn orange" onclick="abrirModal()">Agregar Salida</button>
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+<script>
+function abrirModal() {
+    document.getElementById('modalSalida').style.display = 'flex';
+}
+
+function cerrarModal() {
+    document.getElementById('modalSalida').style.display = 'none';
+}
+</script>
+<script>
+document.getElementById('modalSalida').addEventListener('click', function(e) {
+    if (e.target === this) {
+        cerrarModal();
+    }
+});
+</script>
+
+
+<!-- MODAL AGREGAR SALIDA -->
+<div class="modal" id="modalSalida">
+
+    <div class="modal-content">
+        <h2>Agregar Nueva Salida</h2>
+
+        <div class="modal-form">
+
+            <label>
+                Fecha y Hora de Salida:
+                <input type="datetime-local">
+            </label>
+
+            <label>
+                Fecha y Hora de Llegada:
+                <input type="datetime-local">
+            </label>
+
+            <label>
+                Ruta:
+                <select>
+                    <option selected disabled>Seleccione...</option> 
+                </select>
+            </label>
+
+            <label>
+                Autobús:
+                <select>
+                    <option selected disabled>Seleccione...</option>
+                </select>
+            </label>
+
+            <label>
+                Conductor:
+                <select>
+                    <option selected disabled>Seleccione...</option>
+                </select>
+            </label>
+
+            <label>
+                Estado:
+                <select>
+                    <option selected disabled>Seleccione...</option>
+                </select>
+            </label>
+
+        </div>
+
+        <div class="modal-buttons">
+            <button class="btn orange">OK</button>
+            <button class="btn gray" onclick="cerrarModal()">Cancel</button>
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>

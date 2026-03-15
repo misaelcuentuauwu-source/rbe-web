@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Autobús 3D — Selector de Asiento</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --orange: #e8892a;
+  --purple: #7c3aed;
+  --cyan: #22d3ee;
+  --dark: #0d0d0f;
+  --panel: #13151a;
+  --border: #252830;
+  --text: #e8e6e1;
+  --muted: #5a6070;
+}
+html, body { height:100%; background:var(--dark); color:var(--text); font-family:'DM Sans',sans-serif; overflow:hidden; }
+
+/* ═══ DESKTOP ═══ */
+#app {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  height: 100vh;
+}
+
+#sidebar {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden; z-index: 10;
+}
+
+#sidebar-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg,#1c1f28 0%,var(--panel) 100%);
+  flex-shrink: 0;
+}
+.header-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:2px; }
+#sidebar-header h1 { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:2px; color:var(--orange); line-height:1; }
+#sidebar-header p  { font-size:9px; color:var(--muted); letter-spacing:.8px; text-transform:uppercase; margin-top:3px; }
+
+#btn-volver {
+  display: inline-flex; align-items:center; gap:5px;
+  padding:5px 10px; background:rgba(255,255,255,.05);
+  border:1px solid var(--border); border-radius:7px;
+  color:var(--muted); font-family:'DM Sans',sans-serif;
+  font-size:10px; font-weight:600; letter-spacing:.08em;
+  text-decoration:none; text-transform:uppercase; transition:all .2s; flex-shrink:0;
+}
+#btn-volver:hover { background:rgba(232,137,42,.1); border-color:var(--orange); color:var(--orange); }
+#btn-volver:hover svg { transform:translateX(-2px); }
+#btn-volver svg { transition:transform .2s; }
+
+#legend { display:flex; gap:8px; padding:8px 16px; border-bottom:1px solid var(--border); flex-wrap:wrap; flex-shrink:0; }
+.leg { display:flex; align-items:center; gap:5px; font-size:9px; color:var(--muted); }
+.leg-dot { width:8px; height:8px; border-radius:2px; flex-shrink:0; }
+.dot-free    { background:var(--orange); }
+.dot-special { background:var(--purple); }
+.dot-taken   { background:#2e3140; border:1px solid #3a3f50; }
+.dot-selected{ background:var(--cyan); box-shadow:0 0 5px var(--cyan); }
+
+#bus-map-wrap {
+  flex:1; overflow-y:auto; padding:12px 10px;
+  scrollbar-width:thin; scrollbar-color:var(--border) transparent;
+}
+#bus-map-wrap::-webkit-scrollbar { width:3px; }
+#bus-map-wrap::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+#bus-shape { background:#191b22; border:1px solid var(--border); border-radius:14px; padding:10px 8px; }
+#driver-area {
+  display:flex; align-items:center; gap:8px; margin-bottom:10px;
+  padding:6px 10px; background:#111318; border-radius:7px; border:1px solid #2a2d35;
+}
+#driver-icon { font-size:16px; }
+#driver-label { font-size:9px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
+
+#seat-container { display:flex; flex-direction:column; gap:3px; }
+.seat-row { display:flex; gap:3px; align-items:center; }
+
+.seat-btn {
+  width:34px; height:34px; border-radius:6px;
+  border:1px solid transparent; cursor:pointer;
+  font-weight:700; font-family:'DM Sans',sans-serif;
+  transition:all .12s; display:flex; align-items:center; justify-content:center;
+  background:var(--orange); color:#1a0a00;
+  flex-shrink:0; font-size:10px;
+  -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+}
+.seat-btn:hover { transform:scale(1.1); filter:brightness(1.18); }
+.seat-btn.special { background:var(--purple); color:#ede9fe; }
+.seat-btn.taken { background:#1e2028; color:#3a3f50; cursor:not-allowed; border-color:#2a2d35; }
+.seat-btn.taken:hover { transform:none; filter:none; }
+.seat-btn.selected {
+  background:var(--cyan)!important; color:#001a1f!important;
+  box-shadow:0 0 0 2px rgba(255,255,255,.5),0 0 12px var(--cyan); transform:scale(1.12);
+}
+.aisle-sep { height:7px; display:flex; align-items:center; margin:1px 0; }
+.aisle-line { width:100%; height:1px; background:repeating-linear-gradient(90deg,var(--border) 0,var(--border) 4px,transparent 4px,transparent 8px); }
+
+#selected-info { padding:10px 16px; border-top:1px solid var(--border); background:#0f1116; flex-shrink:0; }
+.info-label { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:3px; }
+.info-seat-name { font-family:'Bebas Neue',sans-serif; font-size:28px; color:var(--cyan); line-height:1; }
+.info-seat-pos { font-size:10px; color:var(--muted); margin-top:2px; margin-bottom:8px; }
+
+#enter-btn {
+  width:100%; padding:9px; border:none; border-radius:8px;
+  background:linear-gradient(135deg,var(--cyan),#0891b2);
+  color:#001a1f; font-family:'Bebas Neue',sans-serif;
+  font-size:15px; letter-spacing:2px; cursor:pointer;
+  transition:all .2s; box-shadow:0 3px 12px rgba(34,211,238,.22);
+  -webkit-tap-highlight-color:transparent;
+}
+#enter-btn:hover { transform:translateY(-1px); box-shadow:0 5px 16px rgba(34,211,238,.38); }
+#enter-btn:disabled { background:#1e2028; color:var(--muted); cursor:not-allowed; transform:none; box-shadow:none; }
+
+/* 3D */
+#view3d { position:relative; background:#090b10; overflow:hidden; }
+#canvas-wrap { position:absolute; inset:0; }
+canvas { display:block; width:100%!important; height:100%!important; }
+
+#hud {
+  position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+  background:rgba(0,0,0,.7); backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.08); border-radius:30px;
+  padding:6px 16px; font-size:10px; color:rgba(255,255,255,.4);
+  letter-spacing:1.5px; text-transform:uppercase; pointer-events:none; white-space:nowrap;
+}
+#seat-badge {
+  position:absolute; top:14px; right:14px;
+  background:rgba(0,0,0,.75); backdrop-filter:blur(10px);
+  border:1px solid rgba(34,211,238,.25); border-radius:9px;
+  padding:7px 12px; text-align:center;
+}
+#seat-badge .nb { font-family:'Bebas Neue',sans-serif; font-size:24px; color:var(--cyan); line-height:1; }
+#seat-badge .nl { font-size:9px; color:rgba(255,255,255,.3); letter-spacing:1px; margin-top:1px; }
+
+#back-3d-btn {
+  position:absolute; top:14px; left:14px;
+  background:rgba(0,0,0,.7); backdrop-filter:blur(10px);
+  border:1px solid rgba(255,255,255,.12); border-radius:8px;
+  padding:7px 14px; color:rgba(255,255,255,.65);
+  font-size:11px; cursor:pointer; letter-spacing:1px;
+  text-transform:uppercase; font-family:'DM Sans',sans-serif;
+  font-weight:600; transition:all .2s; -webkit-tap-highlight-color:transparent;
+}
+#back-3d-btn:hover { background:rgba(255,255,255,.1); color:#fff; }
+
+#empty-state {
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:10px; pointer-events:none;
+}
+#empty-state .big { font-family:'Bebas Neue',sans-serif; font-size:clamp(36px,7vw,80px); color:rgba(255,255,255,.03); letter-spacing:6px; }
+#empty-state .small { font-size:12px; color:rgba(255,255,255,.13); letter-spacing:1.5px; }
+
+/* ═══════════════════════════════════════════
+   MOBILE ≤ 700px  — Bottom sheet UX
+   ═══════════════════════════════════════════ */
+@media (max-width:700px) {
+  html,body { overflow:hidden; }
+
+  #app { display:block; position:relative; height:100vh; width:100vw; }
+
+  /* 3D is full screen backdrop */
+  #view3d { position:absolute; inset:0; z-index:1; }
+
+  /* Sidebar = bottom sheet */
+  #sidebar {
+    position:absolute; bottom:0; left:0; right:0; z-index:30;
+    border-right:none; border-top:1px solid var(--border);
+    border-radius:20px 20px 0 0;
+    max-height:72vh;
+    background:rgba(11,12,17,.97);
+    backdrop-filter:blur(24px);
+    -webkit-backdrop-filter:blur(24px);
+    transform:translateY(calc(100% - 62px));
+    transition:transform .38s cubic-bezier(.32,.72,0,1);
+    box-shadow:0 -6px 40px rgba(0,0,0,.65);
+    will-change:transform;
+  }
+  #sidebar.open { transform:translateY(0); }
+
+  /* Drag handle pill */
+  #drag-handle {
+    width:36px; height:4px; background:var(--border);
+    border-radius:2px; margin:10px auto 0;
+  }
+
+  /* Collapse back button on mobile — use separate overlay btn */
+  #btn-volver { display:none !important; }
+
+  /* Floating volver button always visible on mobile */
+  #mobile-volver {
+    display:flex !important;
+    position:fixed; top:16px; left:16px; z-index:50;
+    align-items:center; gap:6px; padding:9px 15px;
+    background:rgba(0,0,0,.72); backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,.12); border-radius:10px;
+    color:rgba(255,255,255,.7); font-family:'DM Sans',sans-serif;
+    font-size:12px; font-weight:600; letter-spacing:.06em;
+    text-decoration:none; text-transform:uppercase;
+    -webkit-tap-highlight-color:transparent;
+    transition:background .2s;
+  }
+  #mobile-volver:active { background:rgba(255,255,255,.12); }
+
+  /* Float button: enter 3D */
+  #float-btn {
+    display:flex !important;
+    position:fixed; bottom:76px; left:50%; transform:translateX(-50%);
+    z-index:40;
+    align-items:center; gap:8px; padding:13px 30px;
+    background:linear-gradient(135deg,var(--cyan),#0891b2);
+    border:none; border-radius:50px;
+    color:#001a1f; font-family:'Bebas Neue',sans-serif;
+    font-size:17px; letter-spacing:2px; cursor:pointer;
+    box-shadow:0 6px 28px rgba(34,211,238,.5);
+    opacity:0; pointer-events:none;
+    transition:opacity .25s, transform .25s;
+    white-space:nowrap; -webkit-tap-highlight-color:transparent;
+  }
+  #float-btn.show { opacity:1; pointer-events:auto; transform:translateX(-50%) translateY(0); }
+  #float-btn.hidden { opacity:0; pointer-events:none; transform:translateX(-50%) translateY(8px); }
+
+  /* Desktop enter btn hidden on mobile */
+  #enter-btn { display:none; }
+
+  /* Bigger touch targets */
+  .seat-btn { width:40px; height:40px; font-size:11px; border-radius:8px; }
+
+  #hud { bottom:76px; font-size:9px; padding:5px 14px; }
+  #seat-badge { top:16px; right:16px; }
+
+  /* Prevent back-3d-btn overlap with mobile-volver */
+  #back-3d-btn { left:auto; right:16px; top:16px; }
+}
+
+@media (min-width:701px) {
+  #mobile-volver { display:none !important; }
+  #float-btn     { display:none !important; }
+  #drag-handle   { display:none; }
+}
+</style>
+</head>
+<body>
+
+<!-- Mobile overlay: back to index -->
+<a href="/" id="mobile-volver" style="display:none">
+  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+       fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M19 12H5M12 5l-7 7 7 7"/>
+  </svg>
+  Salir
+</a>
+
+<!-- Mobile float: enter 3D -->
+<button id="float-btn" style="display:none" onclick="enterView(selectedSeat)">
+  👁 VER DESDE AQUÍ
+</button>
+
+<div id="app">
+
+  <!-- ── SIDEBAR / BOTTOM SHEET ── -->
+  <div id="sidebar">
+    <div id="drag-handle"></div>
+
+    <div id="sidebar-header">
+      <div class="header-top">
+        <h1>AUTOBÚS 3D</h1>
+        <a href="/" id="btn-volver">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+               fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5M12 5l-7 7 7 7"/>
+          </svg>
+          Volver
+        </a>
+      </div>
+      <p>Selecciona un asiento · toca para ver tu vista</p>
+    </div>
+
+    <div id="legend">
+      <div class="leg"><div class="leg-dot dot-free"></div>Libre</div>
+      <div class="leg"><div class="leg-dot dot-special"></div>Preferente</div>
+      <div class="leg"><div class="leg-dot dot-taken"></div>Ocupado</div>
+      <div class="leg"><div class="leg-dot dot-selected"></div>Seleccionado</div>
+    </div>
+
+    <div id="bus-map-wrap">
+      <div id="bus-shape">
+        <div id="driver-area">
+          <div id="driver-icon">🚌</div>
+          <div id="driver-label">Conductor · Frente del autobús</div>
+        </div>
+        <div id="seat-container"></div>
+      </div>
+    </div>
+
+    <div id="selected-info">
+      <div class="info-label">Asiento seleccionado</div>
+      <div class="info-seat-name" id="info-num">—</div>
+      <div class="info-seat-pos"  id="info-pos">Elige un asiento del mapa</div>
+      <button id="enter-btn" disabled>VER DESDE ESTE ASIENTO</button>
+    </div>
+  </div>
+
+  <!-- ── 3D VIEW ── -->
+  <div id="view3d">
+    <div id="canvas-wrap"></div>
+    <div id="empty-state">
+      <div class="big">AUTOBÚS</div>
+      <div class="small">Selecciona un asiento</div>
+    </div>
+    <div id="hud" style="display:none">🖱 Arrastra · Rueda = zoom</div>
+    <div id="seat-badge" style="display:none">
+      <div class="nb" id="badge-num">—</div>
+      <div class="nl">ASIENTO</div>
+    </div>
+    <button id="back-3d-btn" style="display:none" onclick="exitView()">← Volver</button>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const rowA=[1,5,9,13,17,21,25,29,33,37,41,45];
+const rowB=[2,6,10,14,18,22,26,30,34,38,42,46];
+const rowC=[3,7,11,15,19,23,27,31,35,39,43];
+const rowD=[4,8,12,16,20,24,28,32,36,40,44];
+const SPECIAL=new Set([1,3]);
+const TAKEN=new Set([6,14,22,30,7,19]);
+const SEAT_POS={};
+rowA.forEach((n,i)=>SEAT_POS[n]={row:0,col:i});
+rowB.forEach((n,i)=>SEAT_POS[n]={row:1,col:i});
+rowC.forEach((n,i)=>SEAT_POS[n]={row:2,col:i});
+rowD.forEach((n,i)=>SEAT_POS[n]={row:3,col:i});
+
+// Build seat map
+const container=document.getElementById('seat-container');
+function buildRow(nums){
+  const div=document.createElement('div');
+  div.className='seat-row';
+  nums.forEach(n=>{
+    const btn=document.createElement('button');
+    btn.className='seat-btn'+(SPECIAL.has(n)?' special':'')+(TAKEN.has(n)?' taken':'');
+    btn.id='seat-'+n; btn.textContent=n;
+    if(!TAKEN.has(n)) btn.addEventListener('click',()=>selectSeat(n));
+    div.appendChild(btn);
+  });
+  return div;
+}
+container.appendChild(buildRow(rowA));
+container.appendChild(buildRow(rowB));
+const aisleEl=document.createElement('div');
+aisleEl.className='aisle-sep';
+aisleEl.innerHTML='<div class="aisle-line"></div>';
+container.appendChild(aisleEl);
+container.appendChild(buildRow(rowC));
+container.appendChild(buildRow(rowD));
+
+const isMobile=()=>window.innerWidth<=700;
+let selectedSeat=null;
+
+function selectSeat(n){
+  if(selectedSeat!==null) document.getElementById('seat-'+selectedSeat)?.classList.remove('selected');
+  selectedSeat=n;
+  document.getElementById('seat-'+n).classList.add('selected');
+  const pos=SEAT_POS[n];
+  const rn=['A — ventana izq','B — pasillo izq','C — pasillo der','D — ventana der'];
+  document.getElementById('info-num').textContent=n;
+  document.getElementById('info-pos').textContent=`Fila ${rn[pos.row]} · Col ${pos.col+1}`;
+  document.getElementById('enter-btn').disabled=false;
+  if(isMobile()){
+    const fb=document.getElementById('float-btn');
+    fb.classList.add('show'); fb.classList.remove('hidden');
+  }
+}
+
+document.getElementById('enter-btn').addEventListener('click',()=>{
+  if(selectedSeat!==null) enterView(selectedSeat);
+});
+
+// Sheet toggle (tap header or drag handle)
+['sidebar-header','drag-handle'].forEach(id=>{
+  const el=document.getElementById(id);
+  if(el) el.addEventListener('click',()=>{
+    if(!isMobile()) return;
+    document.getElementById('sidebar').classList.toggle('open');
+  });
+});
+
+// THREE.JS
+let renderer,scene,camera,animId;
+let isDragging=false,prevX=0,prevY=0,yaw=0,pitch=0;
+let camBasePos=new THREE.Vector3(),swayT=0,currentSeatNum=null;
+
+const mat=(c,r=0.75,m=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
+function BOX(w,h,d,material,x,y,z){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),material);
+  m.position.set(x,y,z); m.castShadow=m.receiveShadow=true; scene.add(m); return m;
+}
+
+function buildScene(){
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x080a0f);
+  scene.fog=new THREE.FogExp2(0x080a0f,0.046);
+  scene.add(new THREE.AmbientLight(0xfff8ee,0.45));
+  const sun=new THREE.DirectionalLight(0xd0e8ff,1.1);
+  sun.position.set(-4,5,2); sun.castShadow=true; sun.shadow.mapSize.set(1024,1024); scene.add(sun);
+  scene.add(Object.assign(new THREE.DirectionalLight(0xffe0a0,0.3),{position:new THREE.Vector3(4,2,4)}));
+  for(let z=-1;z>-16;z-=2.2){ const pl=new THREE.PointLight(0xfff0c0,0.65,5.5); pl.position.set(0,2.18,z); scene.add(pl); }
+
+  const L=16;
+  BOX(2.65,.06,L,mat(0x1a1c20,.95),0,0,-L/2+.5);
+  for(let z=0;z>-L;z-=.6) BOX(2.63,.007,.04,mat(0x111315,.98),0,.035,z);
+  BOX(.44,.01,L-1.5,mat(0x141618,.95),0,.04,-L/2+.8);
+  BOX(.065,2.4,L,mat(0xe8e0d4,.85),-1.3,1.22,-L/2+.5);
+  BOX(.065,2.4,L,mat(0xe8e0d4,.85), 1.3,1.22,-L/2+.5);
+  BOX(.07,.6,L,mat(0xc8c0b8,.9),-1.3,.32,-L/2+.5);
+  BOX(.07,.6,L,mat(0xc8c0b8,.9), 1.3,.32,-L/2+.5);
+  BOX(2.65,.06,L,mat(0xf0ece6,.9),0,2.42,-L/2+.5);
+  BOX(2.72,.04,L,mat(0xd8d4ce,.85),0,2.2,-L/2+.5);
+  BOX(2.65,2.4,.07,mat(0xd0c8c0,.9),0,1.22,-L+.5);
+  BOX(2.65,2.4,.07,mat(0xbbb8b4,.9),0,1.22,.92);
+  const stripMat=new THREE.MeshStandardMaterial({color:0xfff8e0,roughness:1,emissive:0xfff8e0,emissiveIntensity:.7});
+  for(let z=-.8;z>-L+.8;z-=2.2) BOX(2.2,.035,.5,stripMat,0,2.39,z);
+
+  const glassMat=new THREE.MeshStandardMaterial({color:0x80c4e8,roughness:.05,metalness:.1,transparent:true,opacity:.25,side:THREE.DoubleSide});
+  const frameMat=mat(0x999898,.45,.5);
+  const skyMat=new THREE.MeshStandardMaterial({color:0x5090bb,emissive:0x5090bb,emissiveIntensity:.15,transparent:true,opacity:.15,side:THREE.DoubleSide});
+  for(let z=-.4;z>-L+1.2;z-=2.05){
+    BOX(.065,1.0,1.8,frameMat,-1.27,1.48,z);
+    let g=new THREE.Mesh(new THREE.PlaneGeometry(1.72,.86),glassMat); g.position.set(-1.265,1.5,z); g.rotation.y=Math.PI/2; scene.add(g);
+    let s=new THREE.Mesh(new THREE.PlaneGeometry(1.72,.86),skyMat); s.position.set(-1.36,1.5,z); s.rotation.y=Math.PI/2; scene.add(s);
+    BOX(.065,1.0,1.8,frameMat,1.27,1.48,z);
+    let gR=new THREE.Mesh(new THREE.PlaneGeometry(1.72,.86),glassMat); gR.position.set(1.265,1.5,z); gR.rotation.y=Math.PI/2; scene.add(gR);
+  }
+
+  const rackMat=mat(0x888888,.25,.9);
+  for(let z=-.5;z>-L+.5;z-=.38){ BOX(.34,.005,.3,rackMat,-1.04,2.02,z); BOX(.34,.005,.3,rackMat,1.04,2.02,z); }
+  [-1.22,-.88,.88,1.22].forEach(rx=>BOX(.012,.08,L-1.8,rackMat,rx,2.06,-L/2+1));
+
+  const hrMat=mat(0xaaaaaa,.15,.95);
+  const hrM=new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,L-1.8,12),hrMat);
+  hrM.rotation.x=Math.PI/2; hrM.position.set(0,2.15,-L/2+1.1); scene.add(hrM);
+  for(let z=-3.5;z>-L+2;z-=2.8){ const vr=new THREE.Mesh(new THREE.CylinderGeometry(.022,.022,1.85,12),hrMat); vr.position.set(0,1.27,z); scene.add(vr); }
+
+  const pal={free:0xe8892a,special:0x7c3aed,taken:0x252830,you:0x22d3ee};
+  function sC(n){ return TAKEN.has(n)?pal.taken:SPECIAL.has(n)?pal.special:pal.free; }
+  function makeSeat(sn,sx,sz){
+    const isYou=sn===currentSeatNum, c=isYou?pal.you:sC(sn);
+    const pri=mat(c,.8), drk=new THREE.MeshStandardMaterial({color:new THREE.Color(c).multiplyScalar(.68),roughness:.82}), chr=mat(0x909090,.12,.95);
+    const g=new THREE.Group();
+    [[-0.15,-0.15],[-0.15,0.15],[0.15,-0.15],[0.15,0.15]].forEach(([lx,lz])=>{
+      const leg=new THREE.Mesh(new THREE.CylinderGeometry(.016,.016,.42,8),chr); leg.position.set(lx,.21,lz); g.add(leg);
+    });
+    const base=new THREE.Mesh(new THREE.BoxGeometry(.44,.07,.44),pri); base.position.set(0,.44,.01); g.add(base);
+    const cush=new THREE.Mesh(new THREE.BoxGeometry(.40,.055,.40),drk); cush.position.set(0,.49,.01); g.add(cush);
+    const back=new THREE.Mesh(new THREE.BoxGeometry(.44,.52,.075),pri); back.position.set(0,.8,-.19); back.rotation.x=-.06; g.add(back);
+    const pad=new THREE.Mesh(new THREE.BoxGeometry(.38,.44,.04),drk); pad.position.set(0,.8,-.155); pad.rotation.x=-.06; g.add(pad);
+    const hr2=new THREE.Mesh(new THREE.BoxGeometry(.42,.2,.09),new THREE.MeshStandardMaterial({color:0xf5f0ea,roughness:.9})); hr2.position.set(0,1.12,-.2); g.add(hr2);
+    [-0.24,0.24].forEach(ax=>{ const arm=new THREE.Mesh(new THREE.BoxGeometry(.032,.032,.32),chr); arm.position.set(ax,.62,.04); g.add(arm); });
+    if(isYou){
+      const gM=new THREE.MeshStandardMaterial({color:0x22d3ee,emissive:0x22d3ee,emissiveIntensity:.65,transparent:true,opacity:.35});
+      const gl=new THREE.Mesh(new THREE.BoxGeometry(.52,.01,.52),gM); gl.position.set(0,.02,0); g.add(gl);
+    }
+    g.position.set(sx,0,sz);
+    g.traverse(c=>{if(c.isMesh){c.castShadow=c.receiveShadow=true;}});
+    scene.add(g);
+  }
+  const rX=[-0.94,-0.49,0.49,0.94];
+  [rowA,rowB,rowC,rowD].forEach((r,ri)=>r.forEach((n,ci)=>makeSeat(n,rX[ri],-1.15-ci*1.08)));
+
+  const cM=new THREE.MeshStandardMaterial({color:0x3a5878,roughness:1,transparent:true,opacity:.18});
+  [-1.8,-3.5,-5.2,-6.8,-8.5,-10.1,-11.8,-13.4].forEach((z,i)=>{
+    const bh=0.8+(i%3)*.9+Math.sin(i*2.3)*.5;
+    const b=new THREE.Mesh(new THREE.BoxGeometry(.4+i%2*.3,bh,.4),cM); b.position.set(-2.55,bh/2,z); scene.add(b);
+  });
+}
+
+function getCam(n){
+  const p=SEAT_POS[n]; if(!p) return{pos:new THREE.Vector3(0,1.1,0),lookZ:-4};
+  const sx=[-0.94,-0.49,0.49,0.94][p.row], sz=-1.15-p.col*1.08;
+  return{pos:new THREE.Vector3(sx,1.1,sz+.28),lookZ:sz-3};
+}
+
+function enterView(n){
+  if(!n) return;
+  currentSeatNum=n; yaw=0; pitch=0;
+  if(isMobile()){
+    document.getElementById('sidebar').classList.remove('open');
+    const fb=document.getElementById('float-btn'); fb.classList.remove('show'); fb.classList.add('hidden');
+  }
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('hud').style.display='block';
+  document.getElementById('seat-badge').style.display='block';
+  document.getElementById('back-3d-btn').style.display='block';
+  document.getElementById('badge-num').textContent=n;
+  if(renderer){ cancelAnimationFrame(animId); renderer.dispose(); const w=document.getElementById('canvas-wrap'); while(w.firstChild) w.removeChild(w.firstChild); }
+  const wrap=document.getElementById('canvas-wrap');
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  renderer.setSize(wrap.clientWidth,wrap.clientHeight);
+  renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.toneMapping=THREE.ACESFilmicToneMapping; renderer.toneMappingExposure=1.1;
+  wrap.appendChild(renderer.domElement);
+  camera=new THREE.PerspectiveCamera(72,wrap.clientWidth/wrap.clientHeight,.05,40);
+  buildScene();
+  const{pos,lookZ}=getCam(n); camBasePos.copy(pos); camera.position.copy(pos); camera.lookAt(pos.x,pos.y,lookZ);
+  setupControls(); swayT=0; animate();
+}
+
+function exitView(){
+  cancelAnimationFrame(animId);
+  if(renderer){ renderer.dispose(); const w=document.getElementById('canvas-wrap'); while(w.firstChild) w.removeChild(w.firstChild); renderer=null; }
+  document.getElementById('empty-state').style.display='flex';
+  document.getElementById('hud').style.display='none';
+  document.getElementById('seat-badge').style.display='none';
+  document.getElementById('back-3d-btn').style.display='none';
+  currentSeatNum=null;
+  if(isMobile()){
+    document.getElementById('sidebar').classList.add('open');
+    if(selectedSeat){ const fb=document.getElementById('float-btn'); fb.classList.add('show'); fb.classList.remove('hidden'); }
+  }
+}
+
+function setupControls(){
+  const el=renderer.domElement;
+  el.addEventListener('mousedown',e=>{isDragging=true;prevX=e.clientX;prevY=e.clientY;});
+  el.addEventListener('mouseup',()=>isDragging=false);
+  el.addEventListener('mouseleave',()=>isDragging=false);
+  el.addEventListener('mousemove',e=>{ if(!isDragging)return; yaw-=(e.clientX-prevX)*.003; pitch-=(e.clientY-prevY)*.003; pitch=Math.max(-Math.PI/2+.02,Math.min(Math.PI/2-.02,pitch)); prevX=e.clientX;prevY=e.clientY; });
+  el.addEventListener('wheel',e=>{ camera.fov=Math.max(40,Math.min(95,camera.fov+e.deltaY*.04)); camera.updateProjectionMatrix(); },{passive:true});
+  el.addEventListener('touchstart',e=>{isDragging=true;prevX=e.touches[0].clientX;prevY=e.touches[0].clientY;},{passive:true});
+  el.addEventListener('touchend',()=>isDragging=false);
+  el.addEventListener('touchmove',e=>{ if(!isDragging)return; yaw-=(e.touches[0].clientX-prevX)*.003; pitch-=(e.touches[0].clientY-prevY)*.003; pitch=Math.max(-Math.PI/2+.02,Math.min(Math.PI/2-.02,pitch)); prevX=e.touches[0].clientX;prevY=e.touches[0].clientY; },{passive:true});
+}
+
+function animate(){
+  animId=requestAnimationFrame(animate); swayT+=.006;
+  const sway=Math.sin(swayT*.7)*.003+Math.sin(swayT*1.4)*.0015;
+  const bump=Math.sin(swayT*2.1)*.004+Math.sin(swayT*3.6)*.002;
+  camera.position.copy(camBasePos); camera.position.x+=sway; camera.position.y+=bump;
+  const dir=new THREE.Vector3(Math.sin(yaw+sway*.3),Math.sin(pitch),-Math.cos(yaw)).normalize();
+  camera.lookAt(camera.position.clone().add(dir)); renderer.render(scene,camera);
+}
+
+window.addEventListener('resize',()=>{
+  if(!renderer||!camera)return;
+  const w=document.getElementById('canvas-wrap');
+  camera.aspect=w.clientWidth/w.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(w.clientWidth,w.clientHeight);
+});
+</script>
+</body>
+</html>

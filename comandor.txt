@@ -1,0 +1,26 @@
+Pasos a ejecutar para poder usarlo...
+crear un entorno virtual:
+linux: python3 -m venv venv
+windows:python -m venv venv
+
+activar entorno virtual:
+ubuntu: source venv/bin/activate
+windows: venv\Scripts\activate
+
+instalar requerimientos:
+pip install -r requirements.txt
+
+Ejecutar migraciones:
+python manage.py migrate
+
+__RECUERDA PRENDER XAMPP__
+
+iniciar el server:
+python manage.py runserver
+
+iniciarlo para movil:
+python manage.py runserver 0.0.0.0:8000
+
+
+clave api:
+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
