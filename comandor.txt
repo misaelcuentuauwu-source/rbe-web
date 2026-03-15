@@ -22,5 +22,3 @@ iniciarlo para movil:
 python manage.py runserver 0.0.0.0:8000
 
 
-clave api:
-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
