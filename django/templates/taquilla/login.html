@@ -222,15 +222,56 @@
 
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
+    /* ── CORREGIDO Bug 2: Checkbox supervisor ── */
     .checkbox-row {
       display: flex; align-items: center; gap: 10px;
       margin-bottom: 16px; cursor: pointer;
+      padding: 10px 12px;
+      border: 1px solid var(--border2);
+      border-radius: 9px;
+      background: rgba(0,0,0,.2);
+      transition: border-color .2s, background .2s;
+      user-select: none;
     }
+    .checkbox-row:hover {
+      border-color: var(--naranja);
+      background: rgba(237,114,55,.07);
+    }
+    /* Ocultar el input nativo y reemplazar con custom */
     .checkbox-row input[type=checkbox] {
-      width: 17px; height: 17px; accent-color: var(--naranja);
-      cursor: pointer; border-radius: 4px;
+      /* Reset total de los estilos heredados de "input" */
+      -webkit-appearance: checkbox !important;
+      appearance: checkbox !important;
+      width: 18px !important;
+      height: 18px !important;
+      min-width: 18px !important;
+      padding: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      background: none !important;
+      box-shadow: none !important;
+      cursor: pointer;
+      accent-color: var(--naranja);
+      flex-shrink: 0;
     }
-    .checkbox-row span { font-size: 13px; color: var(--muted2); }
+    .checkbox-row .cb-label { font-size: 13px; color: var(--muted2); flex: 1; }
+    /* Indicador visual cuando está marcado */
+    .checkbox-row:has(input:checked) {
+      border-color: var(--naranja);
+      background: rgba(237,114,55,.1);
+    }
+    .checkbox-row:has(input:checked) .cb-label {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .cb-check-icon {
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    .checkbox-row:has(input:checked) .cb-check-icon {
+      opacity: 1;
+    }
 
     /* Botones */
     .btn-primary {
@@ -276,6 +317,19 @@
     }
     .btn-ghost:hover { border-color: var(--azul); color: var(--text); }
 
+    /* Error inline del modal */
+    .modal-error {
+      display: none;
+      background: rgba(192,57,43,.15);
+      border: 1px solid rgba(192,57,43,.4);
+      color: #e87070;
+      border-radius: 8px;
+      padding: 10px 13px;
+      font-size: 12px;
+      margin-bottom: 14px;
+    }
+    .modal-error.visible { display: block; }
+
     /* ── RESPONSIVE MOBILE ── */
     @media (max-width: 800px) {
       .page { grid-template-columns: 1fr; min-height: 100vh; }
@@ -284,7 +338,6 @@
         padding: 100px 28px 36px;
         border-right: none;
         border-bottom: 1px solid var(--border);
-        /* Compacto en móvil */
         justify-content: flex-start;
       }
 
@@ -396,8 +449,8 @@
 
     <!-- Tabs -->
     <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('login', this)">Iniciar sesión</button>
-      <button class="tab-btn" onclick="abrirModalClave(this)">Registrarse</button>
+      <button class="tab-btn active" id="tab-btn-login" onclick="switchTab('login', this)">Iniciar sesión</button>
+      <button class="tab-btn" id="tab-btn-registro" onclick="abrirModalClave(this)">Registrarse</button>
     </div>
 
     <!-- ── LOGIN ── -->
@@ -427,6 +480,7 @@
     <div class="form-section" id="tab-registro">
       <form method="POST" action="{% url 'registro' %}">
         {% csrf_token %}
+        <!-- La clave maestra ya fue verificada vía AJAX; se envía aquí como campo oculto -->
         <input type="hidden" name="clave_maestra" id="clave-hidden" />
 
         <div class="grid-2">
@@ -465,9 +519,11 @@
           </select>
         </div>
 
+        <!-- CORREGIDO Bug 2: checkbox con estilo visible y palomita de confirmación -->
         <label class="checkbox-row">
-          <input type="checkbox" name="supervisa" />
-          <span>Registrar como supervisor</span>
+          <input type="checkbox" name="supervisa" id="cb-supervisa" />
+          <span class="cb-label">Registrar como supervisor</span>
+          <span class="cb-check-icon">✅</span>
         </label>
 
         <button type="submit" class="btn-primary naranja">Registrar taquillero</button>
@@ -482,18 +538,22 @@
   <div class="modal-box">
     <h3>🔐 Verificación requerida</h3>
     <p>Solo el administrador puede registrar nuevos taquilleros. Ingresa la clave maestra para continuar.</p>
+    <!-- CORREGIDO Bug 1: mensaje de error visible dentro del modal -->
+    <div class="modal-error" id="modal-clave-error">Clave maestra incorrecta. Inténtalo de nuevo.</div>
     <div class="field">
       <label>Clave maestra</label>
       <input type="password" id="clave-input" placeholder="••••••••" />
     </div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="cerrarModal()">Cancelar</button>
-      <button class="btn-primary azul" style="flex:1;padding:12px;" onclick="confirmarClave()">Verificar</button>
+      <button class="btn-primary azul" id="btn-verificar" style="flex:1;padding:12px;" onclick="confirmarClave()">Verificar</button>
     </div>
   </div>
 </div>
 
 <script>
+  const CSRF = '{{ csrf_token }}';
+
   function switchTab(tab, btn) {
     document.querySelectorAll('.form-section').forEach(s => s.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -504,21 +564,60 @@
   function abrirModalClave(btn) {
     window._tabBtn = btn;
     document.getElementById('clave-input').value = '';
+    document.getElementById('modal-clave-error').classList.remove('visible');
     document.getElementById('modal-clave').classList.add('open');
     setTimeout(() => document.getElementById('clave-input').focus(), 120);
   }
 
   function cerrarModal() {
     document.getElementById('modal-clave').classList.remove('open');
+    // Asegurarse de que el tab activo siga siendo "login" si se cancela
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-btn-login').classList.add('active');
+    switchTab('login', null);
   }
 
-  function confirmarClave() {
-    const clave = document.getElementById('clave-input').value;
+  // CORREGIDO Bug 1: verificar clave vía AJAX antes de mostrar el formulario
+  async function confirmarClave() {
+    const clave = document.getElementById('clave-input').value.trim();
     if (!clave) return;
-    document.getElementById('clave-hidden').value = clave;
-    cerrarModal();
-    switchTab('registro', window._tabBtn);
-    if (window._tabBtn) window._tabBtn.classList.add('active');
+
+    const btn = document.getElementById('btn-verificar');
+    btn.textContent = 'Verificando…';
+    btn.disabled = true;
+
+    try {
+      const resp = await fetch('/api/verificar-clave/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        body: JSON.stringify({ clave })
+      });
+      const data = await resp.json();
+
+      if (data.ok) {
+        // Clave correcta: guardar en el campo oculto y mostrar el formulario
+        document.getElementById('clave-hidden').value = clave;
+        document.getElementById('modal-clave').classList.remove('open');
+        // Activar tab de registro
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        if (window._tabBtn) window._tabBtn.classList.add('active');
+        switchTab('registro', window._tabBtn);
+      } else {
+        // Clave incorrecta: mostrar error dentro del modal, NO redirigir
+        const errEl = document.getElementById('modal-clave-error');
+        errEl.textContent = data.error || 'Clave maestra incorrecta. Inténtalo de nuevo.';
+        errEl.classList.add('visible');
+        document.getElementById('clave-input').value = '';
+        document.getElementById('clave-input').focus();
+      }
+    } catch (e) {
+      const errEl = document.getElementById('modal-clave-error');
+      errEl.textContent = 'Error de conexión. Inténtalo de nuevo.';
+      errEl.classList.add('visible');
+    } finally {
+      btn.textContent = 'Verificar';
+      btn.disabled = false;
+    }
   }
 
   document.getElementById('clave-input').addEventListener('keydown', e => {
@@ -530,10 +629,11 @@
     if (e.target === e.currentTarget) cerrarModal();
   });
 
+  // Si Django devolvió un mensaje de éxito, mantenerse en login (no abrir registro)
   {% if messages %}
   {% for message in messages %}
-  {% if 'maestra' in message.message or 'Clave' in message.message %}
-  switchTab('registro', document.querySelectorAll('.tab-btn')[1]);
+  {% if message.tags == 'success' %}
+  switchTab('login', document.getElementById('tab-btn-login'));
   {% endif %}
   {% endfor %}
   {% endif %}

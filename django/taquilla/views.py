@@ -88,6 +88,17 @@ def registro_view(request):
         messages.success(request, 'Taquillero registrado correctamente')
     return redirect('login')
 
+# ─── NUEVO: Verificar clave maestra vía AJAX ──────────────────────────────────
+def verificar_clave_maestra(request):
+    """Endpoint AJAX para verificar la clave maestra antes de mostrar el formulario de registro."""
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        clave = data.get('clave', '')
+        if clave == CLAVE_MAESTRA:
+            return JsonResponse({'ok': True})
+        return JsonResponse({'ok': False, 'error': 'Clave maestra incorrecta'})
+    return JsonResponse({'ok': False, 'error': 'Método no permitido'}, status=405)
+
 def logout_view(request):
     request.session.flush()
     return redirect('login')
@@ -257,7 +268,12 @@ def crud_eliminar(request, tabla):
 
 @admin_requerido
 def salidas_json(request):
+    """
+    Devuelve SOLO los viajes próximos (fecHoraSalida >= ahora) que no estén finalizados.
+    El historial (viajes pasados o estado finalizado) se obtiene por separado con historial_json.
+    """
     from django.db import connection
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with connection.cursor() as cur:
         cur.execute("""
             SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
@@ -275,9 +291,11 @@ def salidas_json(request):
             JOIN edo_viaje ev ON v.estado = ev.numero
             LEFT JOIN conductor c ON v.conductor = c.registro
             LEFT JOIN autobus a   ON v.autobus = a.numero
-            ORDER BY v.fecHoraSalida DESC
+            WHERE v.fecHoraSalida >= %s
+              AND LOWER(ev.nombre) NOT IN ('finalizado','completado','cancelado','terminado')
+            ORDER BY v.fecHoraSalida ASC
             LIMIT 200
-        """)
+        """, [now])
         cols = [d[0] for d in cur.description]
         rows = []
         for r in cur.fetchall():
@@ -288,20 +306,68 @@ def salidas_json(request):
             rows.append(row)
     return JsonResponse({'rows': rows})
 
+
+@admin_requerido
+def historial_json(request):
+    """
+    Devuelve viajes pasados (fecHoraSalida < ahora) O con estado finalizado/cancelado.
+    Usado por la sección Historial de Viajes.
+    """
+    from django.db import connection
+    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    with connection.cursor() as cur:
+        cur.execute("""
+            SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
+                   corig.nombre AS origen_ciudad, cdest.nombre AS destino_ciudad,
+                   tor.nombre AS origen_terminal, tdes.nombre AS destino_terminal,
+                   ev.nombre AS estado, v.ruta,
+                   CONCAT(c.conNombre,' ',c.conPrimerApell) AS conductor,
+                   a.placas AS autobus_placas, a.numero AS autobus_num,
+                   mo.numasientos AS asientos_total,
+                   COUNT(t.codigo) AS pasajeros_count
+            FROM viaje v
+            JOIN ruta r       ON v.ruta = r.codigo
+            JOIN terminal tor ON r.origen = tor.numero
+            JOIN terminal tdes ON r.destino = tdes.numero
+            JOIN ciudad corig ON tor.ciudad = corig.clave
+            JOIN ciudad cdest ON tdes.ciudad = cdest.clave
+            JOIN edo_viaje ev ON v.estado = ev.numero
+            LEFT JOIN conductor c ON v.conductor = c.registro
+            LEFT JOIN autobus a   ON v.autobus = a.numero
+            LEFT JOIN modelo mo   ON a.modelo = mo.numero
+            LEFT JOIN ticket t    ON t.viaje = v.numero
+            WHERE v.fecHoraSalida < %s
+               OR LOWER(ev.nombre) IN ('finalizado','completado','cancelado','terminado')
+            GROUP BY v.numero
+            ORDER BY v.fecHoraSalida DESC
+            LIMIT 500
+        """, [now])
+        cols = [d[0] for d in cur.description]
+        rows = []
+        for r in cur.fetchall():
+            row = dict(zip(cols, r))
+            for k, v in row.items():
+                if hasattr(v, 'isoformat'):
+                    row[k] = v.isoformat()
+            rows.append(row)
+    return JsonResponse({'rows': rows})
+
+
 @admin_requerido
 def agregar_viaje_opciones(request):
     from django.db import connection
     result = {}
     with connection.cursor() as cur:
+        # Incluir duracion en la respuesta de rutas para calcular llegada automáticamente
         cur.execute("""
-            SELECT r.codigo, CONCAT(corig.nombre,' \u2192 ',cdest.nombre) AS label
+            SELECT r.codigo, CONCAT(corig.nombre,' \u2192 ',cdest.nombre) AS label, r.duracion
             FROM ruta r
             JOIN terminal tor  ON r.origen  = tor.numero
             JOIN terminal tdes ON r.destino = tdes.numero
             JOIN ciudad corig  ON tor.ciudad = corig.clave
             JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
         """)
-        result['rutas'] = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
+        result['rutas'] = [{'value': r[0], 'label': r[1], 'duracion': r[2]} for r in cur.fetchall()]
         cur.execute("SELECT numero, placas FROM autobus ORDER BY numero")
         result['autobuses'] = [{'value': r[0], 'label': f"#{r[0]} ({r[1]})"} for r in cur.fetchall()]
         cur.execute("SELECT registro, CONCAT(conNombre,' ',conPrimerApell) AS n FROM conductor ORDER BY conNombre")
@@ -563,6 +629,7 @@ def autobus_detalle(request, bus_id):
             if not row:
                 return JsonResponse({'error': f'Autobús #{bus_id} no encontrado'}, status=404)
             numero, placas, marca, modelo, anio, num_asientos = row
+
             cur.execute("""
                 SELECT ta.descripcion, ta.codigo, COUNT(*) AS cantidad
                 FROM asiento a
@@ -609,6 +676,9 @@ def viaje_pasajeros(request, viaje_id):
             if not info:
                 return JsonResponse({'error': f'Viaje #{viaje_id} no encontrado'}, status=404)
             origen, destino, salida, autobus = info
+
+
+
             cur.execute("""
                 SELECT
                     CONCAT(p.paNombre, ' ', p.paPrimerApell,
@@ -637,6 +707,8 @@ def viaje_pasajeros(request, viaje_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+
+from .elipse_views import elipse_view, elipse_chat
 # ─── API Móvil ────────────────────────────────────────────────────────────────
 
 @api_view(['POST'])

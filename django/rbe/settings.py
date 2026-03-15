@@ -90,6 +90,9 @@ LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/panel/'
 LOGOUT_REDIRECT_URL = '/login/'
 
+# Fuerza recarga del CSS al cambiar este número
+STATIC_VERSION = '2'
+
 # ── Correo electrónico ─────────────────────────────────────────
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
@@ -98,3 +101,4 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'rutasbajaexpress@gmail.com'
 EMAIL_HOST_PASSWORD = 'sxtuspevydckddbl'
 DEFAULT_FROM_EMAIL = 'Rutas Baja Express <rutasbajaexpress@gmail.com>'
+

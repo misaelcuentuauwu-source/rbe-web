@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Elipse — Asistente RBE</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:       #080a0f;
+    --surface:  #0e1118;
+    --surface2: #141824;
+    --border:   rgba(255,255,255,.07);
+    --borderg:  rgba(255,200,60,.2);
+    --text:     #e8ecf4;
+    --muted:    #5a6a80;
+    --amber:    #f5c842;
+    --amberd:   #d4a117;
+    --amberl:   #ffe88a;
+    --orange:   #ed7237;
+    --blue:     #3b82f6;
+    --green:    #34d399;
+    --red:      #f87171;
+    --fh: 'Syne', sans-serif;
+    --fm: 'DM Mono', monospace;
+    --fb: 'DM Sans', sans-serif;
+    --sw: 224px;
+  }
+  html, body { height:100%; font-family:var(--fb); background:var(--bg); color:var(--text); overflow:hidden; }
+
+  .app { display:grid; grid-template-columns:var(--sw) 1fr; height:100vh; }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    background:var(--surface); border-right:1px solid var(--border);
+    display:flex; flex-direction:column; padding:20px 14px; gap:6px;
+    overflow-y:auto; position:relative;
+  }
+  .sidebar::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:1px;
+    background:linear-gradient(90deg,transparent,var(--amber),transparent); opacity:.4;
+  }
+  .brand {
+    display:flex; align-items:center; gap:10px;
+    padding:0 4px 16px; border-bottom:1px solid var(--border); margin-bottom:6px;
+  }
+  .brand-icon {
+    width:32px; height:32px; border-radius:9px; flex-shrink:0;
+    background:linear-gradient(135deg,var(--amber),var(--orange));
+    display:flex; align-items:center; justify-content:center; font-size:15px;
+    box-shadow:0 0 14px rgba(245,200,66,.3);
+  }
+  .brand-name { font-family:var(--fh); font-size:17px; font-weight:800; line-height:1; }
+  .brand-name span { display:block; font-size:9px; font-weight:400; color:var(--muted); font-family:var(--fb); letter-spacing:.08em; text-transform:uppercase; margin-top:2px; }
+
+  .btn-back {
+    display:flex; align-items:center; gap:7px; padding:8px 11px; border-radius:8px;
+    background:transparent; border:1px solid var(--border); color:var(--muted);
+    font-size:12px; font-family:var(--fb); cursor:pointer; transition:all .2s;
+    text-decoration:none; margin-bottom:6px;
+  }
+  .btn-back:hover { background:var(--surface2); color:var(--text); border-color:rgba(255,255,255,.14); }
+
+  /* ── Selector de modelo ── */
+  .model-section {
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:10px; padding:10px 12px; margin-bottom:4px;
+  }
+  .model-label {
+    font-size:9px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--muted); margin-bottom:8px; display:flex; align-items:center; gap:5px;
+  }
+  .model-label::before { content:''; display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); }
+  .model-opts { display:flex; flex-direction:column; gap:4px; }
+  .model-opt {
+    display:flex; align-items:center; gap:8px; padding:7px 9px; border-radius:7px;
+    cursor:pointer; transition:all .18s; border:1px solid transparent;
+  }
+  .model-opt:hover { background:rgba(255,255,255,.04); }
+  .model-opt.active { background:rgba(245,200,66,.08); border-color:var(--borderg); }
+  .model-opt input[type=radio] { display:none; }
+  .model-dot {
+    width:10px; height:10px; border-radius:50%;
+    border:2px solid var(--muted); flex-shrink:0; transition:all .18s;
+  }
+  .model-opt.active .model-dot { border-color:var(--amber); background:var(--amber); box-shadow:0 0 8px var(--amber); }
+  .model-info { flex:1; }
+  .model-name { font-size:12px; font-weight:500; color:var(--text); }
+  .model-desc { font-size:10px; color:var(--muted); margin-top:1px; }
+
+  .sidebar-label {
+    font-size:9px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--muted); padding:4px 4px 2px; margin-top:6px;
+  }
+  .quick-btn {
+    background:transparent; border:1px solid var(--border); border-radius:8px;
+    padding:8px 11px; color:var(--text); font-size:12px; font-family:var(--fb);
+    line-height:1.4; text-align:left; cursor:pointer; transition:all .18s;
+    display:flex; gap:7px; align-items:flex-start;
+  }
+  .quick-btn:hover { background:var(--surface2); border-color:var(--borderg); color:var(--amberl); }
+  .quick-btn .qi { flex-shrink:0; opacity:.6; font-size:12px; }
+
+  .sb-spacer { flex:1; }
+  .sb-footer {
+    border-top:1px solid var(--border); padding-top:10px;
+    font-size:10px; color:var(--muted); text-align:center; line-height:1.5;
+  }
+  .sb-footer strong { color:var(--amber); font-family:var(--fh); }
+
+  /* ── MAIN ── */
+  .main { display:flex; flex-direction:column; background:var(--bg); overflow:hidden; }
+
+  .chat-header {
+    padding:14px 22px; border-bottom:1px solid var(--border);
+    display:flex; align-items:center; justify-content:space-between;
+    flex-shrink:0; background:var(--surface);
+  }
+  .ch-left { display:flex; align-items:center; gap:11px; }
+  .status-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s ease infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .chat-title { font-family:var(--fh); font-size:15px; font-weight:700; }
+  .chat-sub { font-size:11px; color:var(--muted); margin-top:1px; }
+  .model-badge {
+    font-size:10px; font-family:var(--fm); color:var(--amber);
+    background:rgba(245,200,66,.1); border:1px solid rgba(245,200,66,.2);
+    padding:3px 8px; border-radius:20px;
+  }
+  .h-actions { display:flex; gap:7px; }
+  .btn-icon {
+    width:32px; height:32px; background:var(--surface2); border:1px solid var(--border);
+    border-radius:7px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; color:var(--muted); font-size:13px; transition:all .18s;
+  }
+  .btn-icon:hover { color:var(--text); border-color:var(--borderg); }
+
+  /* ── Mensajes ── */
+  .messages {
+    flex:1; overflow-y:auto; padding:22px; display:flex; flex-direction:column;
+    gap:18px; scroll-behavior:smooth;
+  }
+  .messages::-webkit-scrollbar { width:4px; }
+  .messages::-webkit-scrollbar-thumb { background:var(--surface2); border-radius:4px; }
+
+  .welcome {
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    height:100%; gap:10px; text-align:center; padding:40px;
+    animation:fadeUp .6s ease forwards;
+  }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:none} }
+  .w-orb {
+    width:72px; height:72px; border-radius:50%;
+    background:radial-gradient(circle at 35% 35%,var(--amberl),var(--amber),var(--orange));
+    box-shadow:0 0 36px rgba(245,200,66,.35),0 0 72px rgba(237,114,55,.15);
+    display:flex; align-items:center; justify-content:center; font-size:28px;
+    animation:orbFloat 3s ease-in-out infinite; margin-bottom:6px;
+  }
+  @keyframes orbFloat { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+  .welcome h2 { font-family:var(--fh); font-size:26px; font-weight:800; }
+  .welcome h2 em { color:var(--amber); font-style:normal; }
+  .welcome p { color:var(--muted); font-size:13px; max-width:380px; line-height:1.6; }
+
+  .msg { display:flex; gap:10px; animation:slideIn .25s ease; }
+  @keyframes slideIn { from{opacity:0;transform:translateY(7px)} to{opacity:1;transform:none} }
+  .msg.user { flex-direction:row-reverse; }
+  .msg-av {
+    width:30px; height:30px; border-radius:9px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:600; font-family:var(--fh);
+  }
+  .msg.user  .msg-av { background:linear-gradient(135deg,var(--amber),var(--orange)); color:#000; }
+  .msg.ai    .msg-av { background:linear-gradient(135deg,#1e293b,var(--surface2)); border:1px solid var(--border); color:var(--amber); }
+  .msg-body { flex:1; max-width:calc(100% - 76px); }
+  .msg.user .msg-body { align-items:flex-end; display:flex; flex-direction:column; }
+  .msg-name { font-size:10px; color:var(--muted); margin-bottom:3px; font-family:var(--fm); }
+  .msg.user .msg-name { text-align:right; }
+  .msg-bubble {
+    padding:11px 15px; border-radius:11px;
+    font-size:13.5px; line-height:1.65; max-width:100%;
+  }
+  .msg.user .msg-bubble {
+    background:linear-gradient(135deg,var(--amberd),var(--orange));
+    color:#fff; border-radius:11px 11px 2px 11px;
+  }
+  .msg.ai .msg-bubble {
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:2px 11px 11px 11px; color:var(--text);
+  }
+
+  /* tablas */
+  .msg-bubble table { width:100%; border-collapse:collapse; margin-top:10px; font-size:12px; font-family:var(--fm); border-radius:8px; overflow:hidden; }
+  .msg-bubble th { background:var(--surface2); color:var(--amber); padding:7px 11px; text-align:left; font-size:10px; letter-spacing:.06em; text-transform:uppercase; border-bottom:1px solid var(--borderg); }
+  .msg-bubble td { padding:6px 11px; border-bottom:1px solid var(--border); color:var(--text); vertical-align:middle; }
+  .msg-bubble tr:last-child td { border-bottom:none; }
+  .msg-bubble tr:nth-child(even) td { background:rgba(255,255,255,.02); }
+
+  /* badges */
+  .badge { display:inline-flex; align-items:center; gap:3px; padding:2px 7px; border-radius:20px; font-size:11px; font-weight:500; }
+  .badge.disponible { background:rgba(52,211,153,.15); color:var(--green); }
+  .badge.ruta       { background:rgba(59,130,246,.15);  color:var(--blue); }
+  .badge.finalizado { background:rgba(255,255,255,.07); color:var(--muted); }
+  .badge.cancelado  { background:rgba(248,113,113,.15); color:var(--red); }
+  .badge.retrasado  { background:rgba(245,200,66,.15);  color:var(--amber); }
+
+  /* stat cards */
+  .stat-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:7px; margin-top:9px; }
+  .stat-card { background:var(--surface2); border:1px solid var(--border); border-radius:9px; padding:11px 13px; }
+  .s-label { font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; font-family:var(--fm); }
+  .s-val { font-family:var(--fh); font-size:20px; font-weight:700; line-height:1.1; margin-top:2px; color:var(--amber); }
+  .s-sub { font-size:10px; color:var(--muted); margin-top:2px; }
+
+  /* typing */
+  .typing { display:flex; align-items:center; gap:4px; padding:9px 13px; background:var(--surface); border:1px solid var(--border); border-radius:2px 11px 11px 11px; width:fit-content; }
+  .typing span { width:5px; height:5px; background:var(--amber); border-radius:50%; animation:td 1.2s ease infinite; }
+  .typing span:nth-child(2){animation-delay:.2s} .typing span:nth-child(3){animation-delay:.4s}
+  @keyframes td { 0%,60%,100%{opacity:.2;transform:scale(.8)} 30%{opacity:1;transform:scale(1.2)} }
+
+  .msg-bubble strong { color:var(--amberl); font-weight:600; }
+  .msg-bubble em { color:var(--muted); font-style:italic; }
+  .msg-bubble code { font-family:var(--fm); font-size:11px; background:var(--surface2); padding:2px 5px; border-radius:4px; color:var(--amber); }
+  .msg-bubble ul { padding-left:16px; }
+  .msg-bubble li { margin:3px 0; }
+  .msg-bubble p + p { margin-top:5px; }
+  .msg-bubble hr { border:none; border-top:1px solid var(--border); margin:10px 0; }
+  .msg-error { color:var(--red); font-size:13px; }
+
+  /* ── Input ── */
+  .input-area { padding:14px 22px 18px; border-top:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+  .input-wrap {
+    display:flex; gap:9px; background:var(--surface2);
+    border:1px solid var(--border); border-radius:13px; padding:9px 11px 9px 15px;
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .input-wrap:focus-within { border-color:var(--borderg); box-shadow:0 0 0 3px rgba(245,200,66,.06); }
+  .chat-input {
+    flex:1; background:transparent; border:none; outline:none; color:var(--text);
+    font-size:13.5px; font-family:var(--fb); resize:none; min-height:22px; max-height:120px; line-height:1.5;
+  }
+  .chat-input::placeholder { color:var(--muted); }
+  .send-btn {
+    width:34px; height:34px; background:linear-gradient(135deg,var(--amber),var(--orange));
+    border:none; border-radius:9px; cursor:pointer; display:flex; align-items:center;
+    justify-content:center; color:#000; font-size:14px; flex-shrink:0; align-self:flex-end;
+    transition:transform .15s, opacity .15s;
+  }
+  .send-btn:hover { transform:scale(1.06); }
+  .send-btn:disabled { opacity:.4; cursor:not-allowed; transform:none; }
+  .input-hint { font-size:10px; color:var(--muted); margin-top:5px; padding:0 3px; }
+
+  ::-webkit-scrollbar { width:4px; }
+  ::-webkit-scrollbar-thumb { background:var(--surface2); border-radius:4px; }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">&#9889;</div>
+      <div class="brand-name">ELIPSE<span>Asistente RBE</span></div>
+    </div>
+
+    <a href="/admin-panel/" class="btn-back">&#8592; Volver al panel</a>
+
+    <!-- Selector de modelo IA -->
+    <div class="model-section">
+      <div class="model-label">Modelo de IA</div>
+      <div class="model-opts" id="modelOpts">
+        {% for key, m in modelos.items %}
+        <label class="model-opt {% if key == modelo_default %}active{% endif %}" data-key="{{ key }}">
+          <input type="radio" name="modelo" value="{{ key }}" {% if key == modelo_default %}checked{% endif %}>
+          <div class="model-dot"></div>
+          <div class="model-info">
+            <div class="model-name">{{ m.label }}</div>
+            <div class="model-desc">{{ m.desc }}</div>
+          </div>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="sidebar-label">Preguntas rapidas</div>
+
+    <button class="quick-btn" onclick="q('Cuantos viajes hay programados para hoy?')"><span class="qi">&#128197;</span>Viajes de hoy</button>
+    <button class="quick-btn" onclick="q('Cuales son las rutas mas populares por boletos vendidos?')"><span class="qi">&#128739;</span>Rutas populares</button>
+    <button class="quick-btn" onclick="q('Muestrame los viajes que estan en ruta ahora mismo')"><span class="qi">&#128652;</span>En ruta ahora</button>
+    <button class="quick-btn" onclick="q('Cuantos boletos se han vendido este mes y cual es el ingreso total?')"><span class="qi">&#128176;</span>Ingresos del mes</button>
+    <button class="quick-btn" onclick="q('Que autobuses han tenido mas viajes este anio?')"><span class="qi">&#128661;</span>Top autobuses</button>
+    <button class="quick-btn" onclick="q('Cuales son los conductores con mas viajes realizados?')"><span class="qi">&#128104;&#8205;&#9992;</span>Top conductores</button>
+    <button class="quick-btn" onclick="q('Dame un resumen general del estado actual de la terminal')"><span class="qi">&#128202;</span>Resumen general</button>
+    <button class="quick-btn" onclick="q('Viajes disponibles para la proxima semana con asientos libres')"><span class="qi">&#128197;</span>Proxima semana</button>
+
+    <div class="sb-spacer"></div>
+    <div class="sb-footer"><strong>ELIPSE</strong> &middot; IA conectada a la BD<br>RBE &mdash; Rutas Baja Express</div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="chat-header">
+      <div class="ch-left">
+        <div class="status-dot"></div>
+        <div>
+          <div class="chat-title">Elipse</div>
+          <div class="chat-sub">Conectado a base de datos RBE</div>
+        </div>
+        <div class="model-badge" id="headerBadge">Elipse</div>
+      </div>
+      <div class="h-actions">
+        <button class="btn-icon" onclick="limpiar()" title="Limpiar chat">&#128465;</button>
+      </div>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="welcome" id="welcome">
+        <div class="w-orb">&#9889;</div>
+        <h2>Hola, soy <em>Elipse</em></h2>
+        <p>Tu asistente de inteligencia artificial para la central RBE. Preguntame sobre viajes, rutas, conductores, ingresos o cualquier dato de la central.</p>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-wrap">
+        <textarea class="chat-input" id="chatInput" placeholder="Escribe tu pregunta sobre la central..."
+          rows="1" onkeydown="onKey(event)" oninput="resize(this)"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="enviar()">&#10148;</button>
+      </div>
+      <div class="input-hint">Enter para enviar &middot; Shift+Enter para nueva linea</div>
+    </div>
+  </main>
+</div>
+
+<script>
+const CSRF = "{{ csrf_token }}";
+let busy = false;
+let modeloActual = "{{ modelo_default }}";
+
+// ── Selector de modelo ──────────────────────────
+document.querySelectorAll('.model-opt').forEach(function(el) {
+  el.addEventListener('click', function() {
+    document.querySelectorAll('.model-opt').forEach(function(o){ o.classList.remove('active'); });
+    el.classList.add('active');
+    el.querySelector('input').checked = true;
+    modeloActual = el.dataset.key;
+    document.getElementById('headerBadge').textContent = el.querySelector('.model-name').textContent;
+  });
+});
+
+// ── Input helpers ───────────────────────────────
+function resize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+function onKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(); }
+}
+function q(txt) {
+  document.getElementById('chatInput').value = txt;
+  resize(document.getElementById('chatInput'));
+  enviar();
+}
+function limpiar() {
+  document.getElementById('messages').innerHTML =
+    '<div class="welcome" id="welcome">' +
+    '<div class="w-orb">&#9889;</div>' +
+    '<h2>Hola, soy <em>Elipse</em></h2>' +
+    '<p>Tu asistente de inteligencia artificial para la central RBE.</p>' +
+    '</div>';
+}
+
+// ── Mensajes ────────────────────────────────────
+function addMsg(rol, html) {
+  var w = document.getElementById('welcome');
+  if (w) w.remove();
+  var msgs = document.getElementById('messages');
+  var d = document.createElement('div');
+  d.className = 'msg ' + rol;
+  var initial = rol === 'user' ? '{{ request.session.usuario_nombre|first|default:"U" }}' : '&#9889;';
+  var name    = rol === 'user'
+    ? '{{ request.session.usuario_nombre|default:"Tu" }} {{ request.session.usuario_apellido|default:"" }}'
+    : 'Elipse';
+  d.innerHTML =
+    '<div class="msg-av">' + initial + '</div>' +
+    '<div class="msg-body">' +
+      '<div class="msg-name">' + name + '</div>' +
+      '<div class="msg-bubble">' + html + '</div>' +
+    '</div>';
+  msgs.appendChild(d);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showTyping() {
+  var w = document.getElementById('welcome');
+  if (w) w.remove();
+  var msgs = document.getElementById('messages');
+  var d = document.createElement('div');
+  d.className = 'msg ai'; d.id = 'typing';
+  d.innerHTML =
+    '<div class="msg-av">&#9889;</div>' +
+    '<div class="msg-body">' +
+      '<div class="msg-name">Elipse</div>' +
+      '<div class="typing"><span></span><span></span><span></span></div>' +
+    '</div>';
+  msgs.appendChild(d);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+function hideTyping() { var t = document.getElementById('typing'); if (t) t.remove(); }
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Enviar ──────────────────────────────────────
+async function enviar() {
+  if (busy) return;
+  var input = document.getElementById('chatInput');
+  var txt = input.value.trim();
+  if (!txt) return;
+  input.value = ''; resize(input);
+  addMsg('user', esc(txt));
+  showTyping();
+  busy = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  try {
+    var res = await fetch('/elipse/chat/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+      body: JSON.stringify({ pregunta: txt, modelo: modeloActual })
+    });
+    var data = await res.json();
+    hideTyping();
+    if (data.error) {
+      addMsg('ai', '<span class="msg-error">&#9888; ' + esc(data.error) + '</span>');
+    } else {
+      addMsg('ai', data.html);
+    }
+  } catch(err) {
+    hideTyping();
+    addMsg('ai', '<span class="msg-error">&#9888; Error de conexion. Intenta de nuevo.</span>');
+  } finally {
+    busy = false;
+    document.getElementById('sendBtn').disabled = false;
+    input.focus();
+  }
+}
+</script>
+</body>
+</html>

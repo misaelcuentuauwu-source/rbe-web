@@ -3,28 +3,33 @@ from django.views.generic import RedirectView
 from . import views
 
 urlpatterns = [
+    path('elipse/',       views.elipse_view, name='elipse'),
+    path('elipse/chat/',  views.elipse_chat, name='elipse_chat'),
     path('ok/', views.ok_view, name='ok'),
     path('', views.index_view, name='index'),
     # Auth
     path('login/',         views.login_view,             name='login'),
-    path('registro/',      views.registro_view,           name='registro'),
-    path('logout/',        views.logout_view,             name='logout'),
+    path('registro/',      views.registro_view,          name='registro'),
+    path('logout/',        views.logout_view,            name='logout'),
+    # NUEVO: verificación de clave maestra vía AJAX
+    path('api/verificar-clave/', views.verificar_clave_maestra, name='verificar_clave'),
     # Vistas generales
-    path('panel/',         views.panel_principal,         name='panel_principal'),
-    path('dashboard/',     views.dashboard,               name='dashboard'),
-    path('salidas/',       views.salidas,                 name='salidas'),
+    path('panel/',         views.panel_principal,        name='panel_principal'),
+    path('dashboard/',     views.dashboard,              name='dashboard'),
+    path('salidas/',       views.salidas,                name='salidas'),
     # Panel admin
-    path('admin-panel/',   views.panel_admin,             name='panel_admin'),
+    path('admin-panel/',   views.panel_admin,            name='panel_admin'),
     # Config
-    path('api/config/',    views.actualizar_config,       name='actualizar_config'),
+    path('api/config/',    views.actualizar_config,      name='actualizar_config'),
     # CRUD genérico
-    path('api/crud/<str:tabla>/leer/',       views.crud_leer,              name='crud_leer'),
-    path('api/crud/<str:tabla>/esquema/',    views.crud_esquema,           name='crud_esquema'),
-    path('api/crud/<str:tabla>/insertar/',   views.crud_insertar,          name='crud_insertar'),
-    path('api/crud/<str:tabla>/actualizar/', views.crud_actualizar,        name='crud_actualizar'),
-    path('api/crud/<str:tabla>/eliminar/',   views.crud_eliminar,          name='crud_eliminar'),
+    path('api/crud/<str:tabla>/leer/',       views.crud_leer,       name='crud_leer'),
+    path('api/crud/<str:tabla>/esquema/',    views.crud_esquema,    name='crud_esquema'),
+    path('api/crud/<str:tabla>/insertar/',   views.crud_insertar,   name='crud_insertar'),
+    path('api/crud/<str:tabla>/actualizar/', views.crud_actualizar, name='crud_actualizar'),
+    path('api/crud/<str:tabla>/eliminar/',   views.crud_eliminar,   name='crud_eliminar'),
     # Salidas / viajes
     path('api/salidas/',             views.salidas_json,           name='salidas_json'),
+    path('api/historial/',           views.historial_json,         name='historial_json'),  # NUEVO
     path('api/viaje/opciones/',      views.agregar_viaje_opciones, name='viaje_opciones'),
     path('api/viaje/agregar/',       views.agregar_viaje,          name='agregar_viaje'),
     # KPIs

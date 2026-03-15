@@ -7,7 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   {% load static %}
-  <link rel="stylesheet" href="{% static 'dashboard/panel_admin.css' %}">
+  <link rel="stylesheet" href="{% static 'dashboard/panel_admin.css' %}?v=2">
 </head>
 <body>
 
@@ -48,6 +48,21 @@
     </button>
   </div>
   <div class="sb-footer">
+    <!-- BOTÓN ELIPSE -->
+    <button class="btn-elipse" id="btn-elipse" onclick="irAEclipse()" title="Elipse — Módulo avanzado">
+      <span class="elipse-inner">
+        <span class="elipse-bolt">⚡</span>
+        <span class="elipse-sparks">
+          <span class="esp esp1">✦</span>
+          <span class="esp esp2">✦</span>
+          <span class="esp esp3">✦</span>
+          <span class="esp esp4">✦</span>
+          <span class="esp esp5">★</span>
+        </span>
+        <span class="elipse-label">Elipse</span>
+        <span class="elipse-bolt elipse-bolt-r">⚡</span>
+      </span>
+    </button>
     <button class="btn-logout" onclick="cerrarSesion()">Cerrar sesión</button>
   </div>
 </div>
@@ -215,10 +230,45 @@
          SALIDAS
     ════════════════════════════════════ -->
     <div id="page-salidas" class="page">
-      <div class="salidas-header">
-        <h2 class="page-title" style="margin:0">Salidas programadas</h2>
-        <button class="btn btn-success" onclick="abrirModalViaje()">+ Agregar viaje</button>
+
+      <!-- CABECERA -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+        <h2 class="page-title" style="margin:0;font-size:20px;font-weight:800;color:var(--azul);">Salidas programadas</h2>
+        <button class="btn btn-success" style="flex-shrink:0;" onclick="abrirModalViaje()">+ Agregar viaje</button>
       </div>
+
+      <!-- FILTROS -->
+      <div class="filtros-row" style="margin-bottom:14px;">
+        <div class="filtro-group">
+          <label>Fecha</label>
+          <input type="date" id="sal-fecha">
+        </div>
+        <div class="filtro-group">
+          <label>Origen</label>
+          <select id="sal-origen"><option value="">-- Todas --</option></select>
+        </div>
+        <div class="filtro-group">
+          <label>Destino</label>
+          <select id="sal-destino"><option value="">-- Todas --</option></select>
+        </div>
+
+        <!-- Toggle: Precisión exacta de fecha -->
+        <label class="sal-precision-wrap" id="sal-precision-label" title="Activado: busca solo la fecha exacta. Desactivado: muestra el viaje más cercano a la fecha.">
+          <div class="sal-precision-track" id="sal-precision-track">
+            <div class="sal-precision-thumb"></div>
+          </div>
+          <input type="checkbox" id="sal-precision" style="display:none;">
+          <span class="sal-precision-text" id="sal-precision-text">Precisión: <b>Cercana</b></span>
+        </label>
+
+        <button class="btn btn-naranja" onclick="aplicarFiltrosSalidas()">Filtrar</button>
+        <button class="btn btn-gray"    onclick="limpiarFiltrosSalidas()">Limpiar filtros</button>
+      </div>
+
+      <!-- INFO BAR -->
+      <div class="info-bar" id="sal-info"></div>
+
+      <!-- CARDS -->
       <div id="salidas-container"><span class="spinner"></span></div>
     </div>
 
@@ -228,12 +278,19 @@
     <div id="page-historial" class="page">
       <h2 class="page-title">Historial de Viajes</h2>
 
-      <div class="filtros-row">
+      <!-- FILA 1: Origen, Destino, Estado, Buscar -->
+      <div class="filtros-row" style="margin-bottom:10px;">
         <div class="filtro-group">
-          <label>Buscar</label>
-          <input type="text" id="hist-search"
-            placeholder="Ciudad, conductor, autobús..."
-            oninput="filtrarHistorial()">
+          <label>Origen</label>
+          <select id="hist-origen" onchange="filtrarHistorial()">
+            <option value="">-- Todas --</option>
+          </select>
+        </div>
+        <div class="filtro-group">
+          <label>Destino</label>
+          <select id="hist-destino" onchange="filtrarHistorial()">
+            <option value="">-- Todas --</option>
+          </select>
         </div>
         <div class="filtro-group">
           <label>Estado</label>
@@ -242,17 +299,31 @@
           </select>
         </div>
         <div class="filtro-group">
-          <label>Origen</label>
-          <select id="hist-origen" onchange="filtrarHistorial()">
-            <option value="">Todos</option>
-          </select>
+          <label>Buscar</label>
+          <input type="text" id="hist-search"
+            placeholder="Ciudad, conductor, autobús..."
+            oninput="filtrarHistorial()">
         </div>
+      </div>
+
+      <!-- FILA 2: Fecha + toggle precisión + botones -->
+      <div class="filtros-row" style="margin-bottom:14px;">
         <div class="filtro-group">
-          <label>Destino</label>
-          <select id="hist-destino" onchange="filtrarHistorial()">
-            <option value="">Todos</option>
-          </select>
+          <label>Fecha</label>
+          <input type="date" id="hist-fecha">
         </div>
+
+        <label class="sal-precision-wrap" id="hist-precision-label"
+               title="Desactivado: muestra los viajes del día más cercano. Activado: solo la fecha exacta.">
+          <div class="sal-precision-track" id="hist-precision-track">
+            <div class="sal-precision-thumb"></div>
+          </div>
+          <input type="checkbox" id="hist-precision" style="display:none;">
+          <span class="sal-precision-text" id="hist-precision-text">Precisión: <b>Cercana</b></span>
+        </label>
+
+        <button class="btn btn-naranja" onclick="aplicarFiltrosFechaHistorial()">Filtrar fecha</button>
+        <button class="btn btn-gray"    onclick="limpiarFiltrosHistorial()">Limpiar todo</button>
       </div>
 
       <div class="info-bar" id="hist-info"></div>
@@ -350,9 +421,20 @@
 <div class="modal-overlay" id="modal-viaje">
   <div class="modal-box">
     <div class="modal-title">🚌 Agregar nuevo viaje</div>
-    <div class="form-field"><label>Fecha y hora de salida</label><input type="datetime-local" id="mv-salida"></div>
-    <div class="form-field"><label>Fecha y hora de llegada</label><input type="datetime-local" id="mv-llegada"></div>
-    <div class="form-field"><label>Ruta</label><select id="mv-ruta"></select></div>
+    <div class="form-field">
+      <label>Ruta</label>
+      <select id="mv-ruta" onchange="calcularLlegadaAuto()"></select>
+    </div>
+    <div class="form-field">
+      <label>Fecha y hora de salida</label>
+      <input type="datetime-local" id="mv-salida" oninput="calcularLlegadaAuto()">
+    </div>
+    <div class="form-field">
+      <label>Llegada estimada (calculada automáticamente)</label>
+      <input type="text" id="mv-llegada-display" placeholder="Selecciona ruta y hora de salida…" readonly
+             style="background:rgba(17,129,195,.06);border-color:var(--azul);color:var(--azul);font-weight:700;cursor:default;">
+      <input type="hidden" id="mv-llegada" />
+    </div>
     <div class="form-field"><label>Autobús</label><select id="mv-autobus"></select></div>
     <div class="form-field"><label>Conductor</label><select id="mv-conductor"></select></div>
     <div class="form-field"><label>Estado</label><select id="mv-estado"></select></div>
@@ -386,6 +468,19 @@
     <div id="detalle-body"></div>
     <div class="modal-actions">
       <button class="btn btn-gray" onclick="cerrarModal('modal-detalle')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     MODAL — DETALLES DE SALIDA
+════════════════════════════════════════ -->
+<div class="modal-overlay" id="modal-det-salida">
+  <div class="modal-box">
+    <div class="modal-title azul">🚌 Detalles del viaje</div>
+    <div id="modal-det-salida-body"></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="cerrarModal('modal-det-salida')">Cerrar</button>
     </div>
   </div>
 </div>
@@ -444,22 +539,13 @@ const isTablet  = () => window.innerWidth >= 768 && window.innerWidth <= 1023;
 function toggleSidebar() {
   const sb  = document.getElementById('sidebar');
   const ov  = document.getElementById('sidebar-overlay');
-
   if (isMobile()) {
-    // MOBILE: drawer lateral
     const isOpen = sb.classList.contains('mobile-open');
-    if (isOpen) {
-      closeSidebarMobile();
-    } else {
-      sb.classList.add('mobile-open');
-      ov.classList.add('active');
-      document.body.style.overflow = 'hidden';
-    }
+    if (isOpen) { closeSidebarMobile(); }
+    else { sb.classList.add('mobile-open'); ov.classList.add('active'); document.body.style.overflow = 'hidden'; }
   } else if (isTablet()) {
-    // TABLET: expandir/colapsar con clase "expanded"
     sb.classList.toggle('expanded');
   } else {
-    // DESKTOP: colapsar/expandir con clase "collapsed"
     sb.classList.toggle('collapsed');
   }
 }
@@ -470,10 +556,7 @@ function closeSidebarMobile() {
   document.body.style.overflow = '';
 }
 
-// cerrar sidebar mobile al navegar
-function afterNav() {
-  if (isMobile()) closeSidebarMobile();
-}
+function afterNav() { if (isMobile()) closeSidebarMobile(); }
 
 function toggleGestion() {
   const sub = document.getElementById('gestion-sub');
@@ -495,14 +578,12 @@ function showPage(id) {
     'gestion'         : 'Gestión',
     'configuracion'   : 'Configuración'
   }[id] || id;
-
   if (id==='salidas')         cargarSalidas();
   if (id==='historial')       cargarHistorial();
   if (id==='kpi-generales')   cargarKpiGenerales();
   if (id==='kpi-especificos') { cargarKpiOpciones(); cargarKpiEspecificos(false); }
   if (id==='configuracion')   cargarConfig();
-
-  afterNav(); // cierra drawer mobile al navegar
+  afterNav();
 }
 
 function showGestion(tabla) {
@@ -513,9 +594,7 @@ function showGestion(tabla) {
   recargarGestion();
 }
 
-// ════════════════════════════════════════════════════════════
-//  KPI GENERALES
-// ════════════════════════════════════════════════════════════
+// ════ KPI GENERALES ════
 function kgRangoChange() {
   const r = document.getElementById('kg-rango').value;
   document.getElementById('kg-dia-wrap').style.display  = r==='dia' ? '' : 'none';
@@ -562,7 +641,6 @@ function renderKgCards() {
   renderTop5Cards('kg-destinos',   kgData.destinos,   'nombre',      'total');
   renderTop5Cards('kg-origenes',   kgData.origenes,   'nombre',      'total');
 }
-
 const PIE_COLORS = ['#ed7237','#1181c3','#52b788','#f4a261','#264653','#e9c46a','#2a9d8f'];
 function destroyChart(id) { if(kgCharts[id]){kgCharts[id].destroy();delete kgCharts[id];} }
 function makeChart(cid, type, labels, values) {
@@ -635,9 +713,7 @@ function exportarKgCSV() {
   toast('CSV exportado');
 }
 
-// ════════════════════════════════════════════════════════════
-//  KPI ESPECÍFICOS
-// ════════════════════════════════════════════════════════════
+// ════ KPI ESPECÍFICOS ════
 function keScopeChange() {
   const s=document.getElementById('ke-scope').value;
   document.getElementById('ke-dia-wrap').style.display  = s==='dia' ?''  :'none';
@@ -714,93 +790,263 @@ function exportarCSV() {
   a.download=`kpi_${tipo}.csv`; a.click();
 }
 
-// ════════════════════════════════════════════════════════════
-//  SALIDAS
-// ════════════════════════════════════════════════════════════
+// ════ SALIDAS ════
+let salidasData   = [];
+let rutasDuracion = {};
+
 async function cargarSalidas() {
-  document.getElementById('salidas-container').innerHTML='<span class="spinner"></span>';
-  const d=await fetch('/api/salidas/').then(r=>r.json());
-  if (!d.rows.length){
-    document.getElementById('salidas-container').innerHTML='<div style="color:var(--muted);padding:20px">No hay salidas registradas.</div>';
-    return;
-  }
-  document.getElementById('salidas-container').innerHTML=`
-    <div class="salidas-grid">
-      ${d.rows.map(r=>`
-        <div class="salida-card">
-          <div class="salida-ruta">${r.origen_ciudad} → ${r.destino_ciudad}</div>
-          <div class="salida-meta">
-            <b>Salida:</b> ${fmt(r.fecHoraSalida)}<br>
-            <b>Llegada:</b> ${fmt(r.fecHoraEntrada)}<br>
-            <b>Conductor:</b> ${r.conductor||'—'}<br>
-            <b>Autobús:</b> ${r.autobus_placas?'#'+r.autobus_num+' ('+r.autobus_placas+')':'—'}<br>
-            <b>Estado:</b> <span class="badge badge-info">${r.estado}</span>
-          </div>
-        </div>`).join('')}
-    </div>`;
+  document.getElementById('salidas-container').innerHTML = '<span class="spinner"></span>';
+  const d = await fetch('/api/salidas/').then(r => r.json());
+  salidasData = d.rows || [];
+  poblarFiltrosSalidas();
+  document.getElementById('sal-fecha').value = today();
+  renderSalidaCards(salidasData);
 }
+
+function poblarFiltrosSalidas() {
+  const origenes = [...new Set(salidasData.map(r => r.origen_ciudad).filter(Boolean))].sort();
+  const destinos = [...new Set(salidasData.map(r => r.destino_ciudad).filter(Boolean))].sort();
+  const selOrig = document.getElementById('sal-origen');
+  const selDest = document.getElementById('sal-destino');
+  const prevOrig = selOrig.value, prevDest = selDest.value;
+  selOrig.innerHTML = '<option value="">-- Todas --</option>' + origenes.map(o=>`<option value="${o}">${o}</option>`).join('');
+  selDest.innerHTML = '<option value="">-- Todas --</option>' + destinos.map(d=>`<option value="${d}">${d}</option>`).join('');
+  if (prevOrig) selOrig.value = prevOrig;
+  if (prevDest) selDest.value = prevDest;
+}
+
+function aplicarFiltrosSalidas() {
+  const fechaSel  = document.getElementById('sal-fecha').value;
+  const origenSel = document.getElementById('sal-origen').value.trim().toLowerCase();
+  const destSel   = document.getElementById('sal-destino').value.trim().toLowerCase();
+  const precision = document.getElementById('sal-precision').checked;
+  let filtered = salidasData;
+  if (origenSel) filtered = filtered.filter(r => (r.origen_ciudad||'').toLowerCase() === origenSel);
+  if (destSel)   filtered = filtered.filter(r => (r.dest_city||r.destino_ciudad||'').toLowerCase() === destSel);
+  if (fechaSel) {
+    if (precision) {
+      filtered = filtered.filter(r => r.fecHoraSalida && r.fecHoraSalida.substring(0,10) === fechaSel);
+    } else if (filtered.length) {
+      const target = new Date(fechaSel+'T00:00:00').getTime();
+      const distancias = filtered.map(r => r.fecHoraSalida ? Math.abs(new Date(r.fecHoraSalida).getTime()-target) : Infinity);
+      const minDist = Math.min(...distancias);
+      filtered = filtered.filter((_,i) => distancias[i]-minDist < 86400000);
+    }
+  }
+  renderSalidaCards(filtered, precision ? null : fechaSel);
+}
+
+function limpiarFiltrosSalidas() {
+  document.getElementById('sal-fecha').value   = today();
+  document.getElementById('sal-origen').value  = '';
+  document.getElementById('sal-destino').value = '';
+  const cb = document.getElementById('sal-precision');
+  if (cb) cb.checked = false;
+  const tr = document.getElementById('sal-precision-track');
+  const tx = document.getElementById('sal-precision-text');
+  if (tr) tr.classList.remove('active');
+  if (tx) tx.innerHTML = 'Precisión: <b>Cercana</b>';
+  renderSalidaCards(salidasData);
+}
+
+function renderSalidaCards(trips, closestDate) {
+  const cont = document.getElementById('salidas-container');
+  const info = document.getElementById('sal-info');
+  if (!trips.length) {
+    cont.innerHTML = `<div class="empty-state"><div class="empty-icon">🚌</div><p>No hay salidas para los filtros seleccionados.</p></div>`;
+    if (info) info.textContent = ''; return;
+  }
+  if (info) info.textContent = `Mostrando ${trips.length} salida(s)${closestDate ? ' — más cercano al '+closestDate : ''}`;
+  cont.innerHTML = `<div class="salidas-grid">${trips.map((r,idx)=>`
+    <div class="salida-card-trip" style="animation-delay:${Math.min(idx*.04,.4)}s">
+      <div class="sc-salida-title">Salida: ${fmt(r.fecHoraSalida)}</div>
+      <div class="sc-viaje-num">Viaje #${r.numero}</div>
+      <div class="sc-ruta">${r.origen_ciudad||'—'} → ${r.destino_ciudad||'—'}</div>
+      <div class="sc-meta">Autobús: ${r.autobus_placas?'#'+r.autobus_num+' ('+r.autobus_placas+')':'—'} &nbsp;|&nbsp; Conductor: ${r.conductor||'—'}</div>
+      <div class="sc-footer">
+        <span class="badge badge-info">${r.estado||'—'}</span>
+        <button class="btn btn-naranja btn-sm" onclick='verDetalleSalida(${JSON.stringify(r)})'>Detalles</button>
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+function verDetalleSalida(r) {
+  document.getElementById('modal-det-salida-body').innerHTML = `
+    <div style="margin-bottom:18px;">
+      <div style="font-size:18px;font-weight:900;color:var(--azul);margin-bottom:14px;">Viaje #${r.numero} — Ruta #${r.ruta??'—'}</div>
+      <div class="det-grid2" style="margin-bottom:14px;">
+        <div><div class="det-label">Fecha y hora de salida</div><div class="det-value">${fmt(r.fecHoraSalida)}</div></div>
+        <div><div class="det-label">Fecha y hora de llegada est.</div><div class="det-value">${fmt(r.fecHoraEntrada)}</div></div>
+      </div>
+      <div class="det-grid2" style="margin-bottom:14px;">
+        <div><div class="det-label">Ciudad de origen</div><div class="det-value">${r.origen_ciudad||'—'}</div></div>
+        <div><div class="det-label">Terminal de salida</div><div class="det-value">${r.origen_terminal||'—'}</div></div>
+        <div style="margin-top:10px;"><div class="det-label">Ciudad de destino</div><div class="det-value">${r.destino_ciudad||'—'}</div></div>
+        <div style="margin-top:10px;"><div class="det-label">Terminal de llegada</div><div class="det-value">${r.destino_terminal||'—'}</div></div>
+      </div>
+      <div style="margin-bottom:14px;"><div class="det-label">Nombre completo del operador</div><div class="det-value">${r.conductor||'Sin asignar'}</div></div>
+      <div class="det-grid2">
+        <div><div class="det-label">Número del autobús</div><div class="det-value">${r.autobus_num?'#'+r.autobus_num:'—'}</div></div>
+        <div><div class="det-label">Matrícula</div><div class="det-value">${r.autobus_placas||'—'}</div></div>
+      </div>
+    </div>`;
+  abrirModal('modal-det-salida');
+}
+
 async function abrirModalViaje() {
   const d=await fetch('/api/viaje/opciones/').then(r=>r.json());
+  rutasDuracion = {};
+  d.rutas.forEach(r => { rutasDuracion[String(r.value)] = r.duracion || ''; });
   fillSelect('mv-ruta',d.rutas,'Seleccionar...');
   fillSelect('mv-autobus',d.autobuses,'Seleccionar...');
   fillSelect('mv-conductor',d.conductores,'Seleccionar...');
   fillSelect('mv-estado',d.estados,'Seleccionar...');
-  const now=new Date().toISOString().slice(0,16);
-  document.getElementById('mv-salida').value=now;
-  document.getElementById('mv-llegada').value=now;
+  const now=new Date();
+  now.setMinutes(Math.ceil(now.getMinutes()/15)*15, 0, 0);
+  document.getElementById('mv-salida').value=now.toISOString().slice(0,16);
+  document.getElementById('mv-llegada').value='';
+  document.getElementById('mv-llegada-display').value='Selecciona ruta para calcular…';
+  calcularLlegadaAuto();
   abrirModal('modal-viaje');
 }
+
+function calcularLlegadaAuto() {
+  const rutaId = document.getElementById('mv-ruta').value;
+  const salidaStr = document.getElementById('mv-salida').value;
+  const displayEl = document.getElementById('mv-llegada-display');
+  const hiddenEl  = document.getElementById('mv-llegada');
+  if (!rutaId || !salidaStr) { displayEl.value='Selecciona ruta y hora de salida…'; hiddenEl.value=''; return; }
+  const minutos = parseDuracionAMinutos(rutasDuracion[String(rutaId)] || '');
+  if (!minutos) { displayEl.value='Duración de ruta no disponible'; hiddenEl.value=''; return; }
+  const salida = new Date(salidaStr);
+  if (isNaN(salida.getTime())) { displayEl.value='Fecha de salida inválida'; hiddenEl.value=''; return; }
+  const llegada = new Date(salida.getTime() + minutos * 60000);
+  hiddenEl.value = llegada.toISOString().slice(0,16);
+  const opts = { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' };
+  displayEl.value = llegada.toLocaleDateString('es-MX', opts) +
+    '  (+' + (minutos >= 60 ? Math.floor(minutos/60)+'h '+(minutos%60?minutos%60+'min':'') : minutos+'min') + ')';
+}
+
+function parseDuracionAMinutos(dur) {
+  if (!dur) return 0;
+  dur = String(dur).trim();
+  if (dur.includes(':')) { const [h,m] = dur.split(':').map(Number); return (h*60)+(m||0); }
+  const n = parseInt(dur); return isNaN(n) ? 0 : n;
+}
+
 async function submitViaje() {
+  const llegada = document.getElementById('mv-llegada').value;
   const body={
     salida:   document.getElementById('mv-salida').value,
-    llegada:  document.getElementById('mv-llegada').value,
+    llegada,
     ruta:     document.getElementById('mv-ruta').value,
     autobus:  document.getElementById('mv-autobus').value,
     conductor:document.getElementById('mv-conductor').value,
     estado:   document.getElementById('mv-estado').value,
   };
   if (!body.salida||!body.llegada||!body.ruta||!body.autobus||!body.conductor||!body.estado) {
-    toast('Todos los campos son obligatorios','err'); return;
+    toast('Completa todos los campos (asegúrate de seleccionar la ruta y hora de salida)','err'); return;
   }
-  if (body.llegada<=body.salida){toast('La llegada debe ser posterior a la salida','err');return;}
   const d=await fetch('/api/viaje/agregar/',{method:'POST',headers:csrfHeaders(),body:JSON.stringify(body)}).then(r=>r.json());
   d.ok?(toast('Viaje agregado'),cerrarModal('modal-viaje'),cargarSalidas()):toast('Error: '+d.error,'err');
 }
 
-// ════════════════════════════════════════════════════════════
-//  HISTORIAL
-// ════════════════════════════════════════════════════════════
+// ════ HISTORIAL ════
+let historialBase = [];
+
 async function cargarHistorial() {
   document.getElementById('hist-cards-container').innerHTML=
     '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
-  const d=await fetch('/api/salidas/').then(r=>r.json());
-  historialData=d.rows;
-  const uniq=(arr,fn)=>[...new Set(arr.map(fn).filter(Boolean))].sort();
-  const opt=(v)=>`<option>${v}</option>`;
-  document.getElementById('hist-estado').innerHTML  = '<option value="">Todos</option>'+uniq(d.rows,r=>r.estado).map(opt).join('');
-  document.getElementById('hist-origen').innerHTML  = '<option value="">Todos</option>'+uniq(d.rows,r=>r.origen_ciudad).map(opt).join('');
-  document.getElementById('hist-destino').innerHTML = '<option value="">Todos</option>'+uniq(d.rows,r=>r.destino_ciudad).map(opt).join('');
+  const d = await fetch('/api/historial/').then(r=>r.json());
+  historialData = d.rows;
+  historialBase = d.rows;
+  const uniq = fn => [...new Set(d.rows.map(fn).filter(Boolean))].sort();
+  const opt  = v  => `<option value="${v}">${v}</option>`;
+  document.getElementById('hist-estado').innerHTML  = '<option value="">Todos</option>'       + uniq(r=>r.estado).map(opt).join('');
+  document.getElementById('hist-origen').innerHTML  = '<option value="">-- Todas --</option>' + uniq(r=>r.origen_ciudad).map(opt).join('');
+  document.getElementById('hist-destino').innerHTML = '<option value="">-- Todas --</option>' + uniq(r=>r.destino_ciudad).map(opt).join('');
+  initPrecisionToggle('hist-precision','hist-precision-track','hist-precision-text','hist-precision-label');
+  document.getElementById('hist-fecha').value = '';
   filtrarHistorial();
 }
+
 function filtrarHistorial() {
   const q  = document.getElementById('hist-search').value.toLowerCase();
   const es = document.getElementById('hist-estado').value;
   const or = document.getElementById('hist-origen').value;
   const de = document.getElementById('hist-destino').value;
-  historialFiltered=historialData.filter(r=>{
-    const txt=[r.origen_ciudad,r.destino_ciudad,r.conductor,r.autobus_placas,
-               String(r.numero),String(r.autobus_num)].join(' ').toLowerCase();
-    return txt.includes(q)&&(!es||r.estado===es)&&(!or||r.origen_ciudad===or)&&(!de||r.destino_ciudad===de);
+  historialBase = historialData.filter(r => {
+    const txt = [r.origen_ciudad,r.destino_ciudad,r.conductor,r.autobus_placas,String(r.numero),String(r.autobus_num)].join(' ').toLowerCase();
+    return txt.includes(q) && (!es||r.estado===es) && (!or||r.origen_ciudad===or) && (!de||r.destino_ciudad===de);
   });
-  document.getElementById('hist-info').textContent=`Mostrando ${historialFiltered.length} de ${historialData.length} viajes`;
-  renderHistorialCards(historialFiltered);
+  const fecha = document.getElementById('hist-fecha').value;
+  if (fecha) { _aplicarFechaHistorial(historialBase, fecha); }
+  else { historialFiltered = historialBase; _renderHistInfoAndCards(historialFiltered); }
 }
+
+function aplicarFiltrosFechaHistorial() {
+  const fecha = document.getElementById('hist-fecha').value;
+  if (!fecha) { historialFiltered = historialBase; _renderHistInfoAndCards(historialFiltered, null); return; }
+  _aplicarFechaHistorial(historialBase, fecha);
+}
+
+function _aplicarFechaHistorial(subset, fecha) {
+  const precision = document.getElementById('hist-precision').checked;
+  if (precision) {
+    historialFiltered = subset.filter(r => r.fecHoraSalida && r.fecHoraSalida.substring(0,10)===fecha);
+    _renderHistInfoAndCards(historialFiltered, null);
+  } else {
+    if (!subset.length) { _renderHistInfoAndCards([], null); return; }
+    const target = new Date(fecha+'T00:00:00').getTime();
+    const dists  = subset.map(r => r.fecHoraSalida ? Math.abs(new Date(r.fecHoraSalida).getTime()-target) : Infinity);
+    const minDist = Math.min(...dists);
+    historialFiltered = subset.filter((_,i) => dists[i]-minDist < 86400000);
+    const fechaCercana = historialFiltered.length ? historialFiltered[0].fecHoraSalida.substring(0,10) : null;
+    _renderHistInfoAndCards(historialFiltered, fechaCercana);
+  }
+}
+
+function _renderHistInfoAndCards(rows, fechaHint) {
+  const hint = fechaHint ? ` — más cercano al ${document.getElementById('hist-fecha').value} (${fechaHint})` : '';
+  document.getElementById('hist-info').textContent = `Mostrando ${rows.length} de ${historialData.length} viajes${hint}`;
+  renderHistorialCards(rows);
+}
+
+function limpiarFiltrosHistorial() {
+  document.getElementById('hist-search').value  = '';
+  document.getElementById('hist-estado').value  = '';
+  document.getElementById('hist-origen').value  = '';
+  document.getElementById('hist-destino').value = '';
+  document.getElementById('hist-fecha').value   = '';
+  const cb = document.getElementById('hist-precision');
+  if (cb) cb.checked = false;
+  const track = document.getElementById('hist-precision-track');
+  const txt   = document.getElementById('hist-precision-text');
+  if (track) track.classList.remove('active');
+  if (txt)   txt.innerHTML = 'Precisión: <b>Cercana</b>';
+  historialBase = historialData; historialFiltered = historialData;
+  _renderHistInfoAndCards(historialData, null);
+}
+
+// ── Helper toggle precisión ────────────────────────────────────────────────────
+function initPrecisionToggle(cbId, trackId, txtId, labelId) {
+  const cb    = document.getElementById(cbId);
+  const track = document.getElementById(trackId);
+  const txt   = document.getElementById(txtId);
+  const label = document.getElementById(labelId);
+  if (!cb || !track) return;
+  const sync = () => {
+    const on = cb.checked;
+    track.classList.toggle('active', on);
+    if (txt) txt.innerHTML = on ? 'Precisión: <b>Exacta</b>' : 'Precisión: <b>Cercana</b>';
+  };
+  label.addEventListener('click', () => { cb.checked = !cb.checked; sync(); });
+  sync();
+}
+
 function renderHistorialCards(rows) {
   const container=document.getElementById('hist-cards-container');
-  if (!rows.length){
-    container.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><p>No se encontraron viajes.</p></div>`;
-    return;
-  }
+  if (!rows.length){ container.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><p>No se encontraron viajes.</p></div>`; return; }
   container.innerHTML=rows.map((r,idx)=>`
     <div class="viaje-card" style="animation-delay:${Math.min(idx*.04,.4)}s">
       <div class="viaje-card-inner">
@@ -812,23 +1058,15 @@ function renderHistorialCards(rows) {
             <span class="viaje-card-ruta">Ruta #${r.ruta??'—'}</span>
             <span class="badge badge-info" style="margin-left:auto">${r.estado??'—'}</span>
           </div>
-          <div class="viaje-card-route">
-            ${r.origen_terminal??r.origen_ciudad??'—'}
-            <span class="arrow">→</span>
-            ${r.destino_terminal??r.destino_ciudad??'—'}
-          </div>
+          <div class="viaje-card-route">${r.origen_terminal??r.origen_ciudad??'—'}<span class="arrow">→</span>${r.destino_terminal??r.destino_ciudad??'—'}</div>
           <div class="viaje-card-meta">
-            <span><b>Salida:</b> ${fmt(r.fecHoraSalida)}</span>
-            <span>•</span>
+            <span><b>Salida:</b> ${fmt(r.fecHoraSalida)}</span><span>•</span>
             <span><b>Llegada:</b> ${fmt(r.fecHoraEntrada)}</span>
           </div>
           <div class="viaje-card-row2">
-            <span><b>Operador:</b> ${r.conductor??'—'}</span>
-            <span>•</span>
-            <span><b>Autobús:</b> ${r.autobus_num?'#'+r.autobus_num:'—'}${r.autobus_placas?' · '+r.autobus_placas:''}</span>
-            <span>•</span>
-            <span><b>Asientos:</b> ${r.asientos_total??'—'}</span>
-            <span>•</span>
+            <span><b>Operador:</b> ${r.conductor??'—'}</span><span>•</span>
+            <span><b>Autobús:</b> ${r.autobus_num?'#'+r.autobus_num:'—'}${r.autobus_placas?' · '+r.autobus_placas:''}</span><span>•</span>
+            <span><b>Asientos:</b> ${r.asientos_total??'—'}</span><span>•</span>
             <span><b>Pasajeros:</b> ${r.pasajeros_count??'—'}</span>
           </div>
         </div>
@@ -840,7 +1078,7 @@ function renderHistorialCards(rows) {
     </div>`).join('');
 }
 
-// ── Modal autobús ──────────────────────────────────────────────────────────────
+// ════ MODALES HISTORIAL ════
 async function verAutobus(viajeId, busNum) {
   if (!busNum){toast('Sin autobús asignado','err');return;}
   document.getElementById('modal-autobus-title').textContent=`Información del Autobús — Viaje ${viajeId}`;
@@ -849,8 +1087,7 @@ async function verAutobus(viajeId, busNum) {
   try {
     const d=await fetch(`/api/autobus/detalle/${busNum}/`).then(r=>r.json());
     if (d.error){document.getElementById('modal-autobus-body').innerHTML=`<p style="color:var(--danger)">${d.error}</p>`;return;}
-    const tiposHtml=d.tipos_asiento?.length
-      ?`<ul class="bus-tipo-list">${d.tipos_asiento.map(t=>`<li>${t.descripcion} (${t.codigo}): ${t.cantidad}</li>`).join('')}</ul>`:'—';
+    const tiposHtml=d.tipos_asiento?.length?`<ul class="bus-tipo-list">${d.tipos_asiento.map(t=>`<li>${t.descripcion} (${t.codigo}): ${t.cantidad}</li>`).join('')}</ul>`:'—';
     document.getElementById('modal-autobus-body').innerHTML=`
       <div class="bus-info-row"><span class="bus-info-label">Número:</span><span class="bus-info-value">${d.numero}</span></div>
       <div class="bus-info-row"><span class="bus-info-label">Matrícula:</span><span class="bus-info-value">${d.placas}</span></div>
@@ -859,27 +1096,18 @@ async function verAutobus(viajeId, busNum) {
       <div class="bus-info-row"><span class="bus-info-label">Año:</span><span class="bus-info-value">${d.anio}</span></div>
       <div class="bus-info-row"><span class="bus-info-label">Asientos:</span><span class="bus-info-value">${d.num_asientos}</span></div>
       <div class="bus-info-row"><span class="bus-info-label">Por tipo:</span><span class="bus-info-value">${tiposHtml}</span></div>`;
-  } catch(e) {
-    document.getElementById('modal-autobus-body').innerHTML='<p style="color:var(--danger)">Error al cargar.</p>';
-  }
+  } catch(e) { document.getElementById('modal-autobus-body').innerHTML='<p style="color:var(--danger)">Error al cargar.</p>'; }
 }
 
-// ── Modal pasajeros ───────────────────────────────────────────────────────────
 async function verPasajeros(viajeId) {
   document.getElementById('modal-pasajeros-title').textContent=`Pasajeros del viaje ${viajeId}`;
   document.getElementById('modal-pasajeros-header').innerHTML='';
-  document.getElementById('modal-pasajeros-tbody').innerHTML=
-    '<tr><td colspan="5" style="text-align:center;padding:20px"><span class="spinner"></span></td></tr>';
+  document.getElementById('modal-pasajeros-tbody').innerHTML='<tr><td colspan="5" style="text-align:center;padding:20px"><span class="spinner"></span></td></tr>';
   abrirModal('modal-pasajeros');
   try {
     const d=await fetch(`/api/viaje/pasajeros/${viajeId}/`).then(r=>r.json());
-    if (d.error){
-      document.getElementById('modal-pasajeros-tbody').innerHTML=
-        `<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:20px">${d.error}</td></tr>`;
-      return;
-    }
-    pasajerosActuales=d.pasajeros||[];
-    pasajerosViajeInfo={...d.viaje||{},viaje_id:viajeId};
+    if (d.error){ document.getElementById('modal-pasajeros-tbody').innerHTML=`<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:20px">${d.error}</td></tr>`; return; }
+    pasajerosActuales=d.pasajeros||[]; pasajerosViajeInfo={...d.viaje||{},viaje_id:viajeId};
     const v=d.viaje||{};
     document.getElementById('modal-pasajeros-header').innerHTML=`
       <span class="pasajeros-header-item">Viaje: <b>${viajeId}</b></span>
@@ -887,20 +1115,11 @@ async function verPasajeros(viajeId) {
       <span class="pasajeros-header-item">Destino: <b>${v.destino??'—'}</b></span>
       <span class="pasajeros-header-item">Salida: <b>${v.salida?fmt(v.salida):'—'}</b></span>
       <span class="pasajeros-header-item">Autobús: <b>${v.autobus??'—'}</b></span>`;
-    if (!pasajerosActuales.length){
-      document.getElementById('modal-pasajeros-tbody').innerHTML=
-        '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Sin pasajeros</td></tr>';
-      return;
-    }
-    document.getElementById('modal-pasajeros-tbody').innerHTML=
-      pasajerosActuales.map((p,i)=>`<tr>
-        <td>${i+1}</td><td>${p.nombre_completo??'—'}</td><td>${p.edad??'—'}</td>
-        <td>${p.numero_boleto??'—'}</td><td>${p.numero_asiento??'—'}</td></tr>`).join('');
-  } catch(e){
-    document.getElementById('modal-pasajeros-tbody').innerHTML=
-      '<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:20px">Error.</td></tr>';
-  }
+    if (!pasajerosActuales.length){ document.getElementById('modal-pasajeros-tbody').innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Sin pasajeros</td></tr>'; return; }
+    document.getElementById('modal-pasajeros-tbody').innerHTML=pasajerosActuales.map((p,i)=>`<tr><td>${i+1}</td><td>${p.nombre_completo??'—'}</td><td>${p.edad??'—'}</td><td>${p.numero_boleto??'—'}</td><td>${p.numero_asiento??'—'}</td></tr>`).join('');
+  } catch(e){ document.getElementById('modal-pasajeros-tbody').innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:20px">Error.</td></tr>'; }
 }
+
 function exportarPasajerosCSV() {
   if (!pasajerosActuales.length){toast('Sin pasajeros','err');return;}
   const v=pasajerosViajeInfo;
@@ -914,31 +1133,23 @@ function exportarPasajerosCSV() {
   toast('CSV exportado');
 }
 
-// ════════════════════════════════════════════════════════════
-//  GESTIÓN CRUD
-// ════════════════════════════════════════════════════════════
+// ════ GESTIÓN CRUD ════
 async function recargarGestion() {
   const tabla=tablaActual.nombre; if(!tabla)return;
   document.getElementById('gestion-tbody').innerHTML='<tr><td colspan="20"><span class="spinner"></span></td></tr>';
   const d=await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
   if (d.error){toast(d.error,'err');return;}
-  document.getElementById('gestion-thead').innerHTML=
-    `<tr>${d.cols.map(c=>`<th>${c}</th>`).join('')}<th>Acciones</th></tr>`;
-  if (!d.rows.length){
-    document.getElementById('gestion-tbody').innerHTML='<tr><td colspan="20" style="text-align:center;color:var(--muted)">Sin registros</td></tr>';
-    return;
-  }
+  document.getElementById('gestion-thead').innerHTML=`<tr>${d.cols.map(c=>`<th>${c}</th>`).join('')}<th>Acciones</th></tr>`;
+  if (!d.rows.length){ document.getElementById('gestion-tbody').innerHTML='<tr><td colspan="20" style="text-align:center;color:var(--muted)">Sin registros</td></tr>'; return; }
   const pk=d.cols[0];
   document.getElementById('gestion-tbody').innerHTML=d.rows.map(row=>`
     <tr>
       ${d.cols.map(c=>`<td>${row[c]??'—'}</td>`).join('')}
-      <td style="white-space:nowrap">
-        <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button class="btn btn-gray btn-sm"    onclick='verDetalle(${JSON.stringify(d.cols)},${JSON.stringify(row)})'>Ver</button>
-          <button class="btn btn-naranja btn-sm" onclick='abrirEditar("${tabla}","${pk}","${row[pk]}")'>Editar</button>
-          <button class="btn btn-danger btn-sm"  onclick='eliminarReg("${tabla}","${pk}","${row[pk]}")'>Eliminar</button>
-        </div>
-      </td>
+      <td style="white-space:nowrap"><div style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="btn btn-gray btn-sm"    onclick='verDetalle(${JSON.stringify(d.cols)},${JSON.stringify(row)})'>Ver</button>
+        <button class="btn btn-naranja btn-sm" onclick='abrirEditar("${tabla}","${pk}","${row[pk]}")'>Editar</button>
+        <button class="btn btn-danger btn-sm"  onclick='eliminarReg("${tabla}","${pk}","${row[pk]}")'>Eliminar</button>
+      </div></td>
     </tr>`).join('');
   document.getElementById('gestion-info').textContent=`${d.rows.length} registro(s)`;
 }
@@ -954,8 +1165,7 @@ async function abrirEditar(tabla,pk,pkv) {
   const esq=await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
   const datos=await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
   const row=datos.rows.find(r=>String(r[pk])===String(pkv));
-  tablaActual.esquema=esq; tablaActual.modo='editar';
-  tablaActual.pkName=pk; tablaActual.pkValue=pkv;
+  tablaActual.esquema=esq; tablaActual.modo='editar'; tablaActual.pkName=pk; tablaActual.pkValue=pkv;
   document.getElementById('crud-modal-title').textContent=`Editar — ${tabla}`;
   document.getElementById('crud-submit-btn').textContent='Guardar';
   renderCrudForm(esq,row); abrirModal('modal-crud');
@@ -969,15 +1179,10 @@ function renderCrudForm(esq,vals) {
     const div=document.createElement('div'); div.className='form-field';
     if (esq.fk_map[name]) {
       const opts=esq.opciones[name]||[];
-      div.innerHTML=`<label>${name}</label>
-        <select data-field="${name}" ${isPK?'disabled':''}>
-          <option value="">— seleccionar —</option>
-          ${opts.map(o=>`<option value="${o.value}" ${String(o.value)===String(val)?'selected':''}>${o.label}</option>`).join('')}
-        </select>`;
+      div.innerHTML=`<label>${name}</label><select data-field="${name}" ${isPK?'disabled':''}><option value="">— seleccionar —</option>${opts.map(o=>`<option value="${o.value}" ${String(o.value)===String(val)?'selected':''}>${o.label}</option>`).join('')}</select>`;
     } else {
       const ro=isPK&&tablaActual.modo==='editar';
-      div.innerHTML=`<label>${name}${isAI?' (auto)':''}</label>
-        <input data-field="${name}" type="text" value="${val}" placeholder="${col.Type}" ${ro||isAI?'readonly':''}/>`;
+      div.innerHTML=`<label>${name}${isAI?' (auto)':''}</label><input data-field="${name}" type="text" value="${val}" placeholder="${col.Type}" ${ro||isAI?'readonly':''}/>`;
     }
     c.appendChild(div);
   });
@@ -986,10 +1191,7 @@ async function submitCrud() {
   const tabla=tablaActual.nombre;
   const campos=document.querySelectorAll('#crud-form-fields [data-field]');
   const data={};
-  campos.forEach(el=>{
-    if(el.readOnly||el.disabled)return;
-    const v=el.value.trim(); data[el.dataset.field]=v===''?null:v;
-  });
+  campos.forEach(el=>{ if(el.readOnly||el.disabled)return; const v=el.value.trim(); data[el.dataset.field]=v===''?null:v; });
   if (tablaActual.modo==='insertar') {
     const d=await fetch(`/api/crud/${tabla}/insertar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify(data)}).then(r=>r.json());
     d.ok?(toast('Registro insertado'),cerrarModal('modal-crud'),recargarGestion()):toast('Error: '+d.error,'err');
@@ -1014,9 +1216,7 @@ function verDetalle(cols,row) {
   abrirModal('modal-detalle');
 }
 
-// ════════════════════════════════════════════════════════════
-//  CONFIGURACIÓN
-// ════════════════════════════════════════════════════════════
+// ════ CONFIGURACIÓN ════
 function cargarConfig() {
   document.getElementById('cfg-nombre').value  = '{{ taquillero.taqnombre }}';
   document.getElementById('cfg-ap1').value     = '{{ taquillero.taqprimerapell }}';
@@ -1036,9 +1236,7 @@ async function guardarConfig() {
   d.ok?toast('Cambios guardados'):toast('Error: '+d.error,'err');
 }
 
-// ════════════════════════════════════════════════════════════
-//  MODALES
-// ════════════════════════════════════════════════════════════
+// ════ MODALES ════
 const abrirModal  = id => document.getElementById(id).classList.add('open');
 const cerrarModal = id => document.getElementById(id).classList.remove('open');
 
@@ -1048,12 +1246,25 @@ document.querySelectorAll('.modal-overlay').forEach(m=>
 
 const cerrarSesion = () => { if(confirm('¿Cerrar sesión?')) window.location.href='/logout/'; };
 
-// ════════════════════════════════════════════════════════════
-//  RESIZE — recalibrar comportamiento al rotar pantalla
-// ════════════════════════════════════════════════════════════
+// ── Elipse: animación permanente al primer hover ──────────────────────────────
+(function() {
+  function setupElipse() {
+    const btn = document.getElementById('btn-elipse');
+    if (!btn) return;
+    btn.addEventListener('mouseenter', function onFirst() {
+      btn.classList.add('elipse-on');
+      btn.removeEventListener('mouseenter', onFirst);
+    });
+  }
+  if (document.readyState === 'loading')
+    document.addEventListener('DOMContentLoaded', setupElipse);
+  else setupElipse();
+})();
+
+function irAEclipse() { window.location.href = '/elipse/'; }
+
 window.addEventListener('resize', () => {
   if (!isMobile()) {
-    // limpiar estado mobile al pasar a tablet/desktop
     document.getElementById('sidebar').classList.remove('mobile-open');
     document.getElementById('sidebar-overlay').classList.remove('active');
     document.body.style.overflow = '';
@@ -1072,6 +1283,11 @@ window.addEventListener('resize', () => {
   document.getElementById('kg-mes').value=mes;
   document.getElementById('ke-anio').value=now.getFullYear();
   document.getElementById('kg-anio').value=now.getFullYear();
+
+  // ── Inicializar toggle de precisión de Salidas ──
+  // Se hace aquí para garantizar que initPrecisionToggle ya está definida
+  initPrecisionToggle('sal-precision','sal-precision-track','sal-precision-text','sal-precision-label');
+
   showPage('kpi-generales');
 })();
 </script>
