@@ -25,8 +25,6 @@ def index_view(request):
 
 CLAVE_MAESTRA = "RutasBaja2024"
 
-# ─── Decoradores ──────────────────────────────────────────────────────────────
-
 def login_requerido(view_func):
     def wrapper(request, *args, **kwargs):
         if not request.session.get('usuario_id'):
@@ -42,8 +40,6 @@ def admin_requerido(view_func):
             return redirect('panel_principal')
         return view_func(request, *args, **kwargs)
     return wrapper
-
-# ─── Auth ─────────────────────────────────────────────────────────────────────
 
 def login_view(request):
     if request.method == 'POST':
@@ -88,9 +84,7 @@ def registro_view(request):
         messages.success(request, 'Taquillero registrado correctamente')
     return redirect('login')
 
-# ─── NUEVO: Verificar clave maestra vía AJAX ──────────────────────────────────
 def verificar_clave_maestra(request):
-    """Endpoint AJAX para verificar la clave maestra antes de mostrar el formulario de registro."""
     if request.method == 'POST':
         data = json.loads(request.body)
         clave = data.get('clave', '')
@@ -103,8 +97,6 @@ def logout_view(request):
     request.session.flush()
     return redirect('login')
 
-# ─── Vistas generales ─────────────────────────────────────────────────────────
-
 @login_requerido
 def panel_principal(request):
     return render(request, 'taquilla/panel_principal.html')
@@ -115,8 +107,6 @@ def dashboard(request):
 
 def salidas(request):
     return render(request, 'taquilla/salidas.html')
-
-# ─── Panel admin ──────────────────────────────────────────────────────────────
 
 @admin_requerido
 def panel_admin(request):
@@ -154,8 +144,6 @@ def actualizar_config(request):
         return JsonResponse({'ok': True})
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
-
-# ─── CRUD genérico ────────────────────────────────────────────────────────────
 
 TABLAS_PERMITIDAS = [
     'marca','modelo','autobus','ciudad','conductor','ruta','viaje','asiento',
@@ -264,14 +252,8 @@ def crud_eliminar(request, tabla):
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
 
-# ─── Viajes / Dashboard admin ─────────────────────────────────────────────────
-
 @admin_requerido
 def salidas_json(request):
-    """
-    Devuelve SOLO los viajes próximos (fecHoraSalida >= ahora) que no estén finalizados.
-    El historial (viajes pasados o estado finalizado) se obtiene por separado con historial_json.
-    """
     from django.db import connection
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with connection.cursor() as cur:
@@ -306,13 +288,8 @@ def salidas_json(request):
             rows.append(row)
     return JsonResponse({'rows': rows})
 
-
 @admin_requerido
 def historial_json(request):
-    """
-    Devuelve viajes pasados (fecHoraSalida < ahora) O con estado finalizado/cancelado.
-    Usado por la sección Historial de Viajes.
-    """
     from django.db import connection
     now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with connection.cursor() as cur:
@@ -352,13 +329,11 @@ def historial_json(request):
             rows.append(row)
     return JsonResponse({'rows': rows})
 
-
 @admin_requerido
 def agregar_viaje_opciones(request):
     from django.db import connection
     result = {}
     with connection.cursor() as cur:
-        # Incluir duracion en la respuesta de rutas para calcular llegada automáticamente
         cur.execute("""
             SELECT r.codigo, CONCAT(corig.nombre,' \u2192 ',cdest.nombre) AS label, r.duracion
             FROM ruta r
@@ -405,8 +380,6 @@ def agregar_viaje(request):
         return JsonResponse({'ok': True, 'viaje_id': trip_id})
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
-
-# ─── KPIs ─────────────────────────────────────────────────────────────────────
 
 @admin_requerido
 def kpi_generales(request):
@@ -573,8 +546,6 @@ def kpi_filtros_opciones(request):
         ciudades = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
     return JsonResponse({'conductores': conductores, 'autobuses': autobuses, 'ciudades': ciudades})
 
-# ─── API REST ─────────────────────────────────────────────────────────────────
-
 @api_view(['GET'])
 def api_viajes(request):
     viajes = Viaje.objects.filter(estado=1)
@@ -610,8 +581,6 @@ def api_terminales(request):
     serializer = TerminalSerializer(terminales, many=True)
     return Response(serializer.data)
 
-# ─── Detalle autobús ──────────────────────────────────────────────────────────
-
 @admin_requerido
 def autobus_detalle(request, bus_id):
     from django.db import connection
@@ -629,7 +598,6 @@ def autobus_detalle(request, bus_id):
             if not row:
                 return JsonResponse({'error': f'Autobús #{bus_id} no encontrado'}, status=404)
             numero, placas, marca, modelo, anio, num_asientos = row
-
             cur.execute("""
                 SELECT ta.descripcion, ta.codigo, COUNT(*) AS cantidad
                 FROM asiento a
@@ -654,8 +622,6 @@ def autobus_detalle(request, bus_id):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
-# ─── Pasajeros de un viaje ────────────────────────────────────────────────────
-
 @admin_requerido
 def viaje_pasajeros(request, viaje_id):
     from django.db import connection
@@ -676,9 +642,6 @@ def viaje_pasajeros(request, viaje_id):
             if not info:
                 return JsonResponse({'error': f'Viaje #{viaje_id} no encontrado'}, status=404)
             origen, destino, salida, autobus = info
-
-
-
             cur.execute("""
                 SELECT
                     CONCAT(p.paNombre, ' ', p.paPrimerApell,
@@ -709,7 +672,6 @@ def viaje_pasajeros(request, viaje_id):
 
 
 from .elipse_views import elipse_view, elipse_chat
-# ─── API Móvil ────────────────────────────────────────────────────────────────
 
 @api_view(['POST'])
 def api_login(request):
@@ -747,7 +709,13 @@ def api_comprar(request):
         correo_contacto = data.get('correo_contacto', '')
 
         with transaction.atomic():
-            vendedor = Taquillero.objects.get(registro=vendedor_id) if vendedor_id else None
+            vendedor = None
+            if vendedor_id:
+                try:
+                    vendedor = Taquillero.objects.get(registro=vendedor_id)
+                except Taquillero.DoesNotExist:
+                    vendedor = None
+
             pago = Pago.objects.create(
                 fechapago=timezone.now(),
                 monto=monto_total,
@@ -757,14 +725,30 @@ def api_comprar(request):
             viaje = Viaje.objects.get(numero=viaje_id)
             tickets_creados = []
 
+            es_primer_pasajero = True
             for p in pasajeros:
                 ano_nacimiento = date.today().year - p['edad']
-                pasajero = Pasajero.objects.create(
-                    panombre=p['nombre'],
-                    paprimerapell=p['primer_apellido'],
-                    pasegundoapell=p.get('segundo_apellido', None),
-                    fechanacimiento=date(ano_nacimiento, 1, 1),
-                )
+
+                if es_primer_pasajero and vendedor is None and vendedor_id:
+                    try:
+                        pasajero = Pasajero.objects.get(num=vendedor_id)
+                    except Pasajero.DoesNotExist:
+                        pasajero = Pasajero.objects.create(
+                            panombre=p['nombre'],
+                            paprimerapell=p['primer_apellido'],
+                            pasegundoapell=p.get('segundo_apellido', None),
+                            fechanacimiento=date(ano_nacimiento, 1, 1),
+                        )
+                else:
+                    pasajero = Pasajero.objects.create(
+                        panombre=p['nombre'],
+                        paprimerapell=p['primer_apellido'],
+                        pasegundoapell=p.get('segundo_apellido', None),
+                        fechanacimiento=date(ano_nacimiento, 1, 1),
+                    )
+
+                es_primer_pasajero = False
+
                 tipo_map = {'Adulto': 1, 'Estudiante': 4, 'INAPAM': 3, 'Discapacidad': 5}
                 tipo_pasajero_id = tipo_map.get(p['tipo'], 1)
                 tipo_pasajero = TipoPasajero.objects.get(num=tipo_pasajero_id)
@@ -782,10 +766,12 @@ def api_comprar(request):
                     pago=pago
                 )
                 tickets_creados.append(ticket)
-                ViajeAsiento.objects.filter(
-                    asiento=asiento,
-                    viaje=viaje
-                ).update(ocupado=1)
+                from django.db import connection
+                with connection.cursor() as cur:
+                    cur.execute(
+                        "UPDATE viaje_asiento SET ocupado = 1 WHERE asiento = %s AND viaje = %s",
+                        [asiento.numero, viaje.numero]
+                    )
 
         if correo_contacto:
             try:
@@ -847,31 +833,6 @@ Rutas Baja Express
 
 
 @api_view(['GET'])
-def api_historial_taquillero(request, vendedor_id):
-    try:
-        pagos = Pago.objects.filter(vendedor__registro=vendedor_id).order_by('-fechapago')
-        resultado = []
-        for pago in pagos:
-            tickets = Ticket.objects.filter(pago=pago)
-            primer_ticket = tickets.first()
-            if primer_ticket:
-                viaje = primer_ticket.viaje
-                resultado.append({
-                    'folio': pago.numero,
-                    'fecha': str(pago.fechapago),
-                    'origen': viaje.ruta.origen.ciudad.nombre,
-                    'destino': viaje.ruta.destino.ciudad.nombre,
-                    'hora_salida': str(viaje.fechorasalida),
-                    'monto': str(pago.monto),
-                    'num_pasajeros': tickets.count(),
-                    'metodo_pago': pago.tipo.nombre,
-                })
-        return Response(resultado)
-    except Exception as e:
-        return Response({'error': str(e)}, status=400)
-
-
-@api_view(['GET'])
 def api_buscar_boleto(request, folio):
     try:
         pago = Pago.objects.get(numero=folio)
@@ -911,6 +872,7 @@ def api_buscar_boleto(request, folio):
     except Exception as e:
         return Response({'error': str(e)}, status=400)
 
+
 @api_view(['POST'])
 def api_cliente_google_login(request):
     try:
@@ -920,24 +882,19 @@ def api_cliente_google_login(request):
         nombre = data.get('nombre', '')
         foto = data.get('foto', '')
 
-        # Buscar si ya existe una cuenta con ese firebase_uid o correo
         cuenta = CuentaPasajero.objects.filter(firebase_uid=firebase_uid).first()
-
         if not cuenta:
             cuenta = CuentaPasajero.objects.filter(correo=correo).first()
 
         if cuenta:
-            # Ya existe — actualizar foto si cambió
             if foto:
                 cuenta.foto = foto
                 cuenta.save()
             pasajero = cuenta.pasajero_num
         else:
-            # No existe — crear pasajero y cuenta nueva
             partes = nombre.strip().split(' ')
             panombre = partes[0] if len(partes) > 0 else 'Usuario'
             paprimerapell = partes[1] if len(partes) > 1 else 'RBE'
-
             pasajero = Pasajero.objects.create(
                 panombre=panombre,
                 paprimerapell=paprimerapell,
@@ -964,13 +921,38 @@ def api_cliente_google_login(request):
     except Exception as e:
         return Response({'error': str(e)}, status=400)
 
+
 @api_view(['GET'])
 def api_historial_cliente(request, cliente_id):
     try:
         pagos = Pago.objects.filter(
             ticket__pasajero__num=cliente_id
         ).distinct().order_by('-fechapago')
-        
+        resultado = []
+        for pago in pagos:
+            tickets = Ticket.objects.filter(pago=pago)
+            primer_ticket = tickets.first()
+            if primer_ticket:
+                viaje = primer_ticket.viaje
+                resultado.append({
+                    'folio': pago.numero,
+                    'fecha': str(pago.fechapago),
+                    'origen': viaje.ruta.origen.ciudad.nombre,
+                    'destino': viaje.ruta.destino.ciudad.nombre,
+                    'hora_salida': str(viaje.fechorasalida),
+                    'monto': str(pago.monto),
+                    'num_pasajeros': tickets.count(),
+                    'metodo_pago': pago.tipo.nombre,
+                })
+        return Response(resultado)
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+
+
+@api_view(['GET'])
+def api_historial_taquillero(request, vendedor_id):
+    try:
+        pagos = Pago.objects.filter(vendedor__registro=vendedor_id).order_by('-fechapago')
         resultado = []
         for pago in pagos:
             tickets = Ticket.objects.filter(pago=pago)

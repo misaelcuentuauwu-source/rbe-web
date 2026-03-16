@@ -11,6 +11,7 @@ class DatosBoletoScreen extends StatefulWidget {
   final String precio;
   final int vendedorId;
   final String? correoCliente;
+  final String tipoUsuario;
 
   const DatosBoletoScreen({
     super.key,
@@ -22,6 +23,7 @@ class DatosBoletoScreen extends StatefulWidget {
     required this.precio,
     required this.vendedorId,
     this.correoCliente,
+    this.tipoUsuario = 'invitado',
   });
 
   @override
@@ -31,7 +33,9 @@ class DatosBoletoScreen extends StatefulWidget {
 class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
   static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
-  static const fondo = Color(0xFF008FD4);
+  static const fondo = Color(0xFFF4F6F9);
+  static const textoPrincipal = Color(0xFF1C2D3A);
+  static const textoSecundario = Color(0xFF6B8FA8);
 
   final _formKey = GlobalKey<FormState>();
   late List<Map<String, dynamic>> pasajerosList;
@@ -40,7 +44,6 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
   void initState() {
     super.initState();
     _generarPasajeros();
-    // Si es cliente, prellenar el correo del contacto
     if (widget.correoCliente != null && pasajerosList.isNotEmpty) {
       final contacto = pasajerosList.firstWhere(
         (p) => p['esContacto'] == true,
@@ -53,7 +56,6 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
 
   void _generarPasajeros() {
     pasajerosList = [];
-
     if (widget.pasajeros['adultos']! > 0) {
       pasajerosList.add(_crearPasajero('Adulto', esContacto: true));
     }
@@ -116,7 +118,9 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
               'esContacto': p['esContacto'],
               'telefono': (p['telefonoCtrl'] as TextEditingController).text
                   .trim(),
-              'correo': (p['correoCtrl'] as TextEditingController).text.trim(),
+              'correo':
+                  widget.correoCliente ??
+                  (p['correoCtrl'] as TextEditingController).text.trim(),
             },
           )
           .toList();
@@ -132,6 +136,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
             horaSalida: widget.horaSalida,
             precioPorPasajero: double.parse(widget.precio),
             vendedorId: widget.vendedorId,
+            tipoUsuario: widget.tipoUsuario, // ← agregar
           ),
         ),
       );
@@ -146,22 +151,24 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
         child: Column(
           children: [
             _buildHeader(),
-            _buildResumen(),
-            const SizedBox(height: 12),
             Expanded(
               child: Form(
                 key: _formKey,
                 child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: pasajerosList.length + 1,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: pasajerosList.length + 2,
                   itemBuilder: (context, index) {
-                    if (index == pasajerosList.length) {
+                    if (index == 0) return _buildResumen();
+                    if (index == pasajerosList.length + 1) {
                       return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        padding: const EdgeInsets.symmetric(vertical: 8),
                         child: _buildBotonContinuar(),
                       );
                     }
-                    return _buildTarjetaPasajero(pasajerosList[index], index);
+                    return _buildTarjetaPasajero(
+                      pasajerosList[index - 1],
+                      index - 1,
+                    );
                   },
                 ),
               ),
@@ -173,8 +180,18 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
   }
 
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        color: azul,
+        boxShadow: [
+          BoxShadow(
+            color: azul.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           GestureDetector(
@@ -182,7 +199,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(
@@ -217,36 +234,64 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
 
   Widget _buildResumen() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
           const Icon(Icons.trip_origin_rounded, color: azul, size: 16),
           const SizedBox(width: 6),
-          Text(
-            widget.origenNombre,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          Expanded(
+            child: Text(
+              widget.origenNombre,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: textoPrincipal,
+              ),
+            ),
           ),
-          const SizedBox(width: 6),
-          const Icon(Icons.arrow_forward_rounded, color: Colors.grey, size: 14),
+          const Icon(
+            Icons.arrow_forward_rounded,
+            color: textoSecundario,
+            size: 14,
+          ),
           const SizedBox(width: 6),
           const Icon(Icons.location_on_rounded, color: naranja, size: 16),
           const SizedBox(width: 4),
-          Text(
-            widget.destinoNombre,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+          Expanded(
+            child: Text(
+              widget.destinoNombre,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: textoPrincipal,
+              ),
+            ),
           ),
-          const Spacer(),
-          Text(
-            widget.horaSalida,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              color: azul,
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: azul.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              widget.horaSalida,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: azul,
+              ),
             ),
           ),
         ],
@@ -259,15 +304,15 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     final tipo = pasajero['tipo'] as String;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12, top: 12),
+      margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 8,
-            offset: const Offset(0, 3),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -276,6 +321,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Badges ──────────────────────────────────────
             Row(
               children: [
                 Container(
@@ -316,64 +362,30 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                   ),
                 ),
                 if (esContacto) ...[
-                  const SizedBox(height: 10),
-                  _buildCampo(
-                    ctrl: pasajero['telefonoCtrl'],
-                    label: 'Teléfono de contacto',
-                    icono: Icons.phone_outlined,
-                    requerido: true,
-                    soloNumeros: true,
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: naranja.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Contacto',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: naranja,
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 10),
-                  if (widget.correoCliente == null)
-                    _buildCampo(
-                      ctrl: pasajero['correoCtrl'],
-                      label: 'Correo electrónico',
-                      icono: Icons.email_outlined,
-                      requerido: true,
-                      esCorreo: true,
-                    ),
-                  if (widget.correoCliente != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 14,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.email_outlined, size: 18, color: azul),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Correo electrónico',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF6B8FA8),
-                                ),
-                              ),
-                              Text(
-                                widget.correoCliente!,
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  color: Color(0xFF1C2D3A),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
                 ],
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
+            // ── Nombre y primer apellido ─────────────────────
             Row(
               children: [
                 Expanded(
@@ -395,7 +407,8 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
+            // ── Segundo apellido y edad ───────────────────────
             Row(
               children: [
                 Expanded(
@@ -418,8 +431,9 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                 ),
               ],
             ),
+            // ── Campos de contacto ───────────────────────────
             if (esContacto) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               _buildCampo(
                 ctrl: pasajero['telefonoCtrl'],
                 label: 'Teléfono de contacto',
@@ -427,14 +441,69 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                 requerido: true,
                 soloNumeros: true,
               ),
-              const SizedBox(height: 10),
-              _buildCampo(
-                ctrl: pasajero['correoCtrl'],
-                label: 'Correo electrónico',
-                icono: Icons.email_outlined,
-                requerido: true,
-                esCorreo: true,
-              ),
+              const SizedBox(height: 12),
+              if (widget.correoCliente == null)
+                _buildCampo(
+                  ctrl: pasajero['correoCtrl'],
+                  label: 'Correo electrónico',
+                  icono: Icons.email_outlined,
+                  requerido: true,
+                  esCorreo: true,
+                ),
+              if (widget.correoCliente != null)
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: azul.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: azul.withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.email_outlined, size: 18, color: azul),
+                      const SizedBox(width: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Correo electrónico',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: textoSecundario,
+                            ),
+                          ),
+                          Text(
+                            widget.correoCliente!,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                              color: textoPrincipal,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          'Verificado',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.green.shade700,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ],
         ),
@@ -462,20 +531,24 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
           : null,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(fontSize: 13),
+        labelStyle: const TextStyle(fontSize: 13, color: textoSecundario),
         prefixIcon: Icon(icono, size: 18, color: azul),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
-          vertical: 12,
+          vertical: 14,
         ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: azul, width: 1.5),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.red.shade300),
         ),
         filled: true,
         fillColor: Colors.grey.shade50,
@@ -510,7 +583,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          elevation: 4,
+          elevation: 3,
           shadowColor: naranja.withOpacity(0.4),
         ),
         child: const Row(

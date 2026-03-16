@@ -24,7 +24,9 @@ class ResumenCompraScreen extends StatelessWidget {
 
   static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
-  static const fondo = Color(0xFF008FD4);
+  static const fondo = Color(0xFFF4F6F9);
+  static const textoPrincipal = Color(0xFF1C2D3A);
+  static const textoSecundario = Color(0xFF6B8FA8);
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +35,7 @@ class ResumenCompraScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(context),
+            _buildHeader(),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -59,17 +61,35 @@ class ResumenCompraScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      decoration: BoxDecoration(
+        color: azul,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          const Icon(
-            Icons.confirmation_number_rounded,
-            color: Colors.white,
-            size: 26,
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.confirmation_number_rounded,
+              color: Colors.white,
+              size: 26,
+            ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -77,13 +97,15 @@ class ResumenCompraScreen extends StatelessWidget {
                 'Compra confirmada',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
+                  letterSpacing: 0.3,
                 ),
               ),
+              SizedBox(height: 2),
               Text(
                 'Tu boleto ha sido generado',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
             ],
           ),
@@ -97,7 +119,14 @@ class ResumenCompraScreen extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -119,13 +148,13 @@ class ResumenCompraScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: textoPrincipal,
             ),
           ),
           const SizedBox(height: 6),
           Text(
             'Folio de compra #$pagoId',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 13, color: textoSecundario),
           ),
         ],
       ),
@@ -137,14 +166,38 @@ class ResumenCompraScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Detalles del viaje',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: azul,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Detalles del viaje',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: textoPrincipal,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           Row(
@@ -180,6 +233,7 @@ class ResumenCompraScreen extends StatelessWidget {
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
+                        color: textoPrincipal,
                       ),
                     ),
                     const SizedBox(height: 18),
@@ -188,23 +242,19 @@ class ResumenCompraScreen extends StatelessWidget {
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
+                        color: textoPrincipal,
                       ),
                     ),
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    horaSalida,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: azul,
-                    ),
-                  ),
-                ],
+              Text(
+                horaSalida,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: azul,
+                ),
               ),
             ],
           ),
@@ -218,21 +268,41 @@ class ResumenCompraScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Container(
+                width: 4,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: azul,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
               const Text(
                 'Pasajeros',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: textoPrincipal,
+                ),
               ),
               const Spacer(),
               Text(
                 '${pasajeros.length} boleto(s)',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 12, color: textoSecundario),
               ),
             ],
           ),
@@ -281,6 +351,7 @@ class ResumenCompraScreen extends StatelessWidget {
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
+                                color: textoPrincipal,
                               ),
                             ),
                             if (esContacto) ...[
@@ -311,7 +382,7 @@ class ResumenCompraScreen extends StatelessWidget {
                           '${p['tipo']} · Asiento ${p['asiento_id']}',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade500,
+                            color: textoSecundario,
                           ),
                         ),
                       ],
@@ -331,14 +402,38 @@ class ResumenCompraScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Resumen de pago',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: naranja,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Resumen de pago',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: textoPrincipal,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Row(
@@ -355,18 +450,22 @@ class ResumenCompraScreen extends StatelessWidget {
                 metodoPago == 2
                     ? 'Tarjeta de crédito/débito'
                     : 'Efectivo en taquilla',
-                style: const TextStyle(fontSize: 13),
+                style: const TextStyle(fontSize: 13, color: textoPrincipal),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          const Divider(),
+          Divider(color: Colors.grey.shade100),
           const SizedBox(height: 10),
           Row(
             children: [
               const Text(
                 'Total pagado:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: textoPrincipal,
+                ),
               ),
               const Spacer(),
               Text(
@@ -387,7 +486,7 @@ class ResumenCompraScreen extends StatelessWidget {
   Widget _buildBotones(BuildContext context) {
     return Column(
       children: [
-        // Botón descargar (por ahora solo muestra mensaje)
+        // Botón descargar
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
@@ -404,8 +503,8 @@ class ResumenCompraScreen extends StatelessWidget {
               );
             },
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white, width: 1.5),
+              foregroundColor: azul,
+              side: const BorderSide(color: azul, width: 1.5),
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
@@ -437,7 +536,7 @@ class ResumenCompraScreen extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
-              elevation: 4,
+              elevation: 3,
               shadowColor: naranja.withOpacity(0.4),
             ),
             icon: const Icon(Icons.home_rounded),

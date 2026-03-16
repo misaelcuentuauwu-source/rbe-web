@@ -25,7 +25,10 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen> {
   void initState() {
     super.initState();
     _pages = [
-      InicioScreen(vendedorId: widget.taquillero['registro']),
+      InicioScreen(
+        vendedorId: widget.taquillero['registro'],
+        tipoUsuario: 'taquillero',
+      ),
       HistorialScreen(vendedorId: widget.taquillero['registro']),
       const BuscarBoletoScreen(),
       PerfilScreen(taquillero: widget.taquillero),

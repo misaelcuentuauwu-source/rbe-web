@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import '../../config.dart';
 import '../taquillero/home_screen.dart';
 import '../cliente/home_screen.dart';
@@ -20,6 +21,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _cargando = false;
   bool _cargandoGoogle = false;
+  bool _cargandoFacebook = false;
 
   static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
@@ -79,7 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _cargandoGoogle = true);
     try {
       final GoogleSignIn googleSignIn = GoogleSignIn();
-      await googleSignIn.signOut(); // fuerza mostrar selector
+      await googleSignIn.signOut();
       final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) {
         setState(() => _cargandoGoogle = false);
@@ -99,7 +101,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = userCredential.user;
 
       if (user != null && mounted) {
-        // Mandar datos a Django para crear/buscar cliente
         final response = await http
             .post(
               Uri.parse('${Config.baseUrl}/api/cliente/google-login/'),
@@ -129,6 +130,73 @@ class _LoginScreenState extends State<LoginScreen> {
       _mostrarError('Error con Google: $e');
     } finally {
       if (mounted) setState(() => _cargandoGoogle = false);
+    }
+  }
+
+  // ── Login con Facebook ─────────────────────────────────────
+  Future<void> _loginConFacebook() async {
+    setState(() => _cargandoFacebook = true);
+    try {
+      // Cerrar sesión previa para forzar selector de cuenta
+      await FacebookAuth.instance.logOut();
+
+      final LoginResult result = await FacebookAuth.instance.login(
+        permissions: ['email', 'public_profile'],
+      );
+
+      if (result.status == LoginStatus.cancelled) {
+        setState(() => _cargandoFacebook = false);
+        return;
+      }
+
+      if (result.status != LoginStatus.success) {
+        _mostrarError('Error al iniciar sesión con Facebook');
+        return;
+      }
+
+      // Obtener credencial de Firebase con el token de Facebook
+      final OAuthCredential credential = FacebookAuthProvider.credential(
+        result.accessToken!.tokenString,
+      );
+
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+      final user = userCredential.user;
+
+      if (user != null && mounted) {
+        // Mandar datos a Django igual que con Google
+        final response = await http
+            .post(
+              Uri.parse('${Config.baseUrl}/api/cliente/google-login/'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'firebase_uid': user.uid,
+                'correo': user.email ?? '',
+                'nombre': user.displayName ?? '',
+                'foto': user.photoURL ?? '',
+                'proveedor': 'facebook',
+              }),
+            )
+            .timeout(const Duration(seconds: 10));
+
+        final data = jsonDecode(response.body);
+        if (response.statusCode == 200 && mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => HomeClienteScreen(cliente: data)),
+            (route) => false,
+          );
+        } else {
+          _mostrarError(
+            data['error'] ?? 'Error al iniciar sesión con Facebook',
+          );
+        }
+      }
+    } catch (e) {
+      _mostrarError('Error con Facebook: $e');
+    } finally {
+      if (mounted) setState(() => _cargandoFacebook = false);
     }
   }
 
@@ -296,32 +364,42 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // Botón Facebook (próximamente)
+          // Botón Facebook
           SizedBox(
             width: double.infinity,
             height: 48,
             child: OutlinedButton(
-              onPressed: () => _mostrarError('Facebook próximamente'),
+              onPressed: _cargandoFacebook ? null : _loginConFacebook,
               style: OutlinedButton.styleFrom(
                 side: BorderSide(color: Colors.grey.shade300),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.facebook, color: Colors.blue.shade700, size: 22),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'Continuar con Facebook',
-                    style: TextStyle(
-                      color: Color(0xFF1C2D3A),
-                      fontWeight: FontWeight.w500,
+              child: _cargandoFacebook
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.facebook,
+                          color: Colors.blue.shade700,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Continuar con Facebook',
+                          style: TextStyle(
+                            color: Color(0xFF1C2D3A),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
           const SizedBox(height: 16),

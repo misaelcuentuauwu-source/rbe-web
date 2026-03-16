@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Rutas Baja Express</string>
+    <string name="facebook_app_id">1365157188710536</string>
+    <string name="facebook_client_token">88b23eb453db1a1eadb49202afe70dc1</string>
+    <string name="fb_login_protocol_scheme">fb1365157188710536</string>
+</resources>

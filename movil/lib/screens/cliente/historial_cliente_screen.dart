@@ -87,13 +87,17 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.history_rounded, color: Colors.white, size: 24),
+          const Icon(
+            Icons.confirmation_number_outlined,
+            color: Colors.white,
+            size: 24,
+          ),
           const SizedBox(width: 12),
           const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Mis viajes',
+                'Mis boletos',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 18,
@@ -132,10 +136,14 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.history_rounded, color: Colors.grey.shade300, size: 60),
+            Icon(
+              Icons.confirmation_number_outlined,
+              color: Colors.grey.shade300,
+              size: 60,
+            ),
             const SizedBox(height: 16),
             Text(
-              'No tienes viajes aún',
+              'No tienes boletos aún',
               style: TextStyle(color: textoSecundario, fontSize: 15),
             ),
           ],
@@ -170,6 +178,7 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Folio y monto
           Row(
             children: [
               Container(
@@ -202,6 +211,8 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
             ],
           ),
           const SizedBox(height: 12),
+
+          // Ruta
           Row(
             children: [
               const Icon(Icons.trip_origin_rounded, color: azul, size: 14),
@@ -232,6 +243,8 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
             ],
           ),
           const SizedBox(height: 8),
+
+          // Fecha y pasajeros
           Row(
             children: [
               Icon(
@@ -252,6 +265,39 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
                 style: TextStyle(fontSize: 12, color: textoSecundario),
               ),
             ],
+          ),
+          const SizedBox(height: 12),
+
+          // Botón reimprimir (no funcional por ahora)
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Próximamente: reimprimir boleto'),
+                    backgroundColor: azul,
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: azul,
+                side: const BorderSide(color: azul, width: 1.5),
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              icon: const Icon(Icons.print_rounded, size: 18),
+              label: const Text(
+                'Reimprimir boleto',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+              ),
+            ),
           ),
         ],
       ),

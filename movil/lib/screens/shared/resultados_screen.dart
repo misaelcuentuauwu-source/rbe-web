@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../../config.dart';
-import 'seat_selection_screen.dart';
 import 'datos_boleto_screen.dart';
 
 class ResultadosScreen extends StatefulWidget {
@@ -15,6 +14,7 @@ class ResultadosScreen extends StatefulWidget {
   final Map<String, int> pasajeros;
   final int vendedorId;
   final String? correoCliente;
+  final String tipoUsuario;
 
   const ResultadosScreen({
     super.key,
@@ -26,6 +26,7 @@ class ResultadosScreen extends StatefulWidget {
     required this.pasajeros,
     required this.vendedorId,
     this.correoCliente,
+    this.tipoUsuario = 'invitado',
   });
 
   @override
@@ -35,7 +36,9 @@ class ResultadosScreen extends StatefulWidget {
 class _ResultadosScreenState extends State<ResultadosScreen> {
   static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
-  static const fondo = Color(0xFF008FD4);
+  static const fondo = Color(0xFFF4F6F9);
+  static const textoPrincipal = Color(0xFF1C2D3A);
+  static const textoSecundario = Color(0xFF6B8FA8);
 
   List<dynamic> viajes = [];
   bool cargando = true;
@@ -55,11 +58,9 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
           '${widget.fecha.year}-${widget.fecha.month.toString().padLeft(2, '0')}-${widget.fecha.day.toString().padLeft(2, '0')}';
       final url =
           '${Config.baseUrl}/api/viajes/?origen=${widget.origen}&destino=${widget.destino}&fecha=$fecha';
-
       final response = await http
           .get(Uri.parse(url))
           .timeout(const Duration(seconds: 10));
-
       if (response.statusCode == 200) {
         setState(() {
           viajes = jsonDecode(response.body) as List;
@@ -108,7 +109,7 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
           children: [
             _buildHeader(),
             _buildResumenBusqueda(),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             _buildTituloLista(),
             const SizedBox(height: 8),
             Expanded(child: _buildLista()),
@@ -119,8 +120,18 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
   }
 
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      decoration: BoxDecoration(
+        color: azul,
+        boxShadow: [
+          BoxShadow(
+            color: azul.withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         children: [
           GestureDetector(
@@ -128,7 +139,7 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: const Icon(
@@ -139,13 +150,22 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          const Text(
-            'Viajes disponibles',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Viajes disponibles',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                'Selecciona tu viaje',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+            ],
           ),
         ],
       ),
@@ -153,68 +173,73 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
   }
 
   Widget _buildResumenBusqueda() {
-    // Buscar nombres de ciudades
-    final origenNombre = widget.origenNombre;
-    final destinoNombre = widget.destinoNombre;
     final fechaStr = _formatFecha(widget.fecha.toIso8601String());
-
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         children: [
           Row(
             children: [
-              const Icon(Icons.trip_origin_rounded, color: azul, size: 18),
-              const SizedBox(width: 8),
+              const Icon(Icons.trip_origin_rounded, color: azul, size: 16),
+              const SizedBox(width: 6),
               Text(
-                origenNombre,
+                widget.origenNombre,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
+                  color: textoPrincipal,
                 ),
               ),
               const SizedBox(width: 8),
               const Icon(
                 Icons.arrow_forward_rounded,
-                color: Colors.grey,
+                color: textoSecundario,
                 size: 16,
               ),
               const SizedBox(width: 8),
-              const Icon(Icons.location_on_rounded, color: naranja, size: 18),
+              const Icon(Icons.location_on_rounded, color: naranja, size: 16),
               const SizedBox(width: 4),
               Text(
-                destinoNombre,
+                widget.destinoNombre,
                 style: const TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
+                  color: textoPrincipal,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.calendar_month_rounded,
-                color: Colors.grey,
-                size: 16,
+                color: Colors.grey.shade400,
+                size: 14,
               ),
               const SizedBox(width: 6),
               Text(
                 fechaStr,
-                style: const TextStyle(fontSize: 13, color: Colors.black54),
+                style: TextStyle(fontSize: 12, color: textoSecundario),
               ),
               const SizedBox(width: 16),
-              const Icon(Icons.people_rounded, color: Colors.grey, size: 16),
+              Icon(Icons.people_rounded, color: Colors.grey.shade400, size: 14),
               const SizedBox(width: 6),
               Text(
                 '$totalPasajeros pasajero(s)',
-                style: const TextStyle(fontSize: 13, color: Colors.black54),
+                style: TextStyle(fontSize: 12, color: textoSecundario),
               ),
             ],
           ),
@@ -223,35 +248,44 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
     );
   }
 
-  String _getNombreCiudad(String numero) {
-    const ciudades = {
-      '1': 'Tijuana',
-      '2': 'Mexicali',
-      '3': 'Ensenada',
-      '4': 'San Quintín',
-      '5': 'La Paz',
-    };
-    return ciudades[numero] ?? numero;
-  }
-
   Widget _buildTituloLista() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
+          Container(
+            width: 4,
+            height: 18,
+            decoration: BoxDecoration(
+              color: azul,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 8),
           const Text(
             'Resultados',
             style: TextStyle(
-              color: Colors.white,
+              color: textoPrincipal,
               fontSize: 15,
               fontWeight: FontWeight.bold,
             ),
           ),
           const Spacer(),
           if (!cargando)
-            Text(
-              '${viajes.length} encontrado(s)',
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: azul.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                '${viajes.length} encontrado(s)',
+                style: const TextStyle(
+                  color: azul,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
         ],
       ),
@@ -260,52 +294,55 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
 
   Widget _buildLista() {
     if (cargando) {
-      return const Center(
-        child: CircularProgressIndicator(color: Colors.white),
-      );
+      return const Center(child: CircularProgressIndicator(color: azul));
     }
     if (viajes.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(
+            Icon(
               Icons.search_off_rounded,
-              color: Colors.white54,
-              size: 60,
+              color: Colors.grey.shade300,
+              size: 70,
             ),
             const SizedBox(height: 16),
             const Text(
               'No hay viajes disponibles',
               style: TextStyle(
-                color: Colors.white,
+                color: textoPrincipal,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Intenta con otra fecha',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
+              style: TextStyle(color: textoSecundario, fontSize: 13),
             ),
-            const SizedBox(height: 20),
-            ElevatedButton(
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
               onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.arrow_back_rounded, size: 18),
+              label: const Text('Volver a buscar'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: azul,
+                backgroundColor: azul,
+                foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
               ),
-              child: const Text('Volver a buscar'),
             ),
           ],
         ),
       );
     }
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
       itemCount: viajes.length,
       itemBuilder: (context, index) => _buildViajeCard(viajes[index]),
     );
@@ -330,12 +367,12 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withOpacity(0.06),
             blurRadius: 8,
-            offset: const Offset(0, 3),
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -343,24 +380,24 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Fecha y lugares
+            // ── Fecha y disponibilidad ──────────────────────
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.calendar_today_outlined,
-                  size: 14,
-                  color: Colors.grey,
+                  size: 13,
+                  color: Colors.grey.shade400,
                 ),
                 const SizedBox(width: 4),
                 Text(
                   fecha,
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: textoSecundario),
                 ),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
+                    horizontal: 10,
+                    vertical: 4,
                   ),
                   decoration: BoxDecoration(
                     color: hayLugares
@@ -383,8 +420,8 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            // Horario
+            const SizedBox(height: 14),
+            // ── Horario ─────────────────────────────────────
             Row(
               children: [
                 Column(
@@ -393,13 +430,14 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
                     Text(
                       horaSalida,
                       style: const TextStyle(
-                        fontSize: 22,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
+                        color: textoPrincipal,
                       ),
                     ),
                     Text(
                       origen,
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: textoSecundario),
                     ),
                   ],
                 ),
@@ -412,29 +450,34 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
                           Expanded(
                             child: Container(
                               height: 1.5,
-                              color: Colors.grey.shade300,
+                              color: Colors.grey.shade200,
                             ),
                           ),
-                          const Icon(
-                            Icons.directions_bus_rounded,
-                            color: azul,
-                            size: 20,
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: azul.withOpacity(0.08),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.directions_bus_rounded,
+                              color: azul,
+                              size: 18,
+                            ),
                           ),
                           Expanded(
                             child: Container(
                               height: 1.5,
-                              color: Colors.grey.shade300,
+                              color: Colors.grey.shade200,
                             ),
                           ),
                           const SizedBox(width: 8),
                         ],
                       ),
+                      const SizedBox(height: 4),
                       Text(
                         duracion,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey,
-                        ),
+                        style: TextStyle(fontSize: 11, color: textoSecundario),
                       ),
                     ],
                   ),
@@ -445,22 +488,23 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
                     Text(
                       horaLlegada,
                       style: const TextStyle(
-                        fontSize: 22,
+                        fontSize: 24,
                         fontWeight: FontWeight.bold,
+                        color: textoPrincipal,
                       ),
                     ),
                     Text(
                       destino,
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: textoSecundario),
                     ),
                   ],
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            const SizedBox(height: 12),
-            // Precio y botón
+            const SizedBox(height: 14),
+            Divider(height: 1, color: Colors.grey.shade100),
+            const SizedBox(height: 14),
+            // ── Precio y botón ───────────────────────────────
             Row(
               children: [
                 Column(
@@ -476,7 +520,7 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
                     ),
                     Text(
                       '$totalPasajeros pasajero(s) × \$$precio',
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      style: TextStyle(fontSize: 11, color: textoSecundario),
                     ),
                   ],
                 ),
@@ -496,6 +540,7 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
                                 precio: ruta['precio'],
                                 vendedorId: widget.vendedorId,
                                 correoCliente: widget.correoCliente,
+                                tipoUsuario: widget.tipoUsuario, // ← esta línea
                               ),
                             ),
                           );
@@ -504,14 +549,16 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: naranja,
                     foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.grey.shade300,
+                    disabledBackgroundColor: Colors.grey.shade200,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 20,
-                      vertical: 10,
+                      vertical: 12,
                     ),
+                    elevation: 2,
+                    shadowColor: naranja.withOpacity(0.3),
                   ),
                   child: const Text(
                     'Seleccionar',

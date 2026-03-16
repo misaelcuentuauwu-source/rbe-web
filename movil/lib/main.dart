@@ -6,6 +6,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
 import 'screens/taquillero/home_screen.dart';
 import 'screens/shared/seat_selection_screen.dart';
+import 'screens/invitado/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -280,7 +281,12 @@ class HomeScreen extends StatelessWidget {
         SizedBox(
           width: double.infinity,
           child: TextButton(
-            onPressed: () {},
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HomeInvitadoScreen()),
+              );
+            },
             child: const Text(
               'Entrar como invitado',
               style: TextStyle(

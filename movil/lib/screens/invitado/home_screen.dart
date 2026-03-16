@@ -1,38 +1,26 @@
 import 'package:flutter/material.dart';
 import '../shared/inicio_screen.dart';
-import 'perfil_cliente_screen.dart';
-import 'historial_cliente_screen.dart';
+import '../shared/buscar_boleto_screen.dart';
+import 'perfil_invitado_screen.dart';
 
-class HomeClienteScreen extends StatefulWidget {
-  final Map<String, dynamic> cliente;
-
-  const HomeClienteScreen({super.key, required this.cliente});
+class HomeInvitadoScreen extends StatefulWidget {
+  const HomeInvitadoScreen({super.key});
 
   @override
-  State<HomeClienteScreen> createState() => _HomeClienteScreenState();
+  State<HomeInvitadoScreen> createState() => _HomeInvitadoScreenState();
 }
 
-class _HomeClienteScreenState extends State<HomeClienteScreen> {
+class _HomeInvitadoScreenState extends State<HomeInvitadoScreen> {
   static const naranja = Color(0xFFE9713A);
   static const fondo = Color(0xFFF4F6F9);
 
   int _tabActual = 0;
 
-  late final List<Widget> _tabs;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabs = [
-      InicioScreen(
-        clienteId: widget.cliente['pasajero_num'],
-        correoCliente: widget.cliente['correo'],
-        tipoUsuario: 'cliente',
-      ),
-      HistorialClienteScreen(clienteId: widget.cliente['pasajero_num']),
-      PerfilClienteScreen(cliente: widget.cliente),
-    ];
-  }
+  final List<Widget> _tabs = const [
+    InicioScreen(tipoUsuario: 'invitado'),
+    BuscarBoletoScreen(tipoUsuario: 'invitado'),
+    PerfilInvitadoScreen(),
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +55,7 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
               items: const [
                 BottomNavigationBarItem(
                   icon: Icon(Icons.search_rounded),
-                  label: 'Inicio',
+                  label: 'Buscar viaje',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.confirmation_number_outlined),

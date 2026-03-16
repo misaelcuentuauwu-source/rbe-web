@@ -14,6 +14,7 @@ class SeatSelectionScreen extends StatefulWidget {
   final String horaSalida;
   final double precioPorPasajero;
   final int vendedorId;
+  final String tipoUsuario;
 
   const SeatSelectionScreen({
     super.key,
@@ -24,6 +25,7 @@ class SeatSelectionScreen extends StatefulWidget {
     required this.horaSalida,
     required this.precioPorPasajero,
     required this.vendedorId,
+    this.tipoUsuario = 'invitado',
   });
 
   @override
@@ -402,6 +404,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen> {
                         horaSalida: widget.horaSalida,
                         montoTotal: montoTotal,
                         vendedorId: widget.vendedorId,
+                        tipoUsuario: widget.tipoUsuario, // ← agregar
                       ),
                     ),
                   );

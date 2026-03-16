@@ -9,12 +9,14 @@ class InicioScreen extends StatefulWidget {
   final int? vendedorId;
   final int? clienteId;
   final String? correoCliente;
+  final String tipoUsuario;
 
   const InicioScreen({
     super.key,
     this.vendedorId,
     this.clienteId,
     this.correoCliente,
+    this.tipoUsuario = 'invitado',
   });
 
   @override
@@ -161,6 +163,7 @@ class _InicioScreenState extends State<InicioScreen> {
           },
           vendedorId: widget.vendedorId ?? widget.clienteId ?? 0,
           correoCliente: widget.correoCliente,
+          tipoUsuario: widget.tipoUsuario,
         ),
       ),
     );

@@ -5,7 +5,9 @@ import 'package:http/http.dart' as http;
 import '../../config.dart';
 
 class BuscarBoletoScreen extends StatefulWidget {
-  const BuscarBoletoScreen({super.key});
+  final String tipoUsuario;
+
+  const BuscarBoletoScreen({super.key, this.tipoUsuario = 'taquillero'});
 
   @override
   State<BuscarBoletoScreen> createState() => _BuscarBoletoScreenState();
@@ -91,6 +93,12 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Si es invitado, mostrar pantalla de instrucciones
+    if (widget.tipoUsuario == 'invitado') {
+      return _buildInvitado();
+    }
+
+    // Taquillero: pantalla normal de búsqueda
     return Scaffold(
       backgroundColor: fondo,
       body: SafeArea(
@@ -109,6 +117,240 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
       ),
     );
   }
+
+  // ── Pantalla invitado ──────────────────────────────────────────────────────
+
+  Widget _buildInvitado() {
+    return Scaffold(
+      backgroundColor: fondo,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+              decoration: BoxDecoration(
+                color: azul,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Icon(
+                      Icons.confirmation_number_outlined,
+                      color: Colors.white,
+                      size: 26,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Mis boletos',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        'Modo invitado',
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            // Contenido
+            Expanded(
+              child: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 24),
+                      // Ícono
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: azul.withOpacity(0.08),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.badge_outlined,
+                          color: azul,
+                          size: 56,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Título
+                      const Text(
+                        '¿Cómo recuperar tus boletos?',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: textoPrincipal,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Descripción
+                      const Text(
+                        'Como usuario invitado, no es posible consultar tus boletos desde la app.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: textoSecundario,
+                          height: 1.5,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Pasos
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          children: [
+                            _buildPaso(
+                              numero: '1',
+                              texto:
+                                  'Dirígete a cualquier taquilla de Rutas Baja Express.',
+                            ),
+                            const SizedBox(height: 16),
+                            _buildPaso(
+                              numero: '2',
+                              texto:
+                                  'Presenta tu identificación oficial al taquillero.',
+                            ),
+                            const SizedBox(height: 16),
+                            _buildPaso(
+                              numero: '3',
+                              texto:
+                                  'El taquillero buscará y te entregará tus boletos.',
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Nota naranja
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: naranja.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: naranja.withOpacity(0.3),
+                            width: 1,
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              color: naranja,
+                              size: 20,
+                            ),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'Crea una cuenta para acceder a tus boletos en cualquier momento.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: naranja,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaso({required String numero, required String texto}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: const BoxDecoration(
+            color: azul,
+            shape: BoxShape.circle,
+          ),
+          child: Center(
+            child: Text(
+              numero,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(
+              texto,
+              style: const TextStyle(
+                fontSize: 14,
+                color: textoPrincipal,
+                height: 1.4,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Pantalla taquillero ────────────────────────────────────────────────────
 
   Widget _buildHeader() {
     return Container(
@@ -251,11 +493,8 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.search_off_rounded,
-              color: Colors.grey.shade300,
-              size: 60,
-            ),
+            Icon(Icons.search_off_rounded,
+                color: Colors.grey.shade300, size: 60),
             const SizedBox(height: 16),
             Text(
               error!,
@@ -280,11 +519,8 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.confirmation_number_outlined,
-              color: Colors.grey.shade300,
-              size: 60,
-            ),
+            Icon(Icons.confirmation_number_outlined,
+                color: Colors.grey.shade300, size: 60),
             const SizedBox(height: 16),
             Text(
               'Ingresa un folio para buscar',
@@ -305,8 +541,8 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
     final viaje = boleto!['viaje'] as Map<String, dynamic>;
     final tickets = boleto!['tickets'] as List;
     final esTarjeta = boleto!['metodo_pago'].toString().toLowerCase().contains(
-      'tarjeta',
-    );
+          'tarjeta',
+        );
 
     return Container(
       decoration: BoxDecoration(
@@ -384,11 +620,8 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                               color: Colors.grey.shade200,
                             ),
                           ),
-                          const Icon(
-                            Icons.directions_bus_rounded,
-                            color: azul,
-                            size: 20,
-                          ),
+                          const Icon(Icons.directions_bus_rounded,
+                              color: azul, size: 20),
                           Expanded(
                             child: Container(
                               height: 1.5,
@@ -400,7 +633,8 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                       ),
                       Text(
                         viaje['duracion'],
-                        style: TextStyle(fontSize: 11, color: textoSecundario),
+                        style:
+                            TextStyle(fontSize: 11, color: textoSecundario),
                       ),
                     ],
                   ),
@@ -564,7 +798,8 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: const Text('Próximamente: impresión de boletos'),
+                      content:
+                          const Text('Próximamente: impresión de boletos'),
                       backgroundColor: azul,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(
