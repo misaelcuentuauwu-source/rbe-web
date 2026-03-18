@@ -18,9 +18,9 @@ echo "🔐 Ajustando permisos de la base de datos..."
 sudo chown -R root:root /opt/lampp/var/mysql
 sudo chmod -R 777 /opt/lampp/var/mysql
 
-# 4. Arrancar XAMPP
-echo "🐘 Arrancando XAMPP..."
-sudo /opt/lampp/lampp start
+# 4. Arrancar MySQL de XAMPP
+echo "🐘 Arrancando MySQL de XAMPP..."
+sudo /opt/lampp/lampp startmysql
 
 # 5. Configurar el entorno virtual de Python
 echo "🐍 Reconstruyendo entorno virtual..."
@@ -35,4 +35,5 @@ echo "📦 Instalando requerimientos..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
-echo "¡Todo listo! Ahora intenta: python manage.py runserver"
+echo "✅ ¡Todo listo, Rodavlas! Ahora intenta: python manage.py runserver 0.0.0.0:8000"
+echo "Recuerda si usaras movil cambiar el config.dart con la ip static const String baseUrl = 'http://10.42.0.1:8000';"

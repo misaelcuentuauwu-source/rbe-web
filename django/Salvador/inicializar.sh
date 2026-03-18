@@ -35,4 +35,5 @@ echo "📦 Instalando requerimientos..."
 pip install --upgrade pip
 pip install -r requirements.txt
 
-echo "✅ ¡Todo listo, Rodavlas! Ahora intenta: python manage.py runserver"
+echo "✅ ¡Todo listo, Rodavlas! Ahora intenta: python manage.py runserver 0.0.0.0:8000"
+echo "Recuerda si usaras movil cambiar el config.dart con la ip static const String baseUrl = 'http://10.42.0.1:8000';"
