@@ -18,9 +18,9 @@ echo "🔐 Ajustando permisos de la base de datos..."
 sudo chown -R root:root /opt/lampp/var/mysql
 sudo chmod -R 777 /opt/lampp/var/mysql
 
-# 4. Arrancar MySQL de XAMPP
-echo "🐘 Arrancando MySQL de XAMPP..."
-sudo /opt/lampp/lampp startmysql
+# 4. Arrancar XAMPP
+echo "🐘 Arrancando XAMPP..."
+sudo /opt/lampp/lampp start
 
 # 5. Configurar el entorno virtual de Python
 echo "🐍 Reconstruyendo entorno virtual..."
