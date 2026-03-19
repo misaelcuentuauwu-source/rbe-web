@@ -20,13 +20,31 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
   static const textoSecundario = Color(0xFF6B8FA8);
 
   List<dynamic> historial = [];
+  List<dynamic> historialFiltrado = [];
   bool cargando = true;
   String? error;
+
+  // Filtros
+  DateTime? fechaDesde;
+  DateTime? fechaHasta;
+  String? origenFiltro;
+  String? destinoFiltro;
+  bool mostrarFiltros = false;
+
+  final TextEditingController _origenController = TextEditingController();
+  final TextEditingController _destinoController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     cargarHistorial();
+  }
+
+  @override
+  void dispose() {
+    _origenController.dispose();
+    _destinoController.dispose();
+    super.dispose();
   }
 
   Future<void> cargarHistorial() async {
@@ -41,6 +59,7 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
       if (response.statusCode == 200) {
         setState(() {
           historial = jsonDecode(response.body);
+          historialFiltrado = List.from(historial);
           cargando = false;
         });
       } else {
@@ -57,6 +76,97 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
     }
   }
 
+  void aplicarFiltros() {
+    setState(() {
+      historialFiltrado = historial.where((item) {
+        // Filtro por fecha desde
+        if (fechaDesde != null) {
+          final fechaItem = DateTime.tryParse(item['fecha'].toString());
+          if (fechaItem == null || fechaItem.isBefore(fechaDesde!))
+            return false;
+        }
+        // Filtro por fecha hasta
+        if (fechaHasta != null) {
+          final fechaItem = DateTime.tryParse(item['fecha'].toString());
+          final fechaHastaFin = DateTime(
+            fechaHasta!.year,
+            fechaHasta!.month,
+            fechaHasta!.day,
+            23,
+            59,
+            59,
+          );
+          if (fechaItem == null || fechaItem.isAfter(fechaHastaFin))
+            return false;
+        }
+        // Filtro por origen
+        if (origenFiltro != null && origenFiltro!.isNotEmpty) {
+          if (!item['origen'].toString().toLowerCase().contains(
+            origenFiltro!.toLowerCase(),
+          ))
+            return false;
+        }
+        // Filtro por destino
+        if (destinoFiltro != null && destinoFiltro!.isNotEmpty) {
+          if (!item['destino'].toString().toLowerCase().contains(
+            destinoFiltro!.toLowerCase(),
+          ))
+            return false;
+        }
+        return true;
+      }).toList();
+    });
+  }
+
+  void limpiarFiltros() {
+    setState(() {
+      fechaDesde = null;
+      fechaHasta = null;
+      origenFiltro = null;
+      destinoFiltro = null;
+      _origenController.clear();
+      _destinoController.clear();
+      historialFiltrado = List.from(historial);
+    });
+  }
+
+  bool get hayFiltrosActivos =>
+      fechaDesde != null ||
+      fechaHasta != null ||
+      (origenFiltro != null && origenFiltro!.isNotEmpty) ||
+      (destinoFiltro != null && destinoFiltro!.isNotEmpty);
+
+  Future<void> seleccionarFecha(BuildContext context, bool esDesde) async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(
+            context,
+          ).copyWith(colorScheme: const ColorScheme.light(primary: azul)),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        if (esDesde) {
+          fechaDesde = picked;
+        } else {
+          fechaHasta = picked;
+        }
+      });
+      aplicarFiltros();
+    }
+  }
+
+  String _formatFecha(DateTime fecha) {
+    return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -65,6 +175,8 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
         child: Column(
           children: [
             _buildHeader(),
+            if (mostrarFiltros) _buildPanelFiltros(),
+            if (hayFiltrosActivos) _buildChipsFiltros(),
             Expanded(child: _buildContenido()),
           ],
         ),
@@ -110,6 +222,256 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
               ),
             ],
           ),
+          const Spacer(),
+          // Botón filtros
+          GestureDetector(
+            onTap: () => setState(() => mostrarFiltros = !mostrarFiltros),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: mostrarFiltros
+                    ? Colors.white
+                    : Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.tune_rounded,
+                    size: 16,
+                    color: mostrarFiltros ? azul : Colors.white,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Filtros',
+                    style: TextStyle(
+                      color: mostrarFiltros ? azul : Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (hayFiltrosActivos) ...[
+                    const SizedBox(width: 4),
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: naranja,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPanelFiltros() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Fecha desde - hasta
+          Row(
+            children: [
+              Expanded(
+                child: _buildBotonFecha(
+                  label: 'Desde',
+                  fecha: fechaDesde,
+                  onTap: () => seleccionarFecha(context, true),
+                  onClear: fechaDesde != null
+                      ? () {
+                          setState(() => fechaDesde = null);
+                          aplicarFiltros();
+                        }
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _buildBotonFecha(
+                  label: 'Hasta',
+                  fecha: fechaHasta,
+                  onTap: () => seleccionarFecha(context, false),
+                  onClear: fechaHasta != null
+                      ? () {
+                          setState(() => fechaHasta = null);
+                          aplicarFiltros();
+                        }
+                      : null,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          // Origen
+          TextField(
+            controller: _origenController,
+            decoration: InputDecoration(
+              hintText: 'Ciudad de origen',
+              hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+              prefixIcon: const Icon(
+                Icons.trip_origin_rounded,
+                color: azul,
+                size: 18,
+              ),
+              suffixIcon: origenFiltro != null && origenFiltro!.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close, size: 16),
+                      onPressed: () {
+                        _origenController.clear();
+                        setState(() => origenFiltro = null);
+                        aplicarFiltros();
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: fondo,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+            style: const TextStyle(fontSize: 13),
+            onChanged: (val) {
+              setState(() => origenFiltro = val);
+              aplicarFiltros();
+            },
+          ),
+          const SizedBox(height: 8),
+          // Destino
+          TextField(
+            controller: _destinoController,
+            decoration: InputDecoration(
+              hintText: 'Ciudad de destino',
+              hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
+              prefixIcon: const Icon(
+                Icons.location_on_rounded,
+                color: naranja,
+                size: 18,
+              ),
+              suffixIcon: destinoFiltro != null && destinoFiltro!.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.close, size: 16),
+                      onPressed: () {
+                        _destinoController.clear();
+                        setState(() => destinoFiltro = null);
+                        aplicarFiltros();
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: fondo,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+            ),
+            style: const TextStyle(fontSize: 13),
+            onChanged: (val) {
+              setState(() => destinoFiltro = val);
+              aplicarFiltros();
+            },
+          ),
+          const SizedBox(height: 10),
+          // Botón limpiar
+          if (hayFiltrosActivos)
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: limpiarFiltros,
+                icon: const Icon(Icons.clear_all_rounded, size: 18),
+                label: const Text('Limpiar filtros'),
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.grey.shade600,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBotonFecha({
+    required String label,
+    required DateTime? fecha,
+    required VoidCallback onTap,
+    VoidCallback? onClear,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: fondo,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: fecha != null ? azul : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 15,
+              color: fecha != null ? azul : Colors.grey,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                fecha != null ? _formatFecha(fecha) : label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: fecha != null ? textoPrincipal : Colors.grey,
+                  fontWeight: fecha != null
+                      ? FontWeight.w600
+                      : FontWeight.normal,
+                ),
+              ),
+            ),
+            if (onClear != null)
+              GestureDetector(
+                onTap: onClear,
+                child: const Icon(Icons.close, size: 14, color: Colors.grey),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildChipsFiltros() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: [
+          Text(
+            '${historialFiltrado.length} resultado(s)',
+            style: const TextStyle(fontSize: 12, color: textoSecundario),
+          ),
+          const Spacer(),
+          if (hayFiltrosActivos)
+            GestureDetector(
+              onTap: limpiarFiltros,
+              child: const Text(
+                'Limpiar todo',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: azul,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -150,12 +512,41 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
         ),
       );
     }
+    if (historialFiltrado.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.search_off_rounded,
+              color: Colors.grey.shade300,
+              size: 60,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Sin resultados para los filtros aplicados',
+              style: TextStyle(color: textoSecundario, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: limpiarFiltros,
+              child: const Text(
+                'Limpiar filtros',
+                style: TextStyle(color: azul),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return RefreshIndicator(
       onRefresh: cargarHistorial,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
-        itemCount: historial.length,
-        itemBuilder: (context, index) => _buildTarjeta(historial[index]),
+        itemCount: historialFiltrado.length,
+        itemBuilder: (context, index) =>
+            _buildTarjeta(historialFiltrado[index]),
       ),
     );
   }
@@ -178,7 +569,6 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Folio y monto
           Row(
             children: [
               Container(
@@ -211,8 +601,6 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
             ],
           ),
           const SizedBox(height: 12),
-
-          // Ruta
           Row(
             children: [
               const Icon(Icons.trip_origin_rounded, color: azul, size: 14),
@@ -243,8 +631,6 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
             ],
           ),
           const SizedBox(height: 8),
-
-          // Fecha y pasajeros
           Row(
             children: [
               Icon(
@@ -267,8 +653,6 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
             ],
           ),
           const SizedBox(height: 12),
-
-          // Botón reimprimir (no funcional por ahora)
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(

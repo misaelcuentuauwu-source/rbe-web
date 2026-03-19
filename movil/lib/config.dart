@@ -4,5 +4,5 @@ class Config {
   // static const String baseUrl = 'http://10.0.2.2:8000';
 
   // Dispositivo físico → tu IP local ej. '192.168.1.X'
-  static const String baseUrl = 'http://192.168.1.11:8000';
+  static const String baseUrl = 'http://192.168.1.6:8000';
 }
