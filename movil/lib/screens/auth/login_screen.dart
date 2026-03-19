@@ -33,7 +33,6 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  // ── Login taquillero (usuario/contraseña) ──────────────────
   Future<void> _login() async {
     final usuario = _usuarioController.text.trim();
     final contrasena = _contrasenaController.text.trim();
@@ -46,7 +45,8 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _cargando = true);
 
     try {
-      final response = await http
+      // Paso 1: intentar login como taquillero
+      final responseTaquillero = await http
           .post(
             Uri.parse('${Config.baseUrl}/api/login/'),
             headers: {'Content-Type': 'application/json'},
@@ -54,20 +54,76 @@ class _LoginScreenState extends State<LoginScreen> {
           )
           .timeout(const Duration(seconds: 10));
 
-      final data = jsonDecode(response.body);
+      final dataTaquillero = jsonDecode(responseTaquillero.body);
 
-      if (response.statusCode == 200 && data['tipo'] == 'taquillero') {
+      if (responseTaquillero.statusCode == 200 &&
+          dataTaquillero['tipo'] == 'taquillero') {
         if (mounted) {
           Navigator.pushAndRemoveUntil(
             context,
             MaterialPageRoute(
-              builder: (_) => HomeNavigationScreen(taquillero: data),
+              builder: (_) => HomeNavigationScreen(taquillero: dataTaquillero),
             ),
             (route) => false,
           );
         }
+        return;
+      }
+
+      // Paso 2: si no es taquillero, intentar login como cliente con Firebase
+      // El campo "usuario" en este caso debe ser un correo electrónico
+      final emailRegex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$');
+      if (!emailRegex.hasMatch(usuario)) {
+        _mostrarError('Credenciales incorrectas');
+        return;
+      }
+
+      // Autenticar con Firebase
+      final userCredential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: usuario, password: contrasena);
+
+      final firebaseUser = userCredential.user;
+      if (firebaseUser == null) {
+        _mostrarError('Error al iniciar sesión');
+        return;
+      }
+
+      // Obtener datos del cliente desde el backend
+      final responseCliente = await http
+          .post(
+            Uri.parse('${Config.baseUrl}/api/cliente/login/'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'firebase_uid': firebaseUser.uid,
+              'correo': firebaseUser.email,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      final dataCliente = jsonDecode(responseCliente.body);
+
+      if (responseCliente.statusCode == 200 && mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (_) => HomeClienteScreen(cliente: dataCliente),
+          ),
+          (route) => false,
+        );
       } else {
-        _mostrarError(data['error'] ?? 'Credenciales incorrectas');
+        _mostrarError(dataCliente['error'] ?? 'Error al iniciar sesión');
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found' ||
+          e.code == 'wrong-password' ||
+          e.code == 'invalid-credential') {
+        _mostrarError('Correo o contraseña incorrectos');
+      } else if (e.code == 'too-many-requests') {
+        _mostrarError('Demasiados intentos. Intenta más tarde.');
+      } else if (e.code == 'user-disabled') {
+        _mostrarError('Esta cuenta ha sido deshabilitada.');
+      } else {
+        _mostrarError('Error: ${e.message}');
       }
     } catch (e) {
       _mostrarError('Error de conexión');
@@ -137,7 +193,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _loginConFacebook() async {
     setState(() => _cargandoFacebook = true);
     try {
-      // Cerrar sesión previa para forzar selector de cuenta
       await FacebookAuth.instance.logOut();
 
       final LoginResult result = await FacebookAuth.instance.login(
@@ -154,7 +209,6 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Obtener credencial de Firebase con el token de Facebook
       final OAuthCredential credential = FacebookAuthProvider.credential(
         result.accessToken!.tokenString,
       );
@@ -165,7 +219,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final user = userCredential.user;
 
       if (user != null && mounted) {
-        // Mandar datos a Django igual que con Google
         final response = await http
             .post(
               Uri.parse('${Config.baseUrl}/api/cliente/google-login/'),
@@ -262,8 +315,8 @@ class _LoginScreenState extends State<LoginScreen> {
           const SizedBox(height: 24),
           _buildInput(
             controller: _usuarioController,
-            label: 'Usuario',
-            hint: 'tu_usuario',
+            label: 'Usuario o correo',
+            hint: 'tu_usuario o correo@ejemplo.com',
             icon: Icons.person_outline,
           ),
           const SizedBox(height: 16),
@@ -275,7 +328,6 @@ class _LoginScreenState extends State<LoginScreen> {
             isPassword: true,
           ),
           const SizedBox(height: 28),
-          // Botón iniciar sesión
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -308,7 +360,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          // Divisor
           Row(
             children: [
               Expanded(child: Divider(color: Colors.grey.shade300)),
@@ -323,7 +374,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          // Botón Google
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -364,7 +414,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ),
           const SizedBox(height: 12),
-          // Botón Facebook
           SizedBox(
             width: double.infinity,
             height: 48,

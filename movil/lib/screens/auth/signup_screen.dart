@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../config.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -10,9 +14,10 @@ class SignupScreen extends StatefulWidget {
 class _SignupScreenState extends State<SignupScreen> {
   final _nombreController = TextEditingController();
   final _apellidoController = TextEditingController();
-  final _usuarioController = TextEditingController();
+  final _correoController = TextEditingController();
   final _contrasenaController = TextEditingController();
   bool _obscurePassword = true;
+  bool _cargando = false;
 
   static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
@@ -21,9 +26,110 @@ class _SignupScreenState extends State<SignupScreen> {
   void dispose() {
     _nombreController.dispose();
     _apellidoController.dispose();
-    _usuarioController.dispose();
+    _correoController.dispose();
     _contrasenaController.dispose();
     super.dispose();
+  }
+
+  void _mostrarError(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: Colors.red.shade400,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  void _mostrarExito(String mensaje) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje),
+        backgroundColor: Colors.green.shade400,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  Future<void> _registrarse() async {
+    final nombre = _nombreController.text.trim();
+    final apellido = _apellidoController.text.trim();
+    final correo = _correoController.text.trim();
+    final contrasena = _contrasenaController.text.trim();
+
+    if (nombre.isEmpty ||
+        apellido.isEmpty ||
+        correo.isEmpty ||
+        contrasena.isEmpty) {
+      _mostrarError('Completa todos los campos');
+      return;
+    }
+
+    final emailRegex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$');
+    if (!emailRegex.hasMatch(correo)) {
+      _mostrarError('Ingresa un correo electrónico válido');
+      return;
+    }
+
+    if (contrasena.length < 6) {
+      _mostrarError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+
+    setState(() => _cargando = true);
+
+    try {
+      // Primero crear en Firebase Auth
+      // Si el correo ya existe (con Google, Facebook o correo) lanza excepción
+      final userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: correo, password: contrasena);
+
+      // Si Firebase pasó, registrar en el backend
+      final response = await http
+          .post(
+            Uri.parse('${Config.baseUrl}/api/cliente/registro/'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'nombre': nombre,
+              'apellido': apellido,
+              'correo': correo,
+              'contrasena': contrasena,
+              'firebase_uid': userCredential.user?.uid ?? '',
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        if (mounted) {
+          _mostrarExito('Cuenta creada exitosamente');
+          Navigator.pop(context);
+        }
+      } else {
+        // Si el backend falló eliminar el usuario de Firebase
+        await userCredential.user?.delete();
+        _mostrarError(data['error'] ?? 'Error al registrarse');
+      }
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'email-already-in-use') {
+        _mostrarError(
+          'Este correo ya está registrado. Inicia sesión o usa Google/Facebook.',
+        );
+      } else if (e.code == 'weak-password') {
+        _mostrarError('La contraseña debe tener al menos 6 caracteres.');
+      } else if (e.code == 'invalid-email') {
+        _mostrarError('El formato del correo no es válido.');
+      } else {
+        _mostrarError('Error: ${e.message}');
+      }
+    } catch (e) {
+      _mostrarError('Error de conexión');
+    } finally {
+      if (mounted) setState(() => _cargando = false);
+    }
   }
 
   @override
@@ -87,10 +193,11 @@ class _SignupScreenState extends State<SignupScreen> {
           ),
           const SizedBox(height: 16),
           _buildInput(
-            controller: _usuarioController,
-            label: 'Usuario',
-            hint: 'm.garcia',
-            icon: Icons.alternate_email,
+            controller: _correoController,
+            label: 'Correo',
+            hint: 'm.garcia@correo.com',
+            icon: Icons.email_outlined,
+            keyboardType: TextInputType.emailAddress,
           ),
           const SizedBox(height: 16),
           _buildInput(
@@ -105,18 +212,31 @@ class _SignupScreenState extends State<SignupScreen> {
             width: double.infinity,
             height: 48,
             child: ElevatedButton(
-              onPressed: () {},
+              onPressed: _cargando ? null : _registrarse,
               style: ElevatedButton.styleFrom(
                 backgroundColor: naranja,
                 foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade300,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
               ),
-              child: const Text(
-                'REGISTRARSE',
-                style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
-              ),
+              child: _cargando
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2.5,
+                      ),
+                    )
+                  : const Text(
+                      'REGISTRARSE',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(height: 16),
@@ -131,6 +251,7 @@ class _SignupScreenState extends State<SignupScreen> {
     required String hint,
     required IconData icon,
     bool isPassword = false,
+    TextInputType keyboardType = TextInputType.text,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,6 +269,7 @@ class _SignupScreenState extends State<SignupScreen> {
         TextField(
           controller: controller,
           obscureText: isPassword ? _obscurePassword : false,
+          keyboardType: keyboardType,
           style: const TextStyle(color: Color(0xFF1C2D3A)),
           decoration: InputDecoration(
             hintText: hint,

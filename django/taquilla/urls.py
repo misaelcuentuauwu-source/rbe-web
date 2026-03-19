@@ -40,6 +40,9 @@ urlpatterns = [
     path('api/viajes/',              views.api_viajes,             name='api_viajes'),
     path('api/viajes/<int:id>/',     views.api_viaje_detalle,      name='api_viaje_detalle'),
     path('api/terminales/',          views.api_terminales,         name='api_terminales'),
+    path('api/cliente/registro/',      views.api_cliente_registro,   name='api_cliente_registro'),
+path('api/cliente/google-login/',  views.api_cliente_google_login, name='api_cliente_google_login'),
+path('api/cliente/login/', views.api_cliente_login_email, name='api_cliente_login_email'),
     # Detalle autobus y pasajeros (usados desde panel_admin.html)
     path('api/autobus/detalle/<int:bus_id>/',   views.autobus_detalle, name='autobus_detalle'),
     path('api/viaje/pasajeros/<int:viaje_id>/', views.viaje_pasajeros, name='viaje_pasajeros'),

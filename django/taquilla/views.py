@@ -972,3 +972,83 @@ def api_historial_taquillero(request, vendedor_id):
         return Response(resultado)
     except Exception as e:
         return Response({'error': str(e)}, status=400)
+    
+@api_view(['POST'])
+def api_cliente_registro(request):
+    try:
+        data = request.data
+        firebase_uid = data.get('firebase_uid', '')
+        correo = data.get('correo', '')
+        nombre = data.get('nombre', '')
+        apellido = data.get('apellido', '')
+        contrasena = data.get('contrasena', '')
+
+        if not correo or not nombre or not apellido:
+            return Response({'error': 'Faltan campos obligatorios'}, status=400)
+
+        # Verificar si el correo ya existe en CuentaPasajero
+        # (cubre tanto registro manual como registro previo con Google/Facebook)
+        if CuentaPasajero.objects.filter(correo=correo).exists():
+            return Response({'error': 'Este correo ya está registrado'}, status=400)
+
+        # Crear el pasajero
+        pasajero = Pasajero.objects.create(
+            panombre=nombre,
+            paprimerapell=apellido,
+            fechanacimiento='2000-01-01',
+        )
+
+        # Crear la cuenta
+        cuenta = CuentaPasajero.objects.create(
+            pasajero_num=pasajero,
+            correo=correo,
+            firebase_uid=firebase_uid,
+            proveedor='email',
+            foto='',
+        )
+
+        return Response({
+            'tipo': 'cliente',
+            'pasajero_num': pasajero.num,
+            'nombre': pasajero.panombre,
+            'primer_apellido': pasajero.paprimerapell,
+            'correo': cuenta.correo,
+            'foto': '',
+            'proveedor': 'email',
+        }, status=201)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['POST'])
+def api_cliente_login_email(request):
+    try:
+        firebase_uid = request.data.get('firebase_uid')
+        correo = request.data.get('correo')
+
+        cuenta = None
+        if firebase_uid:
+            cuenta = CuentaPasajero.objects.filter(firebase_uid=firebase_uid).first()
+        if not cuenta and correo:
+            cuenta = CuentaPasajero.objects.filter(correo=correo).first()
+
+        if not cuenta:
+            return Response({'error': 'Usuario no encontrado'}, status=404)
+
+        # Actualizar firebase_uid si se registró antes sin él
+        if firebase_uid and not cuenta.firebase_uid:
+            cuenta.firebase_uid = firebase_uid
+            cuenta.save()
+
+        return Response({
+            'tipo': 'cliente',
+            'pasajero_num': cuenta.pasajero_num.num,
+            'nombre': cuenta.pasajero_num.panombre,
+            'primer_apellido': cuenta.pasajero_num.paprimerapell,
+            'correo': cuenta.correo,
+            'foto': cuenta.foto or '',
+            'proveedor': cuenta.proveedor,
+        })
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
