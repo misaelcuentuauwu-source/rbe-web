@@ -14,6 +14,7 @@ class PagoScreen extends StatefulWidget {
   final double montoTotal;
   final int vendedorId;
   final String tipoUsuario;
+  final Map<String, dynamic>? datosUsuario;
 
   const PagoScreen({
     super.key,
@@ -25,6 +26,7 @@ class PagoScreen extends StatefulWidget {
     required this.montoTotal,
     required this.vendedorId,
     this.tipoUsuario = 'invitado',
+    this.datosUsuario,
   });
 
   @override
@@ -117,6 +119,8 @@ class _PagoScreenState extends State<PagoScreen> {
                 montoTotal: widget.montoTotal,
                 pasajeros: widget.pasajeros,
                 metodoPago: metodoPago,
+                tipoUsuario: widget.tipoUsuario,
+                datosUsuario: widget.datosUsuario,
               ),
             ),
           );

@@ -28,6 +28,7 @@ class _HomeClienteScreenState extends State<HomeClienteScreen> {
         clienteId: widget.cliente['pasajero_num'],
         correoCliente: widget.cliente['correo'],
         tipoUsuario: 'cliente',
+        datosUsuario: widget.cliente,
       ),
       HistorialClienteScreen(clienteId: widget.cliente['pasajero_num']),
       PerfilClienteScreen(cliente: widget.cliente),

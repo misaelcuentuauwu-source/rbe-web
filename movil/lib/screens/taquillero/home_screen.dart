@@ -28,9 +28,10 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen> {
       InicioScreen(
         vendedorId: widget.taquillero['registro'],
         tipoUsuario: 'taquillero',
+        datosUsuario: widget.taquillero,
       ),
       HistorialScreen(vendedorId: widget.taquillero['registro']),
-      const BuscarBoletoScreen(),
+      BuscarBoletoScreen(),
       PerfilScreen(taquillero: widget.taquillero),
     ];
   }

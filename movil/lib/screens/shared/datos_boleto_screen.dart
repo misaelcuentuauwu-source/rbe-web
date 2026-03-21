@@ -15,6 +15,7 @@ class DatosBoletoScreen extends StatefulWidget {
   final int vendedorId;
   final String? correoCliente;
   final String tipoUsuario;
+  final Map<String, dynamic>? datosUsuario;
 
   const DatosBoletoScreen({
     super.key,
@@ -27,6 +28,7 @@ class DatosBoletoScreen extends StatefulWidget {
     required this.vendedorId,
     this.correoCliente,
     this.tipoUsuario = 'invitado',
+    this.datosUsuario,
   });
 
   @override
@@ -211,6 +213,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
             precioPorPasajero: double.parse(widget.precio),
             vendedorId: widget.vendedorId,
             tipoUsuario: widget.tipoUsuario,
+            datosUsuario: widget.datosUsuario,
           ),
         ),
       );

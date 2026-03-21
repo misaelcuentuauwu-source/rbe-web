@@ -548,33 +548,143 @@ def kpi_filtros_opciones(request):
 
 @api_view(['GET'])
 def api_viajes(request):
+    origen   = request.GET.get('origen')
+    destino  = request.GET.get('destino')   # puede ser 'todas' o None
+    fecha    = request.GET.get('fecha')
+    cercanos = request.GET.get('cercanos') == 'true'
+
     viajes = Viaje.objects.filter(estado=1)
-    origen = request.GET.get('origen')
-    destino = request.GET.get('destino')
-    fecha = request.GET.get('fecha')
+
     if origen:
         viajes = viajes.filter(ruta__origen__numero=origen)
-    if destino:
+
+    # Si destino es 'todas' o vacío, no filtramos por destino
+    if destino and destino != 'todas':
         viajes = viajes.filter(ruta__destino__numero=destino)
+
     if fecha:
-        fecha_dt = datetime.strptime(fecha, '%Y-%m-%d')
+        fecha_dt  = datetime.strptime(fecha, '%Y-%m-%d')
         fecha_fin = fecha_dt + timedelta(days=1)
-        viajes = viajes.filter(
+        viajes_fecha = viajes.filter(
             fechorasalida__gte=fecha_dt,
             fechorasalida__lt=fecha_fin
         )
+
+        # ── Lógica de viajes cercanos ──────────────────────────
+        if viajes_fecha.exists():
+            # Hay viajes en la fecha exacta → respuesta normal
+            serializer = ViajeListSerializer(viajes_fecha, many=True)
+            return Response(serializer.data)
+
+        elif cercanos:
+            # No hay en la fecha exacta → buscar el día más cercano futuro
+            viaje_cercano = viajes.filter(
+                fechorasalida__gte=fecha_dt
+            ).order_by('fechorasalida').first()
+
+            if viaje_cercano:
+                # Traer todos los viajes de ese mismo día
+                fecha_real    = viaje_cercano.fechorasalida.date()
+                fecha_real_fin = datetime.combine(fecha_real, datetime.max.time())
+                fecha_real_ini = datetime.combine(fecha_real, datetime.min.time())
+                viajes_cercanos = viajes.filter(
+                    fechorasalida__gte=fecha_real_ini,
+                    fechorasalida__lte=fecha_real_fin
+                )
+                serializer = ViajeListSerializer(viajes_cercanos, many=True)
+                return Response({
+                    'viajes':     serializer.data,
+                    'fecha_real': str(fecha_real),
+                    'exacta':     False,
+                })
+            else:
+                # No hay ningún viaje futuro
+                return Response({
+                    'viajes':     [],
+                    'fecha_real': None,
+                    'exacta':     False,
+                })
+        else:
+            # Sin cercanos, devolver lista vacía normal
+            serializer = ViajeListSerializer([], many=True)
+            return Response(serializer.data)
+
+    # Sin fecha → devolver todos los que coincidan con origen/destino
     serializer = ViajeListSerializer(viajes, many=True)
     return Response(serializer.data)
 
 @api_view(['GET'])
 def api_viaje_detalle(request, id):
+    from django.db import connection
     try:
-        viaje = Viaje.objects.get(numero=id)
-        serializer = ViajeSerializer(viaje)
-        return Response(serializer.data)
-    except Viaje.DoesNotExist:
-        return Response({'error': 'Viaje no encontrado'}, status=404)
+        with connection.cursor() as cur:
+            # Datos del viaje
+            cur.execute("""
+                SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
+                       r.precio, r.duracion,
+                       tor.nombre AS origen_terminal,
+                       corig.nombre AS origen_ciudad,
+                       tdes.nombre AS destino_terminal,
+                       cdest.nombre AS destino_ciudad
+                FROM viaje v
+                JOIN ruta r        ON v.ruta = r.codigo
+                JOIN terminal tor  ON r.origen = tor.numero
+                JOIN terminal tdes ON r.destino = tdes.numero
+                JOIN ciudad corig  ON tor.ciudad = corig.clave
+                JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                WHERE v.numero = %s
+            """, [id])
+            row = cur.fetchone()
+            if not row:
+                return Response({'error': 'Viaje no encontrado'}, status=404)
 
+            viaje_data = {
+                'numero': row[0],
+                'fechorasalida': str(row[1]),
+                'fechoraentrada': str(row[2]),
+                'ruta': {
+                    'precio': str(row[3]),
+                    'duracion': row[4],
+                    'origen':  {'ciudad': {'nombre': row[6]}},
+                    'destino': {'ciudad': {'nombre': row[8]}},
+                }
+            }
+
+            # Asientos con estado ocupado REAL desde viaje_asiento
+            cur.execute("""
+                SELECT a.numero, ta.codigo AS tipo_codigo,
+                       ta.descripcion AS tipo_desc,
+                       va.ocupado
+                FROM viaje_asiento va
+                JOIN asiento a       ON va.asiento = a.numero
+                JOIN tipo_asiento ta ON a.tipo = ta.codigo
+                WHERE va.viaje = %s
+                ORDER BY a.numero
+            """, [id])
+
+            asientos = []
+            for r in cur.fetchall():
+                asientos.append({
+                    'ocupado': 1 if r[3] else 0,
+                    'asiento': {
+                        'numero': r[0],
+                        'tipo': {
+                            'codigo':      r[1],
+                            'descripcion': r[2],
+                        }
+                    }
+                })
+
+            viaje_data['asientos'] = asientos
+            # También devolver cuántos disponibles (útil para resultados_screen)
+            viaje_data['asientos_disponibles'] = sum(
+                1 for a in asientos if a['ocupado'] == 0
+            )
+
+        return Response(viaje_data)
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
 @api_view(['GET'])
 def api_terminales(request):
     terminales = Terminal.objects.all()

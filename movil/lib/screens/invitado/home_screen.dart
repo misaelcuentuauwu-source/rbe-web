@@ -16,11 +16,17 @@ class _HomeInvitadoScreenState extends State<HomeInvitadoScreen> {
 
   int _tabActual = 0;
 
-  final List<Widget> _tabs = const [
-    InicioScreen(tipoUsuario: 'invitado'),
-    BuscarBoletoScreen(tipoUsuario: 'invitado'),
-    PerfilInvitadoScreen(),
-  ];
+  late final List<Widget> _tabs;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = [
+      const InicioScreen(tipoUsuario: 'invitado'),
+      const BuscarBoletoScreen(tipoUsuario: 'invitado'),
+      const PerfilInvitadoScreen(),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
