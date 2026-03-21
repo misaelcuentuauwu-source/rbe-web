@@ -30,6 +30,12 @@ class _InicioScreenState extends State<InicioScreen> {
   static const textoPrincipal = Color(0xFF1C2D3A);
   static const textoSecundario = Color(0xFF6B8FA8);
 
+  // Color dinámico según tipo de usuario
+  Color get colorPrimario =>
+      widget.tipoUsuario == 'taquillero' ? naranja : azul;
+  Color get colorSecundario =>
+      widget.tipoUsuario == 'taquillero' ? azul : naranja;
+
   String? origenSeleccionado;
   String? destinoSeleccionado;
   DateTime? fechaSeleccionada;
@@ -80,8 +86,8 @@ class _InicioScreenState extends State<InicioScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: azul,
+            colorScheme: ColorScheme.light(
+              primary: colorPrimario,
               onPrimary: Colors.white,
               surface: Colors.white,
               onSurface: textoPrincipal,
@@ -257,7 +263,7 @@ class _InicioScreenState extends State<InicioScreen> {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       decoration: BoxDecoration(
-        color: azul,
+        color: colorPrimario,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.08),
@@ -320,10 +326,10 @@ class _InicioScreenState extends State<InicioScreen> {
         ],
       ),
       child: cargandoTerminales
-          ? const Center(
+          ? Center(
               child: Padding(
-                padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(color: azul),
+                padding: const EdgeInsets.all(20),
+                child: CircularProgressIndicator(color: colorPrimario),
               ),
             )
           : Column(
@@ -335,7 +341,7 @@ class _InicioScreenState extends State<InicioScreen> {
                       width: 4,
                       height: 18,
                       decoration: BoxDecoration(
-                        color: azul,
+                        color: colorPrimario,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -362,12 +368,12 @@ class _InicioScreenState extends State<InicioScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: azul.withOpacity(0.08),
+                      color: colorPrimario.withOpacity(0.08),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.swap_vert_rounded,
-                      color: azul,
+                      color: colorPrimario,
                       size: 20,
                     ),
                   ),
@@ -388,7 +394,7 @@ class _InicioScreenState extends State<InicioScreen> {
                       width: 4,
                       height: 18,
                       decoration: BoxDecoration(
-                        color: naranja,
+                        color: colorSecundario,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -414,13 +420,13 @@ class _InicioScreenState extends State<InicioScreen> {
                     decoration: BoxDecoration(
                       border: Border.all(
                         color: fechaSeleccionada != null
-                            ? azul
+                            ? colorPrimario
                             : Colors.grey.shade200,
                         width: fechaSeleccionada != null ? 1.5 : 1,
                       ),
                       borderRadius: BorderRadius.circular(12),
                       color: fechaSeleccionada != null
-                          ? azul.withOpacity(0.04)
+                          ? colorPrimario.withOpacity(0.04)
                           : Colors.grey.shade50,
                     ),
                     child: Row(
@@ -428,7 +434,7 @@ class _InicioScreenState extends State<InicioScreen> {
                         Icon(
                           Icons.calendar_month_rounded,
                           color: fechaSeleccionada != null
-                              ? azul
+                              ? colorPrimario
                               : textoSecundario,
                           size: 20,
                         ),
@@ -475,7 +481,7 @@ class _InicioScreenState extends State<InicioScreen> {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(color: textoSecundario, fontSize: 14),
-        prefixIcon: Icon(icono, color: azul, size: 20),
+        prefixIcon: Icon(icono, color: colorPrimario, size: 20),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 14,
@@ -490,7 +496,7 @@ class _InicioScreenState extends State<InicioScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: azul, width: 1.5),
+          borderSide: BorderSide(color: colorPrimario, width: 1.5),
         ),
         filled: true,
         fillColor: Colors.grey.shade50,
@@ -534,7 +540,7 @@ class _InicioScreenState extends State<InicioScreen> {
                 width: 4,
                 height: 18,
                 decoration: BoxDecoration(
-                  color: azul,
+                  color: colorPrimario,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -556,7 +562,7 @@ class _InicioScreenState extends State<InicioScreen> {
                 decoration: BoxDecoration(
                   color: totalPasajeros >= 5
                       ? Colors.red.shade50
-                      : azul.withOpacity(0.08),
+                      : colorPrimario.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -564,7 +570,9 @@ class _InicioScreenState extends State<InicioScreen> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: totalPasajeros >= 5 ? Colors.red.shade700 : azul,
+                    color: totalPasajeros >= 5
+                        ? Colors.red.shade700
+                        : colorPrimario,
                   ),
                 ),
               ),
@@ -609,10 +617,10 @@ class _InicioScreenState extends State<InicioScreen> {
         Container(
           padding: const EdgeInsets.all(7),
           decoration: BoxDecoration(
-            color: azul.withOpacity(0.08),
+            color: colorPrimario.withOpacity(0.08),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icono, color: azul, size: 18),
+          child: Icon(icono, color: colorPrimario, size: 18),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -644,14 +652,16 @@ class _InicioScreenState extends State<InicioScreen> {
                 height: 32,
                 decoration: BoxDecoration(
                   color: puedeDecrementar
-                      ? azul.withOpacity(0.08)
+                      ? colorPrimario.withOpacity(0.08)
                       : Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.remove_rounded,
                   size: 18,
-                  color: puedeDecrementar ? azul : Colors.grey.shade300,
+                  color: puedeDecrementar
+                      ? colorPrimario
+                      : Colors.grey.shade300,
                 ),
               ),
             ),
@@ -674,14 +684,16 @@ class _InicioScreenState extends State<InicioScreen> {
                 height: 32,
                 decoration: BoxDecoration(
                   color: puedeIncrementar
-                      ? azul.withOpacity(0.08)
+                      ? colorPrimario.withOpacity(0.08)
                       : Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.add_rounded,
                   size: 18,
-                  color: puedeIncrementar ? azul : Colors.grey.shade300,
+                  color: puedeIncrementar
+                      ? colorPrimario
+                      : Colors.grey.shade300,
                 ),
               ),
             ),
@@ -697,14 +709,14 @@ class _InicioScreenState extends State<InicioScreen> {
       child: ElevatedButton(
         onPressed: _buscar,
         style: ElevatedButton.styleFrom(
-          backgroundColor: naranja,
+          backgroundColor: colorPrimario,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
           elevation: 3,
-          shadowColor: naranja.withOpacity(0.3),
+          shadowColor: colorPrimario.withOpacity(0.3),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,

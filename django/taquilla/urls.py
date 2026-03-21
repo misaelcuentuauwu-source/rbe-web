@@ -11,6 +11,7 @@ urlpatterns = [
     path('login/',         views.login_view,             name='login'),
     path('registro/',      views.registro_view,          name='registro'),
     path('logout/',        views.logout_view,            name='logout'),
+    path('api/cliente/verificar-pasajero/', views.api_verificar_pasajero, name='api_verificar_pasajero'),
     # NUEVO: verificación de clave maestra vía AJAX
     path('api/verificar-clave/', views.verificar_clave_maestra, name='verificar_clave'),
     # Vistas generales

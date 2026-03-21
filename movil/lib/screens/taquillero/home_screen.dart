@@ -16,8 +16,8 @@ class HomeNavigationScreen extends StatefulWidget {
 class _HomeNavigationScreenState extends State<HomeNavigationScreen> {
   int _selectedIndex = 0;
 
-  static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
+  static const azul = Color(0xFF2C7FB1);
 
   late final List<Widget> _pages;
 
@@ -101,25 +101,6 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen> {
               ),
             ],
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _PlaceholderPage extends StatelessWidget {
-  final String title;
-  const _PlaceholderPage(this.title);
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Text(
-        title,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 24,
-          fontWeight: FontWeight.bold,
         ),
       ),
     );

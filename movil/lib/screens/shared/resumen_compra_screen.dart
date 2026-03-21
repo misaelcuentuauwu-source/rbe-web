@@ -28,6 +28,13 @@ class ResumenCompraScreen extends StatelessWidget {
   static const textoPrincipal = Color(0xFF1C2D3A);
   static const textoSecundario = Color(0xFF6B8FA8);
 
+  static const Map<String, int> _descuentos = {
+    'Adulto': 0,
+    'Estudiante': 25,
+    'INAPAM': 30,
+    'Discapacidad': 15,
+  };
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -311,6 +318,11 @@ class ResumenCompraScreen extends StatelessWidget {
             final index = entry.key;
             final p = entry.value;
             final esContacto = p['esContacto'] as bool? ?? false;
+            final tipo = p['tipo'] as String? ?? 'Adulto';
+            final descuento =
+                p['descuento'] as int? ?? (_descuentos[tipo] ?? 0);
+            final precioUnitario = p['precio_unitario'] as double?;
+
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
@@ -319,74 +331,114 @@ class ResumenCompraScreen extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: Colors.grey.shade200),
               ),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: azul.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${index + 1}',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: azul,
-                          fontSize: 14,
+                  Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: azul.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: azul,
+                              fontSize: 14,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Row(
+                              children: [
+                                Text(
+                                  '${p['nombre']} ${p['primer_apellido']}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: textoPrincipal,
+                                  ),
+                                ),
+                                if (esContacto) ...[
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: naranja.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Text(
+                                      'Contacto',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: naranja,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 2),
                             Text(
-                              '${p['nombre']} ${p['primer_apellido']}',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                color: textoPrincipal,
+                              '$tipo · Asiento ${p['asiento_id']}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: textoSecundario,
                               ),
                             ),
-                            if (esContacto) ...[
-                              const SizedBox(width: 6),
+                          ],
+                        ),
+                      ),
+                      // Precio con descuento
+                      if (precioUnitario != null)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            if (descuento > 0)
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 6,
                                   vertical: 2,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: naranja.withOpacity(0.1),
-                                  borderRadius: BorderRadius.circular(10),
+                                  color: Colors.green.shade50,
+                                  borderRadius: BorderRadius.circular(8),
                                 ),
-                                child: const Text(
-                                  'Contacto',
+                                child: Text(
+                                  '-$descuento%',
                                   style: TextStyle(
                                     fontSize: 10,
-                                    color: naranja,
+                                    color: Colors.green.shade700,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
-                            ],
+                            const SizedBox(height: 2),
+                            Text(
+                              '\$${precioUnitario.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: naranja,
+                              ),
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${p['tipo']} · Asiento ${p['asiento_id']}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: textoSecundario,
-                          ),
-                        ),
-                      ],
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -398,6 +450,26 @@ class ResumenCompraScreen extends StatelessWidget {
   }
 
   Widget _buildResumenPago() {
+    // Calcular subtotal sin descuentos y ahorro total
+    double subtotalSinDescuento = 0;
+    double totalConDescuento = 0;
+
+    for (final p in pasajeros) {
+      final precioUnitario = p['precio_unitario'] as double?;
+      final descuento = p['descuento'] as int? ?? 0;
+      if (precioUnitario != null) {
+        totalConDescuento += precioUnitario;
+        if (descuento > 0) {
+          subtotalSinDescuento += precioUnitario / (1 - descuento / 100);
+        } else {
+          subtotalSinDescuento += precioUnitario;
+        }
+      }
+    }
+
+    final ahorro = subtotalSinDescuento - totalConDescuento;
+    final hayDescuentos = ahorro > 0;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -457,6 +529,49 @@ class ResumenCompraScreen extends StatelessWidget {
           const SizedBox(height: 10),
           Divider(color: Colors.grey.shade100),
           const SizedBox(height: 10),
+
+          // Subtotal sin descuentos
+          if (hayDescuentos) ...[
+            Row(
+              children: [
+                Text(
+                  'Subtotal:',
+                  style: TextStyle(fontSize: 13, color: textoSecundario),
+                ),
+                const Spacer(),
+                Text(
+                  '\$${subtotalSinDescuento.toStringAsFixed(2)} MXN',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: textoSecundario,
+                    decoration: TextDecoration.lineThrough,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Text(
+                  'Descuentos aplicados:',
+                  style: TextStyle(fontSize: 13, color: Colors.green.shade600),
+                ),
+                const Spacer(),
+                Text(
+                  '- \$${ahorro.toStringAsFixed(2)} MXN',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green.shade600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Divider(color: Colors.grey.shade100),
+            const SizedBox(height: 10),
+          ],
+
           Row(
             children: [
               const Text(
@@ -478,6 +593,39 @@ class ResumenCompraScreen extends StatelessWidget {
               ),
             ],
           ),
+
+          // Banner de ahorro
+          if (hayDescuentos) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.savings_rounded,
+                    size: 16,
+                    color: Colors.green.shade600,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '¡Ahorraste \$${ahorro.toStringAsFixed(2)} MXN con descuentos!',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -486,7 +634,6 @@ class ResumenCompraScreen extends StatelessWidget {
   Widget _buildBotones(BuildContext context) {
     return Column(
       children: [
-        // Botón descargar
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
@@ -518,7 +665,6 @@ class ResumenCompraScreen extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        // Botón volver al inicio
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(

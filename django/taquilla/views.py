@@ -943,6 +943,8 @@ def api_historial_cliente(request, cliente_id):
                     'monto': str(pago.monto),
                     'num_pasajeros': tickets.count(),
                     'metodo_pago': pago.tipo.nombre,
+                    'estado': viaje.estado.nombre,
+                    'estado_id': viaje.estado.numero,
                 })
         return Response(resultado)
     except Exception as e:
@@ -968,6 +970,8 @@ def api_historial_taquillero(request, vendedor_id):
                     'monto': str(pago.monto),
                     'num_pasajeros': tickets.count(),
                     'metodo_pago': pago.tipo.nombre,
+                    'estado': viaje.estado.nombre,
+                    'estado_id': viaje.estado.numero,
                 })
         return Response(resultado)
     except Exception as e:
@@ -1049,6 +1053,27 @@ def api_cliente_login_email(request):
             'foto': cuenta.foto or '',
             'proveedor': cuenta.proveedor,
         })
+
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+    
+@api_view(['GET'])
+def api_verificar_pasajero(request):
+    correo = request.GET.get('correo', '').strip().lower()
+    viaje_id = request.GET.get('viaje_id', '')
+
+    if not correo or not viaje_id:
+        return Response({'error': 'Faltan parámetros'}, status=400)
+
+    try:
+        # Buscar si hay alguna CuentaPasajero con ese correo
+        # que tenga un ticket en ese viaje
+        duplicado = Ticket.objects.filter(
+            viaje__numero=viaje_id,
+            pasajero__cuentapasajero__correo__iexact=correo
+        ).exists()
+
+        return Response({'duplicado': duplicado})
 
     except Exception as e:
         return Response({'error': str(e)}, status=400)

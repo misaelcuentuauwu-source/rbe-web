@@ -1,4 +1,4 @@
--- Active: 1772565691688@@127.0.0.1@3306@mysql
+-- Active: 1772565691688@@127.0.0.1@3306@rbe
 -- ============================================================
 -- RBE - Rutas Baja Express
 -- Script completo: schema + datos
@@ -953,3 +953,4 @@ WHERE va.viaje IN (47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,6
 SELECT * FROM viaje_asiento WHERE viaje = 62 AND ocupado = 1;
 
 SELECT * FROM cuenta_pasajero ORDER BY pasajero_num DESC LIMIT 5;
+SELECT * FROM edo_viaje;

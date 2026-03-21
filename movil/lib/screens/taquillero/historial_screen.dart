@@ -13,8 +13,9 @@ class HistorialScreen extends StatefulWidget {
 }
 
 class _HistorialScreenState extends State<HistorialScreen> {
-  static const azul = Color(0xFF2C7FB1);
+  // Colores invertidos: naranja es base, azul es complemento
   static const naranja = Color(0xFFE9713A);
+  static const azul = Color(0xFF2C7FB1);
   static const fondo = Color(0xFFF4F6F9);
   static const textoPrincipal = Color(0xFF1C2D3A);
   static const textoSecundario = Color(0xFF6B8FA8);
@@ -28,10 +29,39 @@ class _HistorialScreenState extends State<HistorialScreen> {
   DateTime? fechaHasta;
   String? origenFiltro;
   String? destinoFiltro;
+  String? estadoFiltro;
   bool mostrarFiltros = false;
 
   final TextEditingController _origenController = TextEditingController();
   final TextEditingController _destinoController = TextEditingController();
+
+  static const Map<String, Map<String, dynamic>> _estados = {
+    'Disponible': {
+      'color': Color(0xFF2E7D32),
+      'bg': Color(0xFFE8F5E9),
+      'icono': Icons.check_circle_outline_rounded,
+    },
+    'En Ruta': {
+      'color': Color(0xFF1565C0),
+      'bg': Color(0xFFE3F2FD),
+      'icono': Icons.directions_bus_rounded,
+    },
+    'Finalizado': {
+      'color': Color(0xFF6B8FA8),
+      'bg': Color(0xFFF4F6F9),
+      'icono': Icons.flag_rounded,
+    },
+    'Cancelado': {
+      'color': Color(0xFFC62828),
+      'bg': Color(0xFFFFEBEE),
+      'icono': Icons.cancel_outlined,
+    },
+    'Retrasado': {
+      'color': Color(0xFFE65100),
+      'bg': Color(0xFFFFF3E0),
+      'icono': Icons.schedule_rounded,
+    },
+  };
 
   @override
   void initState() {
@@ -101,6 +131,9 @@ class _HistorialScreenState extends State<HistorialScreen> {
           ))
             return false;
         }
+        if (estadoFiltro != null && estadoFiltro!.isNotEmpty) {
+          if (item['estado'].toString() != estadoFiltro) return false;
+        }
         return true;
       }).toList();
     });
@@ -112,6 +145,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
       fechaHasta = null;
       origenFiltro = null;
       destinoFiltro = null;
+      estadoFiltro = null;
       _origenController.clear();
       _destinoController.clear();
       historialFiltrado = List.from(historial);
@@ -122,7 +156,8 @@ class _HistorialScreenState extends State<HistorialScreen> {
       fechaDesde != null ||
       fechaHasta != null ||
       (origenFiltro != null && origenFiltro!.isNotEmpty) ||
-      (destinoFiltro != null && destinoFiltro!.isNotEmpty);
+      (destinoFiltro != null && destinoFiltro!.isNotEmpty) ||
+      (estadoFiltro != null && estadoFiltro!.isNotEmpty);
 
   Future<void> seleccionarFecha(BuildContext context, bool esDesde) async {
     final picked = await showDatePicker(
@@ -134,7 +169,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
         return Theme(
           data: Theme.of(
             context,
-          ).copyWith(colorScheme: const ColorScheme.light(primary: azul)),
+          ).copyWith(colorScheme: const ColorScheme.light(primary: naranja)),
           child: child!,
         );
       },
@@ -198,7 +233,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       decoration: BoxDecoration(
-        color: azul,
+        color: naranja,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.08),
@@ -262,13 +297,13 @@ class _HistorialScreenState extends State<HistorialScreen> {
                   Icon(
                     Icons.tune_rounded,
                     size: 16,
-                    color: mostrarFiltros ? azul : Colors.white,
+                    color: mostrarFiltros ? naranja : Colors.white,
                   ),
                   const SizedBox(width: 4),
                   Text(
                     'Filtros',
                     style: TextStyle(
-                      color: mostrarFiltros ? azul : Colors.white,
+                      color: mostrarFiltros ? naranja : Colors.white,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -279,7 +314,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                       width: 8,
                       height: 8,
                       decoration: const BoxDecoration(
-                        color: naranja,
+                        color: azul,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -321,7 +356,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Fecha desde - hasta
           Row(
             children: [
               Expanded(
@@ -362,7 +396,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
               hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
               prefixIcon: const Icon(
                 Icons.trip_origin_rounded,
-                color: azul,
+                color: naranja,
                 size: 18,
               ),
               suffixIcon: origenFiltro != null && origenFiltro!.isNotEmpty
@@ -398,7 +432,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
               hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
               prefixIcon: const Icon(
                 Icons.location_on_rounded,
-                color: naranja,
+                color: azul,
                 size: 18,
               ),
               suffixIcon: destinoFiltro != null && destinoFiltro!.isNotEmpty
@@ -426,6 +460,27 @@ class _HistorialScreenState extends State<HistorialScreen> {
             },
           ),
           const SizedBox(height: 10),
+          // Filtro estado
+          const Text(
+            'Estado del viaje',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: textoSecundario,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildChipEstado(null, 'Todos'),
+              ..._estados.keys.map(
+                (estado) => _buildChipEstado(estado, estado),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           if (hayFiltrosActivos)
             SizedBox(
               width: double.infinity,
@@ -439,6 +494,46 @@ class _HistorialScreenState extends State<HistorialScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildChipEstado(String? valor, String etiqueta) {
+    final seleccionado = estadoFiltro == valor;
+    final info = valor != null ? _estados[valor] : null;
+    final color = info != null ? info['color'] as Color : naranja;
+    final icono = info != null ? info['icono'] as IconData : Icons.list_rounded;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() => estadoFiltro = valor);
+        aplicarFiltros();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: seleccionado ? color : fondo,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: seleccionado ? color : Colors.grey.shade300,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icono, size: 14, color: seleccionado ? Colors.white : color),
+            const SizedBox(width: 5),
+            Text(
+              etiqueta,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: seleccionado ? Colors.white : color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -457,7 +552,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
           color: fondo,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: fecha != null ? azul : Colors.transparent,
+            color: fecha != null ? naranja : Colors.transparent,
             width: 1.5,
           ),
         ),
@@ -466,7 +561,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
             Icon(
               Icons.calendar_today_outlined,
               size: 15,
-              color: fecha != null ? azul : Colors.grey,
+              color: fecha != null ? naranja : Colors.grey,
             ),
             const SizedBox(width: 6),
             Expanded(
@@ -509,7 +604,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
               'Limpiar todo',
               style: TextStyle(
                 fontSize: 12,
-                color: azul,
+                color: naranja,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -521,7 +616,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
 
   Widget _buildContenido() {
     if (cargando) {
-      return const Center(child: CircularProgressIndicator(color: azul));
+      return const Center(child: CircularProgressIndicator(color: naranja));
     }
     if (historial.isEmpty) {
       return Center(
@@ -572,7 +667,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
               onPressed: limpiarFiltros,
               child: const Text(
                 'Limpiar filtros',
-                style: TextStyle(color: azul),
+                style: TextStyle(color: naranja),
               ),
             ),
           ],
@@ -590,6 +685,17 @@ class _HistorialScreenState extends State<HistorialScreen> {
     final esTarjeta = venta['metodo_pago'].toString().toLowerCase().contains(
       'tarjeta',
     );
+    final estado = venta['estado']?.toString() ?? '';
+    final infoEstado = _estados[estado];
+    final colorEstado = infoEstado != null
+        ? infoEstado['color'] as Color
+        : Colors.grey.shade500;
+    final bgEstado = infoEstado != null
+        ? infoEstado['bg'] as Color
+        : Colors.grey.shade100;
+    final iconoEstado = infoEstado != null
+        ? infoEstado['icono'] as IconData
+        : Icons.help_outline_rounded;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -617,7 +723,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: azul.withOpacity(0.08),
+                    color: naranja.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -625,10 +731,38 @@ class _HistorialScreenState extends State<HistorialScreen> {
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: azul,
+                      color: naranja,
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
+                // Badge estado
+                if (estado.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: bgEstado,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(iconoEstado, size: 12, color: colorEstado),
+                        const SizedBox(width: 4),
+                        Text(
+                          estado,
+                          style: TextStyle(
+                            color: colorEstado,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 const Spacer(),
                 Text(
                   _formatFecha(venta['fecha']),
@@ -639,7 +773,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                const Icon(Icons.trip_origin_rounded, color: azul, size: 14),
+                const Icon(Icons.trip_origin_rounded, color: naranja, size: 14),
                 const SizedBox(width: 6),
                 Text(
                   venta['origen'],
@@ -656,7 +790,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                   size: 14,
                 ),
                 const SizedBox(width: 6),
-                const Icon(Icons.location_on_rounded, color: naranja, size: 14),
+                const Icon(Icons.location_on_rounded, color: azul, size: 14),
                 const SizedBox(width: 4),
                 Text(
                   venta['destino'],
@@ -692,7 +826,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: naranja,
+                    color: azul,
                   ),
                 ),
               ],

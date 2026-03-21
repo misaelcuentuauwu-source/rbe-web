@@ -6,8 +6,8 @@ class PerfilScreen extends StatelessWidget {
 
   const PerfilScreen({super.key, required this.taquillero});
 
-  static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
+  static const azul = Color(0xFF2C7FB1);
   static const fondo = Color(0xFFF4F6F9);
   static const textoPrincipal = Color(0xFF1C2D3A);
   static const textoSecundario = Color(0xFF6B8FA8);
@@ -50,7 +50,7 @@ class PerfilScreen extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
       decoration: BoxDecoration(
-        color: azul,
+        color: naranja,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.08),
@@ -130,7 +130,7 @@ class PerfilScreen extends StatelessWidget {
                 width: 4,
                 height: 18,
                 decoration: BoxDecoration(
-                  color: azul,
+                  color: naranja,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -188,10 +188,10 @@ class PerfilScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: azul.withOpacity(0.08),
+              color: naranja.withOpacity(0.08),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(icono, size: 18, color: azul),
+            child: Icon(icono, size: 18, color: naranja),
           ),
           const SizedBox(width: 14),
           Column(

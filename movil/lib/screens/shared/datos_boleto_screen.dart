@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../../config.dart';
 import 'seat_selection_screen.dart';
 
 class DatosBoletoScreen extends StatefulWidget {
@@ -39,6 +42,20 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
 
   final _formKey = GlobalKey<FormState>();
   late List<Map<String, dynamic>> pasajerosList;
+  bool _verificando = false;
+
+  static const Map<String, int> _descuentos = {
+    'Adulto': 0,
+    'Estudiante': 25,
+    'INAPAM': 30,
+    'Discapacidad': 15,
+  };
+
+  static const List<String> _requierenId = [
+    'INAPAM',
+    'Estudiante',
+    'Discapacidad',
+  ];
 
   @override
   void initState() {
@@ -99,32 +116,89 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     super.dispose();
   }
 
-  void _continuar() {
-    if (_formKey.currentState!.validate()) {
-      final pasajerosData = pasajerosList
-          .map(
-            (p) => {
-              'nombre': (p['nombreCtrl'] as TextEditingController).text.trim(),
-              'primer_apellido': (p['apPaternoCtrl'] as TextEditingController)
-                  .text
-                  .trim(),
-              'segundo_apellido': (p['apMaternoCtrl'] as TextEditingController)
-                  .text
-                  .trim(),
-              'edad': int.parse(
-                (p['edadCtrl'] as TextEditingController).text.trim(),
-              ),
-              'tipo': p['tipo'],
-              'esContacto': p['esContacto'],
-              'telefono': (p['telefonoCtrl'] as TextEditingController).text
-                  .trim(),
-              'correo':
-                  widget.correoCliente ??
-                  (p['correoCtrl'] as TextEditingController).text.trim(),
-            },
-          )
-          .toList();
+  double _calcularPrecioConDescuento(String tipo) {
+    final precioBase = double.parse(widget.precio);
+    final descuento = _descuentos[tipo] ?? 0;
+    return precioBase * (1 - descuento / 100);
+  }
 
+  Future<void> _continuar() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final contacto = pasajerosList.firstWhere(
+      (p) => p['esContacto'] == true,
+      orElse: () => pasajerosList.first,
+    );
+
+    final correo =
+        widget.correoCliente ??
+        (contacto['correoCtrl'] as TextEditingController).text.trim();
+
+    setState(() => _verificando = true);
+
+    try {
+      final response = await http
+          .get(
+            Uri.parse(
+              '${Config.baseUrl}/api/cliente/verificar-pasajero/'
+              '?correo=${Uri.encodeComponent(correo)}'
+              '&viaje_id=${widget.viajeId}',
+            ),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['duplicado'] == true) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Este correo ya tiene un boleto registrado para este viaje.',
+              ),
+              backgroundColor: Colors.red.shade400,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    } catch (e) {
+      debugPrint('Error verificando pasajero: $e');
+    } finally {
+      if (mounted) setState(() => _verificando = false);
+    }
+
+    final pasajerosData = pasajerosList
+        .map(
+          (p) => {
+            'nombre': (p['nombreCtrl'] as TextEditingController).text.trim(),
+            'primer_apellido': (p['apPaternoCtrl'] as TextEditingController)
+                .text
+                .trim(),
+            'segundo_apellido': (p['apMaternoCtrl'] as TextEditingController)
+                .text
+                .trim(),
+            'edad': int.parse(
+              (p['edadCtrl'] as TextEditingController).text.trim(),
+            ),
+            'tipo': p['tipo'],
+            'esContacto': p['esContacto'],
+            'telefono': (p['telefonoCtrl'] as TextEditingController).text
+                .trim(),
+            'correo':
+                widget.correoCliente ??
+                (p['correoCtrl'] as TextEditingController).text.trim(),
+            'precio_unitario': _calcularPrecioConDescuento(p['tipo']),
+            'descuento': _descuentos[p['tipo']] ?? 0,
+          },
+        )
+        .toList();
+
+    if (mounted) {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -136,7 +210,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
             horaSalida: widget.horaSalida,
             precioPorPasajero: double.parse(widget.precio),
             vendedorId: widget.vendedorId,
-            tipoUsuario: widget.tipoUsuario, // ← agregar
+            tipoUsuario: widget.tipoUsuario,
           ),
         ),
       );
@@ -302,6 +376,10 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
   Widget _buildTarjetaPasajero(Map<String, dynamic> pasajero, int index) {
     final esContacto = pasajero['esContacto'] as bool;
     final tipo = pasajero['tipo'] as String;
+    final descuento = _descuentos[tipo] ?? 0;
+    final precioFinal = _calcularPrecioConDescuento(tipo);
+    final precioBase = double.parse(widget.precio);
+    final requiereId = _requierenId.contains(tipo);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -322,7 +400,9 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Badges ──────────────────────────────────────
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -342,7 +422,6 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -361,8 +440,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                     ),
                   ),
                 ),
-                if (esContacto) ...[
-                  const SizedBox(width: 8),
+                if (esContacto)
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 10,
@@ -381,10 +459,104 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                       ),
                     ),
                   ),
-                ],
+                if (descuento > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$descuento% desc.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade700,
+                      ),
+                    ),
+                  ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+
+            // ── Precio con descuento ─────────────────────────
+            if (descuento > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.local_offer_rounded,
+                      size: 16,
+                      color: Colors.green.shade600,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Precio base: \$${precioBase.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                        decoration: TextDecoration.lineThrough,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '\$${precioFinal.toStringAsFixed(2)} MXN',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.green.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (descuento > 0) const SizedBox(height: 12),
+
+            // ── Aviso de identificación (RF-APP-013) ─────────
+            if (requiereId)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.amber.shade300),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.info_outline_rounded,
+                      size: 18,
+                      color: Colors.amber.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Se deberá presentar identificación oficial al momento de abordar para validar la categoría y el descuento aplicado.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.amber.shade800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             // ── Nombre y primer apellido ─────────────────────
             Row(
               children: [
@@ -575,10 +747,11 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _continuar,
+        onPressed: _verificando ? null : _continuar,
         style: ElevatedButton.styleFrom(
           backgroundColor: naranja,
           foregroundColor: Colors.white,
+          disabledBackgroundColor: Colors.grey.shade300,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -586,17 +759,26 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
           elevation: 3,
           shadowColor: naranja.withOpacity(0.4),
         ),
-        child: const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.event_seat_rounded, size: 22),
-            SizedBox(width: 8),
-            Text(
-              'Continuar a selección de asientos',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
+        child: _verificando
+            ? const SizedBox(
+                height: 22,
+                width: 22,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2.5,
+                ),
+              )
+            : const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.event_seat_rounded, size: 22),
+                  SizedBox(width: 8),
+                  Text(
+                    'Continuar a selección de asientos',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
       ),
     );
   }

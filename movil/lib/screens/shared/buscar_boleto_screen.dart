@@ -20,6 +20,12 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
   static const textoPrincipal = Color(0xFF1C2D3A);
   static const textoSecundario = Color(0xFF6B8FA8);
 
+  // Color dinámico según tipo de usuario
+  Color get colorPrimario =>
+      widget.tipoUsuario == 'taquillero' ? naranja : azul;
+  Color get colorSecundario =>
+      widget.tipoUsuario == 'taquillero' ? azul : naranja;
+
   final _folioCtrl = TextEditingController();
   Map<String, dynamic>? boleto;
   bool cargando = false;
@@ -93,12 +99,9 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Si es invitado, mostrar pantalla de instrucciones
     if (widget.tipoUsuario == 'invitado') {
       return _buildInvitado();
     }
-
-    // Taquillero: pantalla normal de búsqueda
     return Scaffold(
       backgroundColor: fondo,
       body: SafeArea(
@@ -126,7 +129,6 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
@@ -177,8 +179,6 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                 ],
               ),
             ),
-
-            // Contenido
             Expanded(
               child: Center(
                 child: SingleChildScrollView(
@@ -187,7 +187,6 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const SizedBox(height: 24),
-                      // Ícono
                       Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
@@ -201,8 +200,6 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-
-                      // Título
                       const Text(
                         '¿Cómo recuperar tus boletos?',
                         textAlign: TextAlign.center,
@@ -213,8 +210,6 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                         ),
                       ),
                       const SizedBox(height: 12),
-
-                      // Descripción
                       const Text(
                         'Como usuario invitado, no es posible consultar tus boletos desde la app.',
                         textAlign: TextAlign.center,
@@ -225,8 +220,6 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-
-                      // Pasos
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(20),
@@ -264,8 +257,6 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-
-                      // Nota naranja
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(14),
@@ -317,10 +308,7 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
         Container(
           width: 28,
           height: 28,
-          decoration: const BoxDecoration(
-            color: azul,
-            shape: BoxShape.circle,
-          ),
+          decoration: const BoxDecoration(color: azul, shape: BoxShape.circle),
           child: Center(
             child: Text(
               numero,
@@ -350,14 +338,14 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
     );
   }
 
-  // ── Pantalla taquillero ────────────────────────────────────────────────────
+  // ── Pantalla taquillero/cliente ────────────────────────────────────────────
 
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       decoration: BoxDecoration(
-        color: azul,
+        color: colorPrimario,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.08),
@@ -429,9 +417,9 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
               decoration: InputDecoration(
                 hintText: 'Número de folio',
                 hintStyle: TextStyle(color: textoSecundario),
-                prefixIcon: const Icon(
+                prefixIcon: Icon(
                   Icons.confirmation_number_outlined,
-                  color: azul,
+                  color: colorPrimario,
                   size: 20,
                 ),
                 contentPadding: const EdgeInsets.symmetric(
@@ -447,7 +435,7 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
-                  borderSide: const BorderSide(color: azul, width: 1.5),
+                  borderSide: BorderSide(color: colorPrimario, width: 1.5),
                 ),
                 filled: true,
                 fillColor: Colors.grey.shade50,
@@ -461,14 +449,14 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
             child: ElevatedButton(
               onPressed: cargando ? null : _buscar,
               style: ElevatedButton.styleFrom(
-                backgroundColor: naranja,
+                backgroundColor: colorPrimario,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
                 ),
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 elevation: 2,
-                shadowColor: naranja.withOpacity(0.3),
+                shadowColor: colorPrimario.withOpacity(0.3),
               ),
               child: cargando
                   ? const SizedBox(
@@ -493,8 +481,11 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.search_off_rounded,
-                color: Colors.grey.shade300, size: 60),
+            Icon(
+              Icons.search_off_rounded,
+              color: Colors.grey.shade300,
+              size: 60,
+            ),
             const SizedBox(height: 16),
             Text(
               error!,
@@ -519,8 +510,11 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.confirmation_number_outlined,
-                color: Colors.grey.shade300, size: 60),
+            Icon(
+              Icons.confirmation_number_outlined,
+              color: Colors.grey.shade300,
+              size: 60,
+            ),
             const SizedBox(height: 16),
             Text(
               'Ingresa un folio para buscar',
@@ -541,8 +535,8 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
     final viaje = boleto!['viaje'] as Map<String, dynamic>;
     final tickets = boleto!['tickets'] as List;
     final esTarjeta = boleto!['metodo_pago'].toString().toLowerCase().contains(
-          'tarjeta',
-        );
+      'tarjeta',
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -569,15 +563,15 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: azul.withOpacity(0.08),
+                    color: colorPrimario.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     'Folio #${boleto!['folio']}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: azul,
+                      color: colorPrimario,
                     ),
                   ),
                 ),
@@ -620,8 +614,11 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                               color: Colors.grey.shade200,
                             ),
                           ),
-                          const Icon(Icons.directions_bus_rounded,
-                              color: azul, size: 20),
+                          Icon(
+                            Icons.directions_bus_rounded,
+                            color: colorPrimario,
+                            size: 20,
+                          ),
                           Expanded(
                             child: Container(
                               height: 1.5,
@@ -633,8 +630,7 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                       ),
                       Text(
                         viaje['duracion'],
-                        style:
-                            TextStyle(fontSize: 11, color: textoSecundario),
+                        style: TextStyle(fontSize: 11, color: textoSecundario),
                       ),
                     ],
                   ),
@@ -674,7 +670,7 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                       width: 4,
                       height: 16,
                       decoration: BoxDecoration(
-                        color: azul,
+                        color: colorPrimario,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -706,15 +702,15 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                       width: 32,
                       height: 32,
                       decoration: BoxDecoration(
-                        color: azul.withOpacity(0.08),
+                        color: colorPrimario.withOpacity(0.08),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Center(
                         child: Text(
                           '${t['asiento']}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: azul,
+                            color: colorPrimario,
                             fontSize: 12,
                           ),
                         ),
@@ -745,10 +741,10 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                     ),
                     Text(
                       '\$${double.parse(t['precio']).toStringAsFixed(2)}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
-                        color: naranja,
+                        color: colorSecundario,
                       ),
                     ),
                   ],
@@ -783,10 +779,10 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                 ),
                 Text(
                   '\$${double.parse(boleto!['monto']).toStringAsFixed(2)} MXN',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                    color: naranja,
+                    color: colorSecundario,
                   ),
                 ),
               ],
@@ -798,9 +794,8 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                 onPressed: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content:
-                          const Text('Próximamente: impresión de boletos'),
-                      backgroundColor: azul,
+                      content: const Text('Próximamente: impresión de boletos'),
+                      backgroundColor: colorPrimario,
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -809,8 +804,8 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
                   );
                 },
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: azul,
-                  side: const BorderSide(color: azul, width: 1.5),
+                  foregroundColor: colorPrimario,
+                  side: BorderSide(color: colorPrimario, width: 1.5),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

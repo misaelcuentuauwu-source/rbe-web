@@ -29,10 +29,40 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
   DateTime? fechaHasta;
   String? origenFiltro;
   String? destinoFiltro;
+  String? estadoFiltro;
   bool mostrarFiltros = false;
 
   final TextEditingController _origenController = TextEditingController();
   final TextEditingController _destinoController = TextEditingController();
+
+  // Estados disponibles con colores e íconos
+  static const Map<String, Map<String, dynamic>> _estados = {
+    'Disponible': {
+      'color': Color(0xFF2E7D32),
+      'bg': Color(0xFFE8F5E9),
+      'icono': Icons.check_circle_outline_rounded,
+    },
+    'En Ruta': {
+      'color': Color(0xFF1565C0),
+      'bg': Color(0xFFE3F2FD),
+      'icono': Icons.directions_bus_rounded,
+    },
+    'Finalizado': {
+      'color': Color(0xFF6B8FA8),
+      'bg': Color(0xFFF4F6F9),
+      'icono': Icons.flag_rounded,
+    },
+    'Cancelado': {
+      'color': Color(0xFFC62828),
+      'bg': Color(0xFFFFEBEE),
+      'icono': Icons.cancel_outlined,
+    },
+    'Retrasado': {
+      'color': Color(0xFFE65100),
+      'bg': Color(0xFFFFF3E0),
+      'icono': Icons.schedule_rounded,
+    },
+  };
 
   @override
   void initState() {
@@ -79,13 +109,11 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
   void aplicarFiltros() {
     setState(() {
       historialFiltrado = historial.where((item) {
-        // Filtro por fecha desde
         if (fechaDesde != null) {
           final fechaItem = DateTime.tryParse(item['fecha'].toString());
           if (fechaItem == null || fechaItem.isBefore(fechaDesde!))
             return false;
         }
-        // Filtro por fecha hasta
         if (fechaHasta != null) {
           final fechaItem = DateTime.tryParse(item['fecha'].toString());
           final fechaHastaFin = DateTime(
@@ -99,19 +127,20 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
           if (fechaItem == null || fechaItem.isAfter(fechaHastaFin))
             return false;
         }
-        // Filtro por origen
         if (origenFiltro != null && origenFiltro!.isNotEmpty) {
           if (!item['origen'].toString().toLowerCase().contains(
             origenFiltro!.toLowerCase(),
           ))
             return false;
         }
-        // Filtro por destino
         if (destinoFiltro != null && destinoFiltro!.isNotEmpty) {
           if (!item['destino'].toString().toLowerCase().contains(
             destinoFiltro!.toLowerCase(),
           ))
             return false;
+        }
+        if (estadoFiltro != null && estadoFiltro!.isNotEmpty) {
+          if (item['estado'].toString() != estadoFiltro) return false;
         }
         return true;
       }).toList();
@@ -124,6 +153,7 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
       fechaHasta = null;
       origenFiltro = null;
       destinoFiltro = null;
+      estadoFiltro = null;
       _origenController.clear();
       _destinoController.clear();
       historialFiltrado = List.from(historial);
@@ -134,7 +164,8 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
       fechaDesde != null ||
       fechaHasta != null ||
       (origenFiltro != null && origenFiltro!.isNotEmpty) ||
-      (destinoFiltro != null && destinoFiltro!.isNotEmpty);
+      (destinoFiltro != null && destinoFiltro!.isNotEmpty) ||
+      (estadoFiltro != null && estadoFiltro!.isNotEmpty);
 
   Future<void> seleccionarFecha(BuildContext context, bool esDesde) async {
     final picked = await showDatePicker(
@@ -223,7 +254,6 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
             ],
           ),
           const Spacer(),
-          // Botón filtros
           GestureDetector(
             onTap: () => setState(() => mostrarFiltros = !mostrarFiltros),
             child: Container(
@@ -382,7 +412,27 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
             },
           ),
           const SizedBox(height: 10),
-          // Botón limpiar
+          // Filtro de estado
+          const Text(
+            'Estado del viaje',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: textoSecundario,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _buildChipEstado(null, 'Todos'),
+              ..._estados.keys.map(
+                (estado) => _buildChipEstado(estado, estado),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           if (hayFiltrosActivos)
             SizedBox(
               width: double.infinity,
@@ -396,6 +446,47 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildChipEstado(String? valor, String etiqueta) {
+    final seleccionado = estadoFiltro == valor;
+    final info = valor != null ? _estados[valor] : null;
+    final color = info != null ? info['color'] as Color : azul;
+    final bg = info != null ? info['bg'] as Color : azul.withOpacity(0.1);
+    final icono = info != null ? info['icono'] as IconData : Icons.list_rounded;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() => estadoFiltro = valor);
+        aplicarFiltros();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: seleccionado ? color : fondo,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: seleccionado ? color : Colors.grey.shade300,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icono, size: 14, color: seleccionado ? Colors.white : color),
+            const SizedBox(width: 5),
+            Text(
+              etiqueta,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: seleccionado ? Colors.white : color,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -552,6 +643,18 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
   }
 
   Widget _buildTarjeta(Map<String, dynamic> item) {
+    final estado = item['estado']?.toString() ?? '';
+    final infoEstado = _estados[estado];
+    final colorEstado = infoEstado != null
+        ? infoEstado['color'] as Color
+        : Colors.grey.shade500;
+    final bgEstado = infoEstado != null
+        ? infoEstado['bg'] as Color
+        : Colors.grey.shade100;
+    final iconoEstado = infoEstado != null
+        ? infoEstado['icono'] as IconData
+        : Icons.help_outline_rounded;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -589,6 +692,34 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
                   ),
                 ),
               ),
+              const SizedBox(width: 8),
+              // Badge de estado
+              if (estado.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: bgEstado,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(iconoEstado, size: 12, color: colorEstado),
+                      const SizedBox(width: 4),
+                      Text(
+                        estado,
+                        style: TextStyle(
+                          color: colorEstado,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               const Spacer(),
               Text(
                 '\$${item['monto']} MXN',
