@@ -63,14 +63,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
   void initState() {
     super.initState();
     _generarPasajeros();
-    if (widget.correoCliente != null && pasajerosList.isNotEmpty) {
-      final contacto = pasajerosList.firstWhere(
-        (p) => p['esContacto'] == true,
-        orElse: () => pasajerosList.first,
-      );
-      (contacto['correoCtrl'] as TextEditingController).text =
-          widget.correoCliente!;
-    }
+    _prerellenarContacto();
   }
 
   void _generarPasajeros() {
@@ -89,6 +82,35 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     }
     for (int i = 0; i < (widget.pasajeros['discapacidad'] ?? 0); i++) {
       pasajerosList.add(_crearPasajero('Discapacidad'));
+    }
+  }
+
+  void _prerellenarContacto() {
+    if (pasajerosList.isEmpty) return;
+
+    final contacto = pasajerosList.firstWhere(
+      (p) => p['esContacto'] == true,
+      orElse: () => pasajerosList.first,
+    );
+
+    // Rellenar correo siempre que esté disponible
+    if (widget.correoCliente != null) {
+      (contacto['correoCtrl'] as TextEditingController).text =
+          widget.correoCliente!;
+    }
+
+    // Si es cliente registrado, rellenar nombre y apellido
+    if (widget.tipoUsuario == 'cliente' && widget.datosUsuario != null) {
+      final datos = widget.datosUsuario!;
+      final nombre = datos['nombre']?.toString() ?? '';
+      final apellido = datos['primer_apellido']?.toString() ?? '';
+
+      if (nombre.isNotEmpty) {
+        (contacto['nombreCtrl'] as TextEditingController).text = nombre;
+      }
+      if (apellido.isNotEmpty) {
+        (contacto['apPaternoCtrl'] as TextEditingController).text = apellido;
+      }
     }
   }
 
@@ -383,6 +405,12 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     final precioFinal = _calcularPrecioConDescuento(tipo);
     final precioBase = double.parse(widget.precio);
     final requiereId = _requierenId.contains(tipo);
+    // Detectar si este es el pasajero contacto de un cliente registrado
+    // para mostrar badge de autorelleno
+    final esClienteRegistrado =
+        esContacto &&
+        widget.tipoUsuario == 'cliente' &&
+        widget.datosUsuario != null;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -484,6 +512,30 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
               ],
             ),
             const SizedBox(height: 12),
+
+            // ── Aviso de datos autorrellenados ───────────────
+            if (esClienteRegistrado)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: azul.withOpacity(0.04),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: azul.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.auto_fix_high_rounded, size: 16, color: azul),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Datos autorrellenados con tu cuenta. Puedes modificarlos si lo deseas.',
+                        style: TextStyle(fontSize: 12, color: azul),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             // ── Precio con descuento ─────────────────────────
             if (descuento > 0)
@@ -617,6 +669,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                 soloNumeros: true,
               ),
               const SizedBox(height: 12),
+              // Si no hay correo de cliente, mostrar campo editable
               if (widget.correoCliente == null)
                 _buildCampo(
                   ctrl: pasajero['correoCtrl'],
@@ -625,6 +678,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                   requerido: true,
                   esCorreo: true,
                 ),
+              // Si hay correo de cliente (registrado), mostrar como verificado
               if (widget.correoCliente != null)
                 Container(
                   padding: const EdgeInsets.all(14),

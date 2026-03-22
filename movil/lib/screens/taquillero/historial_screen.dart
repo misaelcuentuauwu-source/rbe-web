@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:http/http.dart' as http;
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import '../../config.dart';
 
 class HistorialScreen extends StatefulWidget {
@@ -13,7 +19,6 @@ class HistorialScreen extends StatefulWidget {
 }
 
 class _HistorialScreenState extends State<HistorialScreen> {
-  // Colores invertidos: naranja es base, azul es complemento
   static const naranja = Color(0xFFE9713A);
   static const azul = Color(0xFF2C7FB1);
   static const fondo = Color(0xFFF4F6F9);
@@ -30,6 +35,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
   String? origenFiltro;
   String? destinoFiltro;
   String? estadoFiltro;
+  String _tipoFiltroFecha = 'viaje';
   bool mostrarFiltros = false;
 
   final TextEditingController _origenController = TextEditingController();
@@ -101,13 +107,17 @@ class _HistorialScreenState extends State<HistorialScreen> {
   void aplicarFiltros() {
     setState(() {
       historialFiltrado = historial.where((item) {
+        final campoFecha = _tipoFiltroFecha == 'viaje'
+            ? item['hora_salida']
+            : item['fecha'];
+
         if (fechaDesde != null) {
-          final fechaItem = DateTime.tryParse(item['fecha'].toString());
+          final fechaItem = DateTime.tryParse(campoFecha.toString());
           if (fechaItem == null || fechaItem.isBefore(fechaDesde!))
             return false;
         }
         if (fechaHasta != null) {
-          final fechaItem = DateTime.tryParse(item['fecha'].toString());
+          final fechaItem = DateTime.tryParse(campoFecha.toString());
           final fechaHastaFin = DateTime(
             fechaHasta!.year,
             fechaHasta!.month,
@@ -164,7 +174,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
       context: context,
       initialDate: DateTime.now(),
       firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
+      lastDate: DateTime(2030),
       builder: (context, child) {
         return Theme(
           data: Theme.of(
@@ -187,7 +197,8 @@ class _HistorialScreenState extends State<HistorialScreen> {
   }
 
   String _formatFechaCorta(DateTime fecha) {
-    return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
+    return '${fecha.day.toString().padLeft(2, '0')}/'
+        '${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
   }
 
   String _formatFecha(String fecha) {
@@ -207,8 +218,621 @@ class _HistorialScreenState extends State<HistorialScreen> {
       'Nov',
       'Dic',
     ];
-    return '${dt.day} ${meses[dt.month]} ${dt.year} ${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    return '${dt.day} ${meses[dt.month]} ${dt.year} '
+        '${dt.hour.toString().padLeft(2, '0')}:'
+        '${dt.minute.toString().padLeft(2, '0')}';
   }
+
+  String _formatFechaStr(String fechaStr) {
+    try {
+      final dt = DateTime.parse(fechaStr);
+      const meses = [
+        '',
+        'Ene',
+        'Feb',
+        'Mar',
+        'Abr',
+        'May',
+        'Jun',
+        'Jul',
+        'Ago',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dic',
+      ];
+      return '${dt.day} ${meses[dt.month]} ${dt.year}  '
+          '${dt.hour.toString().padLeft(2, '0')}:'
+          '${dt.minute.toString().padLeft(2, '0')}';
+    } catch (_) {
+      return fechaStr.toString().substring(0, 10);
+    }
+  }
+
+  // ── PDF ────────────────────────────────────────────────────────
+
+  Future<Uint8List> _generarQrBytes(String data) async {
+    final qrPainter = QrPainter(
+      data: data,
+      version: QrVersions.auto,
+      errorCorrectionLevel: QrErrorCorrectLevel.M,
+      color: const ui.Color(0xFF1C2D3A),
+      emptyColor: const ui.Color(0xFFFFFFFF),
+    );
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    const size = 300.0;
+    qrPainter.paint(canvas, const Size(size, size));
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(size.toInt(), size.toInt());
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData!.buffer.asUint8List();
+  }
+
+  Future<Uint8List> _generarPdfDesdeHistorial(Map<String, dynamic> data) async {
+    final doc = pw.Document();
+    final folio = data['folio'];
+    final viaje = data['viaje'] as Map<String, dynamic>;
+    final tickets = data['tickets'] as List;
+    final origen = viaje['origen'].toString();
+    final destino = viaje['destino'].toString();
+    final monto =
+        double.tryParse(data['monto'].toString())?.toStringAsFixed(2) ?? '0.00';
+    final metodo = (data['metodo_pago_id'] ?? 1) == 2 ? 'Tarjeta' : 'Efectivo';
+
+    final horaSalidaDt = DateTime.tryParse(viaje['hora_salida'].toString());
+    final horaSalida = horaSalidaDt != null
+        ? '${horaSalidaDt.hour.toString().padLeft(2, '0')}:'
+              '${horaSalidaDt.minute.toString().padLeft(2, '0')}'
+        : viaje['hora_salida'].toString();
+
+    const meses = [
+      '',
+      'Ene',
+      'Feb',
+      'Mar',
+      'Abr',
+      'May',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dic',
+    ];
+    final fechaViaje = horaSalidaDt != null
+        ? '${horaSalidaDt.day} ${meses[horaSalidaDt.month]} ${horaSalidaDt.year}'
+        : '';
+
+    // Taquillero usa naranja como primario
+    final colorPrimario = PdfColor.fromHex('E9713A');
+    final colorSecundario = PdfColor.fromHex('2C7FB1');
+    final pdfOscuro = PdfColor.fromHex('1C2D3A');
+    final pdfGris = PdfColor.fromHex('6B8FA8');
+    final pdfBlanco = PdfColors.white;
+    final pdfGrisClaro = PdfColor.fromHex('E8ECF0');
+
+    for (final t in tickets) {
+      final nombre = '${t['nombre'] ?? ''} ${t['primer_apellido'] ?? ''}'
+          .trim();
+      final asiento = t['asiento']?.toString() ?? '-';
+      final tipo = t['tipo_pasajero']?.toString() ?? 'Adulto';
+      final precio =
+          double.tryParse(t['precio'].toString())?.toStringAsFixed(2) ?? '0.00';
+
+      final qrData = jsonEncode({
+        'folio': folio,
+        'pasajero': nombre,
+        'asiento': asiento,
+        'origen': origen,
+        'destino': destino,
+        'fecha': fechaViaje,
+        'salida': horaSalida,
+      });
+      final qrBytes = await _generarQrBytes(qrData);
+      final qrImage = pw.MemoryImage(qrBytes);
+
+      doc.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          margin: pw.EdgeInsets.zero,
+          build: (_) => pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(
+              horizontal: 50,
+              vertical: 60,
+            ),
+            child: pw.Container(
+              decoration: pw.BoxDecoration(
+                color: pdfBlanco,
+                borderRadius: pw.BorderRadius.circular(16),
+                border: pw.Border.all(color: pdfGrisClaro, width: 1),
+              ),
+              child: pw.Column(
+                mainAxisSize: pw.MainAxisSize.min,
+                children: [
+                  // HEADER
+                  pw.Container(
+                    width: double.infinity,
+                    padding: const pw.EdgeInsets.fromLTRB(28, 18, 28, 18),
+                    decoration: pw.BoxDecoration(
+                      color: colorPrimario,
+                      borderRadius: const pw.BorderRadius.only(
+                        topLeft: pw.Radius.circular(16),
+                        topRight: pw.Radius.circular(16),
+                      ),
+                    ),
+                    child: pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'RUTAS BAJA EXPRESS',
+                              style: pw.TextStyle(
+                                color: pdfBlanco,
+                                fontSize: 16,
+                                fontWeight: pw.FontWeight.bold,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                            pw.SizedBox(height: 2),
+                            pw.Text(
+                              'BOARDING PASS',
+                              style: pw.TextStyle(
+                                color: pdfBlanco,
+                                fontSize: 9,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                          ],
+                        ),
+                        pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.end,
+                          children: [
+                            pw.Text(
+                              'FOLIO',
+                              style: pw.TextStyle(
+                                color: PdfColor.fromHex('FFFFFF99'),
+                                fontSize: 9,
+                                letterSpacing: 1,
+                              ),
+                            ),
+                            pw.Text(
+                              '#$folio',
+                              style: pw.TextStyle(
+                                color: pdfBlanco,
+                                fontSize: 18,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // RUTA
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.fromLTRB(28, 22, 28, 0),
+                    child: pw.Row(
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Expanded(
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text(
+                                'DE',
+                                style: pw.TextStyle(
+                                  color: pdfGris,
+                                  fontSize: 9,
+                                  letterSpacing: 2,
+                                ),
+                              ),
+                              pw.SizedBox(height: 2),
+                              pw.Text(
+                                origen.toUpperCase(),
+                                style: pw.TextStyle(
+                                  color: pdfOscuro,
+                                  fontSize: 28,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.SizedBox(height: 2),
+                              pw.Text(
+                                horaSalida,
+                                style: pw.TextStyle(
+                                  color: colorPrimario,
+                                  fontSize: 20,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.Text(
+                                'SALIDA',
+                                style: pw.TextStyle(
+                                  color: pdfGris,
+                                  fontSize: 8,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        pw.Text(
+                          '→',
+                          style: pw.TextStyle(color: pdfGris, fontSize: 28),
+                        ),
+                        pw.Expanded(
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.end,
+                            children: [
+                              pw.Text(
+                                'HACIA',
+                                style: pw.TextStyle(
+                                  color: pdfGris,
+                                  fontSize: 9,
+                                  letterSpacing: 2,
+                                ),
+                              ),
+                              pw.SizedBox(height: 2),
+                              pw.Text(
+                                destino.toUpperCase(),
+                                textAlign: pw.TextAlign.right,
+                                style: pw.TextStyle(
+                                  color: pdfOscuro,
+                                  fontSize: 28,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.SizedBox(height: 2),
+                              pw.Text(
+                                fechaViaje,
+                                style: pw.TextStyle(
+                                  color: colorSecundario,
+                                  fontSize: 14,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.Text(
+                                'FECHA',
+                                style: pw.TextStyle(
+                                  color: pdfGris,
+                                  fontSize: 8,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  pw.SizedBox(height: 18),
+
+                  // PASAJERO + ASIENTO
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 28),
+                    child: pw.Container(
+                      padding: const pw.EdgeInsets.all(14),
+                      decoration: pw.BoxDecoration(
+                        color: PdfColor.fromHex('F8F9FA'),
+                        borderRadius: pw.BorderRadius.circular(10),
+                      ),
+                      child: pw.Row(
+                        children: [
+                          pw.Expanded(
+                            flex: 3,
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.Text(
+                                  'NOMBRE PASAJERO',
+                                  style: pw.TextStyle(
+                                    color: pdfGris,
+                                    fontSize: 8,
+                                    letterSpacing: 1.5,
+                                  ),
+                                ),
+                                pw.SizedBox(height: 4),
+                                pw.Text(
+                                  nombre,
+                                  style: pw.TextStyle(
+                                    color: pdfOscuro,
+                                    fontSize: 14,
+                                    fontWeight: pw.FontWeight.bold,
+                                  ),
+                                ),
+                                pw.SizedBox(height: 2),
+                                pw.Text(
+                                  tipo,
+                                  style: pw.TextStyle(
+                                    color: pdfGris,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          pw.Container(
+                            width: 1,
+                            height: 46,
+                            color: pdfGrisClaro,
+                          ),
+                          pw.SizedBox(width: 14),
+                          pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.center,
+                            children: [
+                              pw.Text(
+                                'ASIENTO',
+                                style: pw.TextStyle(
+                                  color: pdfGris,
+                                  fontSize: 8,
+                                  letterSpacing: 1.5,
+                                ),
+                              ),
+                              pw.SizedBox(height: 4),
+                              pw.Container(
+                                padding: const pw.EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 5,
+                                ),
+                                decoration: pw.BoxDecoration(
+                                  color: colorPrimario,
+                                  borderRadius: pw.BorderRadius.circular(8),
+                                ),
+                                child: pw.Text(
+                                  asiento,
+                                  style: pw.TextStyle(
+                                    color: pdfBlanco,
+                                    fontSize: 20,
+                                    fontWeight: pw.FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  pw.SizedBox(height: 14),
+
+                  // CHIPS
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 28),
+                    child: pw.Row(
+                      children: [
+                        _chipPdf(
+                          'PAGO',
+                          metodo,
+                          pdfGris,
+                          pdfOscuro,
+                          pdfGrisClaro,
+                        ),
+                        pw.SizedBox(width: 10),
+                        _chipPdf(
+                          'PRECIO',
+                          '\$$precio MXN',
+                          pdfGris,
+                          colorSecundario,
+                          pdfGrisClaro,
+                        ),
+                        pw.SizedBox(width: 10),
+                        _chipPdf(
+                          'TOTAL',
+                          '\$$monto MXN',
+                          pdfGris,
+                          colorPrimario,
+                          pdfGrisClaro,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  pw.SizedBox(height: 18),
+
+                  // LÍNEA
+                  pw.Row(
+                    children: [
+                      pw.Container(
+                        width: 14,
+                        height: 14,
+                        decoration: pw.BoxDecoration(
+                          color: PdfColor.fromHex('EEEEEE'),
+                          shape: pw.BoxShape.circle,
+                        ),
+                      ),
+                      pw.Expanded(
+                        child: pw.Container(height: 1, color: pdfGrisClaro),
+                      ),
+                      pw.Container(
+                        width: 14,
+                        height: 14,
+                        decoration: pw.BoxDecoration(
+                          color: PdfColor.fromHex('EEEEEE'),
+                          shape: pw.BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  pw.SizedBox(height: 18),
+
+                  // QR + INFO
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.fromLTRB(28, 0, 28, 24),
+                    child: pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'EMITIDO POR',
+                              style: pw.TextStyle(
+                                color: pdfGris,
+                                fontSize: 8,
+                                letterSpacing: 1.5,
+                              ),
+                            ),
+                            pw.SizedBox(height: 3),
+                            pw.Text(
+                              'Rutas Baja Express',
+                              style: pw.TextStyle(
+                                color: pdfOscuro,
+                                fontSize: 11,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.SizedBox(height: 12),
+                            pw.Text(
+                              'Preséntate 30 min antes de la salida.',
+                              style: pw.TextStyle(color: pdfGris, fontSize: 8),
+                            ),
+                            pw.SizedBox(height: 4),
+                            pw.Text(
+                              'www.rutasbaja.mx',
+                              style: pw.TextStyle(
+                                color: colorPrimario,
+                                fontSize: 8,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                        pw.Column(
+                          children: [
+                            pw.Container(
+                              padding: const pw.EdgeInsets.all(6),
+                              decoration: pw.BoxDecoration(
+                                color: pdfBlanco,
+                                border: pw.Border.all(color: pdfGrisClaro),
+                                borderRadius: pw.BorderRadius.circular(6),
+                              ),
+                              child: pw.Image(qrImage, width: 90, height: 90),
+                            ),
+                            pw.SizedBox(height: 4),
+                            pw.Text(
+                              'Escanea para verificar',
+                              style: pw.TextStyle(color: pdfGris, fontSize: 7),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return doc.save();
+  }
+
+  static pw.Widget _chipPdf(
+    String label,
+    String value,
+    PdfColor labelColor,
+    PdfColor valueColor,
+    PdfColor bgColor,
+  ) {
+    return pw.Expanded(
+      child: pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: pw.BoxDecoration(
+          color: bgColor,
+          borderRadius: pw.BorderRadius.circular(8),
+        ),
+        child: pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              label,
+              style: pw.TextStyle(
+                color: labelColor,
+                fontSize: 7,
+                letterSpacing: 1,
+              ),
+            ),
+            pw.SizedBox(height: 2),
+            pw.Text(
+              value,
+              style: pw.TextStyle(
+                color: valueColor,
+                fontSize: 9,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _reimprimir(BuildContext context, int folio) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final response = await http
+          .get(Uri.parse('${Config.baseUrl}/api/boleto/$folio/'))
+          .timeout(const Duration(seconds: 10));
+
+      if (!context.mounted) return;
+      Navigator.pop(context);
+
+      if (response.statusCode != 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('No se pudo cargar el boleto'),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+        return;
+      }
+
+      final data = jsonDecode(response.body);
+      final pdfBytes = await _generarPdfDesdeHistorial(data);
+
+      if (!context.mounted) return;
+
+      await Printing.layoutPdf(
+        onLayout: (_) async => pdfBytes,
+        name: 'Boleto_Folio_$folio.pdf',
+      );
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // ── BUILD ──────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -281,7 +905,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
             ],
           ),
           const Spacer(),
-          // Botón filtros
           GestureDetector(
             onTap: () => setState(() => mostrarFiltros = !mostrarFiltros),
             child: Container(
@@ -324,7 +947,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          // Botón refresh
           GestureDetector(
             onTap: () {
               limpiarFiltros();
@@ -356,6 +978,108 @@ class _HistorialScreenState extends State<HistorialScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Selector tipo fecha
+          const Text(
+            'Filtrar fechas por',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: textoSecundario,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _tipoFiltroFecha = 'viaje');
+                    aplicarFiltros();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _tipoFiltroFecha == 'viaje' ? naranja : fondo,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _tipoFiltroFecha == 'viaje'
+                            ? naranja
+                            : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.directions_bus_rounded,
+                          size: 14,
+                          color: _tipoFiltroFecha == 'viaje'
+                              ? Colors.white
+                              : textoSecundario,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Fecha del viaje',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _tipoFiltroFecha == 'viaje'
+                                ? Colors.white
+                                : textoSecundario,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() => _tipoFiltroFecha = 'compra');
+                    aplicarFiltros();
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _tipoFiltroFecha == 'compra' ? naranja : fondo,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: _tipoFiltroFecha == 'compra'
+                            ? naranja
+                            : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.receipt_rounded,
+                          size: 14,
+                          color: _tipoFiltroFecha == 'compra'
+                              ? Colors.white
+                              : textoSecundario,
+                        ),
+                        const SizedBox(width: 5),
+                        Text(
+                          'Fecha de venta',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: _tipoFiltroFecha == 'compra'
+                                ? Colors.white
+                                : textoSecundario,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
@@ -388,7 +1112,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          // Origen
           TextField(
             controller: _origenController,
             decoration: InputDecoration(
@@ -424,7 +1147,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
             },
           ),
           const SizedBox(height: 8),
-          // Destino
           TextField(
             controller: _destinoController,
             decoration: InputDecoration(
@@ -460,7 +1182,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
             },
           ),
           const SizedBox(height: 10),
-          // Filtro estado
           const Text(
             'Estado del viaje',
             style: TextStyle(
@@ -475,9 +1196,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
             runSpacing: 8,
             children: [
               _buildChipEstado(null, 'Todos'),
-              ..._estados.keys.map(
-                (estado) => _buildChipEstado(estado, estado),
-              ),
+              ..._estados.keys.map((e) => _buildChipEstado(e, e)),
             ],
           ),
           const SizedBox(height: 10),
@@ -736,7 +1455,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Badge estado
                 if (estado.isNotEmpty)
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -802,6 +1520,38 @@ class _HistorialScreenState extends State<HistorialScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            // Fecha de venta
+            Row(
+              children: [
+                Icon(
+                  Icons.receipt_rounded,
+                  color: Colors.grey.shade400,
+                  size: 13,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Venta: ${venta['fecha'].toString().substring(0, 10)}',
+                  style: TextStyle(fontSize: 12, color: textoSecundario),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            // Fecha del viaje
+            Row(
+              children: [
+                Icon(
+                  Icons.directions_bus_rounded,
+                  color: Colors.grey.shade400,
+                  size: 13,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Viaje: ${_formatFechaStr(venta['hora_salida'].toString())}',
+                  style: TextStyle(fontSize: 12, color: textoSecundario),
+                ),
+              ],
+            ),
             const SizedBox(height: 10),
             Divider(height: 1, color: Colors.grey.shade100),
             const SizedBox(height: 10),
@@ -830,6 +1580,26 @@ class _HistorialScreenState extends State<HistorialScreen> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _reimprimir(context, venta['folio']),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: naranja,
+                  side: const BorderSide(color: naranja, width: 1.5),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                label: const Text(
+                  'Reimprimir boleto',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                ),
+              ),
             ),
           ],
         ),

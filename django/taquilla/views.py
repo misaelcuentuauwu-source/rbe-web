@@ -956,6 +956,7 @@ def api_buscar_boleto(request, folio):
             'fecha_pago': str(pago.fechapago),
             'monto': str(pago.monto),
             'metodo_pago': pago.tipo.nombre,
+            'metodo_pago_id': pago.tipo.numero,
             'vendedor': f'{pago.vendedor.taqnombre} {pago.vendedor.taqprimerapell}' if pago.vendedor else 'App',
             'viaje': {
                 'origen': viaje.ruta.origen.ciudad.nombre,
@@ -969,8 +970,11 @@ def api_buscar_boleto(request, folio):
                     'codigo': t.codigo,
                     'asiento': t.asiento.numero,
                     'tipo_asiento': t.asiento.tipo.descripcion,
+                    'nombre': t.pasajero.panombre,
+                    'primer_apellido': t.pasajero.paprimerapell,
                     'pasajero': f'{t.pasajero.panombre} {t.pasajero.paprimerapell}',
                     'tipo_pasajero': t.tipopasajero.descripcion,
+                    'descuento': t.tipopasajero.descuento,
                     'precio': str(t.precio),
                 }
                 for t in tickets
