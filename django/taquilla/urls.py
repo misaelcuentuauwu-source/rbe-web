@@ -1,8 +1,11 @@
 from django.urls import path
-from django.views.generic import RedirectView 
+from django.views.generic import RedirectView
+from django.conf import settings
+from django.conf.urls.static import static
 from . import views
 
 urlpatterns = [
+
     path('elipse/',       views.elipse_view, name='elipse'),
     path('elipse/chat/',  views.elipse_chat, name='elipse_chat'),
     path('ok/', views.ok_view, name='ok'),
@@ -30,7 +33,7 @@ urlpatterns = [
     path('api/crud/<str:tabla>/eliminar/',   views.crud_eliminar,   name='crud_eliminar'),
     # Salidas / viajes
     path('api/salidas/',             views.salidas_json,           name='salidas_json'),
-    path('api/historial/',           views.historial_json,         name='historial_json'),  # NUEVO
+    path('api/historial/',           views.historial_json,         name='historial_json'),
     path('api/viaje/opciones/',      views.agregar_viaje_opciones, name='viaje_opciones'),
     path('api/viaje/agregar/',       views.agregar_viaje,          name='agregar_viaje'),
     # KPIs
@@ -42,9 +45,11 @@ urlpatterns = [
     path('api/viajes/<int:id>/',     views.api_viaje_detalle,      name='api_viaje_detalle'),
     path('api/terminales/',          views.api_terminales,         name='api_terminales'),
     path('api/cliente/registro/',      views.api_cliente_registro,   name='api_cliente_registro'),
-path('api/cliente/google-login/',  views.api_cliente_google_login, name='api_cliente_google_login'),
-path('api/cliente/login/', views.api_cliente_login_email, name='api_cliente_login_email'),
+    path('api/cliente/google-login/',  views.api_cliente_google_login, name='api_cliente_google_login'),
+    path('api/cliente/login/', views.api_cliente_login_email, name='api_cliente_login_email'),
     # Detalle autobus y pasajeros (usados desde panel_admin.html)
     path('api/autobus/detalle/<int:bus_id>/',   views.autobus_detalle, name='autobus_detalle'),
     path('api/viaje/pasajeros/<int:viaje_id>/', views.viaje_pasajeros, name='viaje_pasajeros'),
 ]
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

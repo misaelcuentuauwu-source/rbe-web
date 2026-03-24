@@ -11,4 +11,10 @@ urlpatterns = [
     path('boleto/<int:folio>/', views.api_buscar_boleto, name='api_buscar_boleto'),
     path('cliente/google-login/', views.api_cliente_google_login, name='api_cliente_google_login'),
     path('historial/cliente/<int:cliente_id>/', views.api_historial_cliente, name='api_historial_cliente'),
+
+
+    path('taquillero/<int:taquillero_id>/foto/', views.api_subir_foto_taquillero, name='api_foto_taquillero'),
+    path('pasajero/<int:pasajero_num>/foto/', views.api_subir_foto_pasajero, name='api_foto_pasajero'),
+    path('boleto/<int:pago_id>/enviar_correo/', views.api_enviar_boleto_correo, name='api_enviar_boleto_correo'),
+
 ]

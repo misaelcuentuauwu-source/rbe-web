@@ -93,12 +93,15 @@ LOGOUT_REDIRECT_URL = '/login/'
 # Fuerza recarga del CSS al cambiar este número
 STATIC_VERSION = '2'
 
-# ── Correo electrónico ─────────────────────────────────────────
+# Configuración de correo (ejemplo con Gmail)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'rutasbajaexpress@gmail.com'
-EMAIL_HOST_PASSWORD = 'sxtuspevydckddbl'
-DEFAULT_FROM_EMAIL = 'Rutas Baja Express <rutasbajaexpress@gmail.com>'
+EMAIL_HOST_USER = 'tucorreo@gmail.com'
+EMAIL_HOST_PASSWORD = 'tu_app_password'
+DEFAULT_FROM_EMAIL = 'Rutas Baja Express <tucorreo@gmail.com>'
 
+# foto
+MEDIA_URL  = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')

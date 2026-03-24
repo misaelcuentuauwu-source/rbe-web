@@ -130,6 +130,7 @@ class Taquillero(models.Model):
     contrasena = models.CharField(max_length=20)
     terminal = models.ForeignKey('Terminal', models.DO_NOTHING, db_column='terminal')
     supervisa = models.IntegerField(blank=True, null=True)
+    foto = models.CharField(max_length=200, blank=True, null=True) 
 
     class Meta:
         managed = False

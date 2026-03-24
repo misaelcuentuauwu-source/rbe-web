@@ -107,6 +107,25 @@ class _PagoScreenState extends State<PagoScreen> {
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
+
+        // ── Enviar boleto por correo ──────────────────────────────
+        final correo = contacto['correo'] ?? '';
+        if (correo.isNotEmpty) {
+          try {
+            await http
+                .post(
+                  Uri.parse(
+                    '${Config.baseUrl}/api/boleto/${data['pago_id']}/enviar_correo/',
+                  ),
+                  headers: {'Content-Type': 'application/json'},
+                  body: jsonEncode({'correo': correo}),
+                )
+                .timeout(const Duration(seconds: 15));
+          } catch (_) {
+            // Si falla el correo no bloqueamos el flujo
+          }
+        }
+
         if (mounted) {
           Navigator.pushReplacement(
             context,

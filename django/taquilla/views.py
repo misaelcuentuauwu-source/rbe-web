@@ -1191,3 +1191,113 @@ def api_verificar_pasajero(request):
 
     except Exception as e:
         return Response({'error': str(e)}, status=400)
+
+
+# ── Subir foto taquillero ─────────────────────────────────
+@api_view(['POST'])
+def api_subir_foto_taquillero(request, taquillero_id):
+    try:
+        taquillero = Taquillero.objects.get(registro=taquillero_id)
+    except Taquillero.DoesNotExist:
+        return Response({'error': 'Taquillero no encontrado'}, status=404)
+
+    if 'foto' not in request.FILES:
+        return Response({'error': 'No se envió ninguna foto'}, status=400)
+
+    archivo = request.FILES['foto']
+    carpeta = os.path.join(settings.MEDIA_ROOT, 'fotos_taquilleros')
+    os.makedirs(carpeta, exist_ok=True)
+
+    # Borrar foto anterior si existe
+    if taquillero.foto:
+        ruta_anterior = os.path.join(settings.MEDIA_ROOT, taquillero.foto)
+        if os.path.exists(ruta_anterior):
+            os.remove(ruta_anterior)
+
+    nombre = f'taquillero_{taquillero_id}_{archivo.name}'
+    ruta_relativa = f'fotos_taquilleros/{nombre}'
+    ruta_completa = os.path.join(settings.MEDIA_ROOT, ruta_relativa)
+
+    with open(ruta_completa, 'wb') as f:
+        for chunk in archivo.chunks():
+            f.write(chunk)
+
+    taquillero.foto = ruta_relativa
+    taquillero.save(update_fields=['foto'])
+
+    foto_url = request.build_absolute_uri(f'{settings.MEDIA_URL}{ruta_relativa}')
+    return Response({'foto_url': foto_url})
+
+
+# ── Subir foto pasajero ───────────────────────────────────
+@api_view(['POST'])
+def api_subir_foto_pasajero(request, pasajero_num):
+    try:
+        cuenta = CuentaPasajero.objects.get(pasajero_num=pasajero_num)
+    except CuentaPasajero.DoesNotExist:
+        return Response({'error': 'Cuenta no encontrada'}, status=404)
+
+    if 'foto' not in request.FILES:
+        return Response({'error': 'No se envió ninguna foto'}, status=400)
+
+    archivo = request.FILES['foto']
+    carpeta = os.path.join(settings.MEDIA_ROOT, 'fotos_pasajeros')
+    os.makedirs(carpeta, exist_ok=True)
+
+    if cuenta.foto and not cuenta.foto.startswith('http'):
+        ruta_anterior = os.path.join(settings.MEDIA_ROOT, cuenta.foto)
+        if os.path.exists(ruta_anterior):
+            os.remove(ruta_anterior)
+
+    nombre = f'pasajero_{pasajero_num}_{archivo.name}'
+    ruta_relativa = f'fotos_pasajeros/{nombre}'
+    ruta_completa = os.path.join(settings.MEDIA_ROOT, ruta_relativa)
+
+    with open(ruta_completa, 'wb') as f:
+        for chunk in archivo.chunks():
+            f.write(chunk)
+
+    cuenta.foto = ruta_relativa
+    cuenta.save(update_fields=['foto'])
+
+    foto_url = request.build_absolute_uri(f'{settings.MEDIA_URL}{ruta_relativa}')
+    return Response({'foto_url': foto_url})
+
+
+# ── Enviar boleto por correo ──────────────────────────────
+@api_view(['POST'])
+def api_enviar_boleto_correo(request, pago_id):
+    try:
+        data = json.loads(request.body)
+        correo_destino = data.get('correo', '')
+        if not correo_destino:
+            return Response({'error': 'Correo requerido'}, status=400)
+
+        pago = Pago.objects.get(numero=pago_id)
+        tickets = Ticket.objects.filter(pago=pago).select_related(
+            'pasajero', 'asiento', 'viaje__ruta__origen', 'viaje__ruta__destino', 'tipopasajero'
+        )
+
+        lineas = [f'Folio de compra: #{pago_id}', '']
+        for t in tickets:
+            v = t.viaje
+            lineas.append(f'Pasajero: {t.pasajero.panombre} {t.pasajero.paprimerapell}')
+            lineas.append(f'Asiento: {t.asiento.numero}')
+            lineas.append(f'Ruta: {v.ruta.origen.nombre} → {v.ruta.destino.nombre}')
+            lineas.append(f'Salida: {v.fechorasalida.strftime("%d/%m/%Y %H:%M")}')
+            lineas.append(f'Precio: ${t.precio}')
+            lineas.append('')
+
+        send_mail(
+            subject=f'Tu boleto Rutas Baja Express - Folio #{pago_id}',
+            message='\n'.join(lineas),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[correo_destino],
+            fail_silently=False,
+        )
+        return Response({'ok': True, 'mensaje': f'Correo enviado a {correo_destino}'})
+
+    except Pago.DoesNotExist:
+        return Response({'error': 'Pago no encontrado'}, status=404)
+    except Exception as e:
+        return Response({'error': str(e)}, status=500)
