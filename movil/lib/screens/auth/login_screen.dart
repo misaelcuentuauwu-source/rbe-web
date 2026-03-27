@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import '../../config.dart';
+import '../../utils/transitions.dart';
 import '../taquillero/home_screen.dart';
 import '../cliente/home_screen.dart';
 
@@ -61,8 +62,8 @@ class _LoginScreenState extends State<LoginScreen> {
         if (mounted) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(
-              builder: (_) => HomeNavigationScreen(taquillero: dataTaquillero),
+            AppRoutes.fadeSlideUp(
+              HomeNavigationScreen(taquillero: dataTaquillero),
             ),
             (route) => false,
           );
@@ -105,9 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (responseCliente.statusCode == 200 && mounted) {
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(
-            builder: (_) => HomeClienteScreen(cliente: dataCliente),
-          ),
+          AppRoutes.fadeSlideUp(HomeClienteScreen(cliente: dataCliente)),
           (route) => false,
         );
       } else {
@@ -175,7 +174,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (response.statusCode == 200 && mounted) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (_) => HomeClienteScreen(cliente: data)),
+            AppRoutes.fadeSlideUp(HomeClienteScreen(cliente: data)),
             (route) => false,
           );
         } else {
@@ -237,7 +236,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (response.statusCode == 200 && mounted) {
           Navigator.pushAndRemoveUntil(
             context,
-            MaterialPageRoute(builder: (_) => HomeClienteScreen(cliente: data)),
+            AppRoutes.fadeSlideUp(HomeClienteScreen(cliente: data)),
             (route) => false,
           );
         } else {

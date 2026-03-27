@@ -9,25 +9,36 @@ import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../config.dart';
 
+// ─────────────────────────────────────────────────────────
+//  HISTORIAL SCREEN  –  RBE v2
+//  Diseño: cards glassmórficas con animación stagger,
+//  header con degradado sutil y shimmer en carga,
+//  chip de estado con pulso animado para "En Ruta".
+// ─────────────────────────────────────────────────────────
+
 class HistorialScreen extends StatefulWidget {
   final int vendedorId;
-
   const HistorialScreen({super.key, required this.vendedorId});
 
   @override
   State<HistorialScreen> createState() => _HistorialScreenState();
 }
 
-class _HistorialScreenState extends State<HistorialScreen> {
+class _HistorialScreenState extends State<HistorialScreen>
+    with TickerProviderStateMixin {
+  // ── Paleta ────────────────────────────────────────────
   static const naranja = Color(0xFFE9713A);
   static const azul = Color(0xFF2C7FB1);
-  static const fondo = Color(0xFFF4F6F9);
-  static const textoPrincipal = Color(0xFF1C2D3A);
-  static const textoSecundario = Color(0xFF6B8FA8);
+  static const fondo = Color(0xFFF0F3F8);
+  static const surface = Colors.white;
+  static const dark = Color(0xFF1C2D3A);
+  static const muted = Color(0xFF8FA8BE);
 
+  // ── Estado ────────────────────────────────────────────
   List<dynamic> historial = [];
   List<dynamic> historialFiltrado = [];
   bool cargando = true;
+  bool mostrarFiltros = false;
 
   // Filtros
   DateTime? fechaDesde;
@@ -36,65 +47,120 @@ class _HistorialScreenState extends State<HistorialScreen> {
   String? destinoFiltro;
   String? estadoFiltro;
   String _tipoFiltroFecha = 'viaje';
-  bool mostrarFiltros = false;
 
-  final TextEditingController _origenController = TextEditingController();
-  final TextEditingController _destinoController = TextEditingController();
+  final _origenCtrl = TextEditingController();
+  final _destinoCtrl = TextEditingController();
 
-  static const Map<String, Map<String, dynamic>> _estados = {
-    'Disponible': {
-      'color': Color(0xFF2E7D32),
-      'bg': Color(0xFFE8F5E9),
-      'icono': Icons.check_circle_outline_rounded,
-    },
-    'En Ruta': {
-      'color': Color(0xFF1565C0),
-      'bg': Color(0xFFE3F2FD),
-      'icono': Icons.directions_bus_rounded,
-    },
-    'Finalizado': {
-      'color': Color(0xFF6B8FA8),
-      'bg': Color(0xFFF4F6F9),
-      'icono': Icons.flag_rounded,
-    },
-    'Cancelado': {
-      'color': Color(0xFFC62828),
-      'bg': Color(0xFFFFEBEE),
-      'icono': Icons.cancel_outlined,
-    },
-    'Retrasado': {
-      'color': Color(0xFFE65100),
-      'bg': Color(0xFFFFF3E0),
-      'icono': Icons.schedule_rounded,
-    },
+  // ── Animaciones ───────────────────────────────────────
+  late AnimationController _filterPanelCtrl;
+  late Animation<double> _filterPanelAnim;
+
+  // Controlador de lista para stagger
+  final List<AnimationController> _cardCtrls = [];
+  final List<Animation<double>> _cardFadeAnims = [];
+  final List<Animation<Offset>> _cardSlideAnims = [];
+
+  // ── Metadatos de estados ──────────────────────────────
+  static const _estados = {
+    'Disponible': _EstadoMeta(
+      color: Color(0xFF2E7D32),
+      bg: Color(0xFFE8F5E9),
+      icon: Icons.check_circle_outline_rounded,
+    ),
+    'En Ruta': _EstadoMeta(
+      color: Color(0xFF1565C0),
+      bg: Color(0xFFE3F2FD),
+      icon: Icons.directions_bus_rounded,
+      pulsa: true,
+    ),
+    'Finalizado': _EstadoMeta(
+      color: Color(0xFF8FA8BE),
+      bg: Color(0xFFF0F3F8),
+      icon: Icons.flag_rounded,
+    ),
+    'Cancelado': _EstadoMeta(
+      color: Color(0xFFC62828),
+      bg: Color(0xFFFFEBEE),
+      icon: Icons.cancel_outlined,
+    ),
+    'Retrasado': _EstadoMeta(
+      color: Color(0xFFE65100),
+      bg: Color(0xFFFFF3E0),
+      icon: Icons.schedule_rounded,
+    ),
   };
 
+  // ─────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
+    _filterPanelCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _filterPanelAnim = CurvedAnimation(
+      parent: _filterPanelCtrl,
+      curve: Curves.easeInOutCubic,
+    );
     cargarHistorial();
   }
 
   @override
   void dispose() {
-    _origenController.dispose();
-    _destinoController.dispose();
+    _filterPanelCtrl.dispose();
+    _origenCtrl.dispose();
+    _destinoCtrl.dispose();
+    for (final c in _cardCtrls) {
+      c.dispose();
+    }
     super.dispose();
   }
 
+  // ── Stagger para tarjetas ─────────────────────────────
+  void _iniciarAnimacionCards(int count) {
+    for (final c in _cardCtrls) {
+      c.dispose();
+    }
+    _cardCtrls.clear();
+    _cardFadeAnims.clear();
+    _cardSlideAnims.clear();
+
+    for (int i = 0; i < count; i++) {
+      final ctrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 420),
+      );
+      _cardCtrls.add(ctrl);
+      _cardFadeAnims.add(CurvedAnimation(parent: ctrl, curve: Curves.easeOut));
+      _cardSlideAnims.add(
+        Tween<Offset>(
+          begin: const Offset(0, 0.12),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: ctrl, curve: Curves.easeOutCubic)),
+      );
+      Future.delayed(Duration(milliseconds: 60 * i), () {
+        if (mounted) ctrl.forward();
+      });
+    }
+  }
+
+  // ── Data ──────────────────────────────────────────────
   Future<void> cargarHistorial() async {
+    setState(() => cargando = true);
     try {
-      final response = await http
+      final res = await http
           .get(
             Uri.parse('${Config.baseUrl}/api/historial/${widget.vendedorId}/'),
           )
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) {
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body) as List;
         setState(() {
-          historial = jsonDecode(response.body) as List;
-          historialFiltrado = List.from(historial);
+          historial = data;
+          historialFiltrado = List.from(data);
           cargando = false;
         });
+        _iniciarAnimacionCards(historialFiltrado.length);
       } else {
         setState(() => cargando = false);
       }
@@ -107,18 +173,17 @@ class _HistorialScreenState extends State<HistorialScreen> {
   void aplicarFiltros() {
     setState(() {
       historialFiltrado = historial.where((item) {
-        final campoFecha = _tipoFiltroFecha == 'viaje'
+        final campo = _tipoFiltroFecha == 'viaje'
             ? item['hora_salida']
             : item['fecha'];
 
         if (fechaDesde != null) {
-          final fechaItem = DateTime.tryParse(campoFecha.toString());
-          if (fechaItem == null || fechaItem.isBefore(fechaDesde!))
-            return false;
+          final dt = DateTime.tryParse(campo.toString());
+          if (dt == null || dt.isBefore(fechaDesde!)) return false;
         }
         if (fechaHasta != null) {
-          final fechaItem = DateTime.tryParse(campoFecha.toString());
-          final fechaHastaFin = DateTime(
+          final dt = DateTime.tryParse(campo.toString());
+          final fin = DateTime(
             fechaHasta!.year,
             fechaHasta!.month,
             fechaHasta!.day,
@@ -126,131 +191,103 @@ class _HistorialScreenState extends State<HistorialScreen> {
             59,
             59,
           );
-          if (fechaItem == null || fechaItem.isAfter(fechaHastaFin))
-            return false;
+          if (dt == null || dt.isAfter(fin)) return false;
         }
-        if (origenFiltro != null && origenFiltro!.isNotEmpty) {
+        if (origenFiltro?.isNotEmpty == true) {
           if (!item['origen'].toString().toLowerCase().contains(
             origenFiltro!.toLowerCase(),
           ))
             return false;
         }
-        if (destinoFiltro != null && destinoFiltro!.isNotEmpty) {
+        if (destinoFiltro?.isNotEmpty == true) {
           if (!item['destino'].toString().toLowerCase().contains(
             destinoFiltro!.toLowerCase(),
           ))
             return false;
         }
-        if (estadoFiltro != null && estadoFiltro!.isNotEmpty) {
+        if (estadoFiltro?.isNotEmpty == true) {
           if (item['estado'].toString() != estadoFiltro) return false;
         }
         return true;
       }).toList();
     });
+    _iniciarAnimacionCards(historialFiltrado.length);
   }
 
   void limpiarFiltros() {
     setState(() {
-      fechaDesde = null;
-      fechaHasta = null;
-      origenFiltro = null;
-      destinoFiltro = null;
-      estadoFiltro = null;
-      _origenController.clear();
-      _destinoController.clear();
+      fechaDesde = fechaHasta = origenFiltro = destinoFiltro = estadoFiltro =
+          null;
+      _origenCtrl.clear();
+      _destinoCtrl.clear();
       historialFiltrado = List.from(historial);
     });
+    _iniciarAnimacionCards(historialFiltrado.length);
   }
 
-  bool get hayFiltrosActivos =>
+  bool get hayFiltros =>
       fechaDesde != null ||
       fechaHasta != null ||
-      (origenFiltro != null && origenFiltro!.isNotEmpty) ||
-      (destinoFiltro != null && destinoFiltro!.isNotEmpty) ||
-      (estadoFiltro != null && estadoFiltro!.isNotEmpty);
+      (origenFiltro?.isNotEmpty == true) ||
+      (destinoFiltro?.isNotEmpty == true) ||
+      (estadoFiltro?.isNotEmpty == true);
 
-  Future<void> seleccionarFecha(BuildContext context, bool esDesde) async {
-    final picked = await showDatePicker(
-      context: context,
+  // ── Fecha helpers ─────────────────────────────────────
+  Future<void> _selecFecha(BuildContext ctx, bool esDesde) async {
+    final p = await showDatePicker(
+      context: ctx,
       initialDate: DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2030),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(
-            context,
-          ).copyWith(colorScheme: const ColorScheme.light(primary: naranja)),
-          child: child!,
-        );
-      },
+      builder: (ctx, child) => Theme(
+        data: Theme.of(
+          ctx,
+        ).copyWith(colorScheme: const ColorScheme.light(primary: naranja)),
+        child: child!,
+      ),
     );
-    if (picked != null) {
-      setState(() {
-        if (esDesde) {
-          fechaDesde = picked;
-        } else {
-          fechaHasta = picked;
-        }
-      });
+    if (p != null) {
+      setState(() => esDesde ? fechaDesde = p : fechaHasta = p);
       aplicarFiltros();
     }
   }
 
-  String _formatFechaCorta(DateTime fecha) {
-    return '${fecha.day.toString().padLeft(2, '0')}/'
-        '${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
+  String _fmtCorta(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+
+  static const _meses = [
+    '',
+    'Ene',
+    'Feb',
+    'Mar',
+    'Abr',
+    'May',
+    'Jun',
+    'Jul',
+    'Ago',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dic',
+  ];
+
+  String _fmtFecha(String s) {
+    final d = DateTime.parse(s);
+    return '${d.day} ${_meses[d.month]} ${d.year}  '
+        '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
   }
 
-  String _formatFecha(String fecha) {
-    final dt = DateTime.parse(fecha);
-    const meses = [
-      '',
-      'Ene',
-      'Feb',
-      'Mar',
-      'Abr',
-      'May',
-      'Jun',
-      'Jul',
-      'Ago',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dic',
-    ];
-    return '${dt.day} ${meses[dt.month]} ${dt.year} '
-        '${dt.hour.toString().padLeft(2, '0')}:'
-        '${dt.minute.toString().padLeft(2, '0')}';
-  }
-
-  String _formatFechaStr(String fechaStr) {
+  String _fmtFechaStr(String s) {
     try {
-      final dt = DateTime.parse(fechaStr);
-      const meses = [
-        '',
-        'Ene',
-        'Feb',
-        'Mar',
-        'Abr',
-        'May',
-        'Jun',
-        'Jul',
-        'Ago',
-        'Sep',
-        'Oct',
-        'Nov',
-        'Dic',
-      ];
-      return '${dt.day} ${meses[dt.month]} ${dt.year}  '
-          '${dt.hour.toString().padLeft(2, '0')}:'
-          '${dt.minute.toString().padLeft(2, '0')}';
+      final d = DateTime.parse(s);
+      return '${d.day} ${_meses[d.month]} ${d.year}  '
+          '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
     } catch (_) {
-      return fechaStr.toString().substring(0, 10);
+      return s.length >= 10 ? s.substring(0, 10) : s;
     }
   }
 
-  // ── PDF ────────────────────────────────────────────────────────
-
+  // ── PDF (sin cambios funcionales) ─────────────────────
   Future<Uint8List> _generarQrBytes(String data) async {
     final qrPainter = QrPainter(
       data: data,
@@ -265,11 +302,11 @@ class _HistorialScreenState extends State<HistorialScreen> {
     qrPainter.paint(canvas, const Size(size, size));
     final picture = recorder.endRecording();
     final image = await picture.toImage(size.toInt(), size.toInt());
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    return byteData!.buffer.asUint8List();
+    final bd = await image.toByteData(format: ui.ImageByteFormat.png);
+    return bd!.buffer.asUint8List();
   }
 
-  Future<Uint8List> _generarPdfDesdeHistorial(Map<String, dynamic> data) async {
+  Future<Uint8List> _generarPdf(Map<String, dynamic> data) async {
     final doc = pw.Document();
     final folio = data['folio'];
     final viaje = data['viaje'] as Map<String, dynamic>;
@@ -280,38 +317,20 @@ class _HistorialScreenState extends State<HistorialScreen> {
         double.tryParse(data['monto'].toString())?.toStringAsFixed(2) ?? '0.00';
     final metodo = (data['metodo_pago_id'] ?? 1) == 2 ? 'Tarjeta' : 'Efectivo';
 
-    final horaSalidaDt = DateTime.tryParse(viaje['hora_salida'].toString());
-    final horaSalida = horaSalidaDt != null
-        ? '${horaSalidaDt.hour.toString().padLeft(2, '0')}:'
-              '${horaSalidaDt.minute.toString().padLeft(2, '0')}'
+    final hsDt = DateTime.tryParse(viaje['hora_salida'].toString());
+    final horaSalida = hsDt != null
+        ? '${hsDt.hour.toString().padLeft(2, '0')}:${hsDt.minute.toString().padLeft(2, '0')}'
         : viaje['hora_salida'].toString();
-
-    const meses = [
-      '',
-      'Ene',
-      'Feb',
-      'Mar',
-      'Abr',
-      'May',
-      'Jun',
-      'Jul',
-      'Ago',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dic',
-    ];
-    final fechaViaje = horaSalidaDt != null
-        ? '${horaSalidaDt.day} ${meses[horaSalidaDt.month]} ${horaSalidaDt.year}'
+    final fechaViaje = hsDt != null
+        ? '${hsDt.day} ${_meses[hsDt.month]} ${hsDt.year}'
         : '';
 
-    // Taquillero usa naranja como primario
-    final colorPrimario = PdfColor.fromHex('E9713A');
-    final colorSecundario = PdfColor.fromHex('2C7FB1');
-    final pdfOscuro = PdfColor.fromHex('1C2D3A');
-    final pdfGris = PdfColor.fromHex('6B8FA8');
-    final pdfBlanco = PdfColors.white;
-    final pdfGrisClaro = PdfColor.fromHex('E8ECF0');
+    final cP = PdfColor.fromHex('E9713A');
+    final cS = PdfColor.fromHex('2C7FB1');
+    final cD = PdfColor.fromHex('1C2D3A');
+    final cG = PdfColor.fromHex('6B8FA8');
+    final cW = PdfColors.white;
+    final cGL = PdfColor.fromHex('E8ECF0');
 
     for (final t in tickets) {
       final nombre = '${t['nombre'] ?? ''} ${t['primer_apellido'] ?? ''}'
@@ -321,17 +340,17 @@ class _HistorialScreenState extends State<HistorialScreen> {
       final precio =
           double.tryParse(t['precio'].toString())?.toStringAsFixed(2) ?? '0.00';
 
-      final qrData = jsonEncode({
-        'folio': folio,
-        'pasajero': nombre,
-        'asiento': asiento,
-        'origen': origen,
-        'destino': destino,
-        'fecha': fechaViaje,
-        'salida': horaSalida,
-      });
-      final qrBytes = await _generarQrBytes(qrData);
-      final qrImage = pw.MemoryImage(qrBytes);
+      final qrBytes = await _generarQrBytes(
+        jsonEncode({
+          'folio': folio,
+          'pasajero': nombre,
+          'asiento': asiento,
+          'origen': origen,
+          'destino': destino,
+          'fecha': fechaViaje,
+          'salida': horaSalida,
+        }),
+      );
 
       doc.addPage(
         pw.Page(
@@ -344,19 +363,18 @@ class _HistorialScreenState extends State<HistorialScreen> {
             ),
             child: pw.Container(
               decoration: pw.BoxDecoration(
-                color: pdfBlanco,
+                color: cW,
                 borderRadius: pw.BorderRadius.circular(16),
-                border: pw.Border.all(color: pdfGrisClaro, width: 1),
+                border: pw.Border.all(color: cGL, width: 1),
               ),
               child: pw.Column(
                 mainAxisSize: pw.MainAxisSize.min,
                 children: [
-                  // HEADER
                   pw.Container(
                     width: double.infinity,
                     padding: const pw.EdgeInsets.fromLTRB(28, 18, 28, 18),
                     decoration: pw.BoxDecoration(
-                      color: colorPrimario,
+                      color: cP,
                       borderRadius: const pw.BorderRadius.only(
                         topLeft: pw.Radius.circular(16),
                         topRight: pw.Radius.circular(16),
@@ -371,7 +389,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                             pw.Text(
                               'RUTAS BAJA EXPRESS',
                               style: pw.TextStyle(
-                                color: pdfBlanco,
+                                color: cW,
                                 fontSize: 16,
                                 fontWeight: pw.FontWeight.bold,
                                 letterSpacing: 1.5,
@@ -381,7 +399,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                             pw.Text(
                               'BOARDING PASS',
                               style: pw.TextStyle(
-                                color: pdfBlanco,
+                                color: cW,
                                 fontSize: 9,
                                 letterSpacing: 2,
                               ),
@@ -402,7 +420,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                             pw.Text(
                               '#$folio',
                               style: pw.TextStyle(
-                                color: pdfBlanco,
+                                color: cW,
                                 fontSize: 18,
                                 fontWeight: pw.FontWeight.bold,
                               ),
@@ -412,8 +430,6 @@ class _HistorialScreenState extends State<HistorialScreen> {
                       ],
                     ),
                   ),
-
-                  // RUTA
                   pw.Padding(
                     padding: const pw.EdgeInsets.fromLTRB(28, 22, 28, 0),
                     child: pw.Row(
@@ -426,7 +442,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                               pw.Text(
                                 'DE',
                                 style: pw.TextStyle(
-                                  color: pdfGris,
+                                  color: cG,
                                   fontSize: 9,
                                   letterSpacing: 2,
                                 ),
@@ -435,7 +451,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                               pw.Text(
                                 origen.toUpperCase(),
                                 style: pw.TextStyle(
-                                  color: pdfOscuro,
+                                  color: cD,
                                   fontSize: 28,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
@@ -444,7 +460,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                               pw.Text(
                                 horaSalida,
                                 style: pw.TextStyle(
-                                  color: colorPrimario,
+                                  color: cP,
                                   fontSize: 20,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
@@ -452,7 +468,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                               pw.Text(
                                 'SALIDA',
                                 style: pw.TextStyle(
-                                  color: pdfGris,
+                                  color: cG,
                                   fontSize: 8,
                                   letterSpacing: 1.5,
                                 ),
@@ -462,7 +478,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                         ),
                         pw.Text(
                           '→',
-                          style: pw.TextStyle(color: pdfGris, fontSize: 28),
+                          style: pw.TextStyle(color: cG, fontSize: 28),
                         ),
                         pw.Expanded(
                           child: pw.Column(
@@ -471,7 +487,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                               pw.Text(
                                 'HACIA',
                                 style: pw.TextStyle(
-                                  color: pdfGris,
+                                  color: cG,
                                   fontSize: 9,
                                   letterSpacing: 2,
                                 ),
@@ -481,7 +497,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                                 destino.toUpperCase(),
                                 textAlign: pw.TextAlign.right,
                                 style: pw.TextStyle(
-                                  color: pdfOscuro,
+                                  color: cD,
                                   fontSize: 28,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
@@ -490,7 +506,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                               pw.Text(
                                 fechaViaje,
                                 style: pw.TextStyle(
-                                  color: colorSecundario,
+                                  color: cS,
                                   fontSize: 14,
                                   fontWeight: pw.FontWeight.bold,
                                 ),
@@ -498,7 +514,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                               pw.Text(
                                 'FECHA',
                                 style: pw.TextStyle(
-                                  color: pdfGris,
+                                  color: cG,
                                   fontSize: 8,
                                   letterSpacing: 1.5,
                                 ),
@@ -509,10 +525,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                       ],
                     ),
                   ),
-
                   pw.SizedBox(height: 18),
-
-                  // PASAJERO + ASIENTO
                   pw.Padding(
                     padding: const pw.EdgeInsets.symmetric(horizontal: 28),
                     child: pw.Container(
@@ -531,7 +544,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                                 pw.Text(
                                   'NOMBRE PASAJERO',
                                   style: pw.TextStyle(
-                                    color: pdfGris,
+                                    color: cG,
                                     fontSize: 8,
                                     letterSpacing: 1.5,
                                   ),
@@ -540,7 +553,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                                 pw.Text(
                                   nombre,
                                   style: pw.TextStyle(
-                                    color: pdfOscuro,
+                                    color: cD,
                                     fontSize: 14,
                                     fontWeight: pw.FontWeight.bold,
                                   ),
@@ -548,19 +561,12 @@ class _HistorialScreenState extends State<HistorialScreen> {
                                 pw.SizedBox(height: 2),
                                 pw.Text(
                                   tipo,
-                                  style: pw.TextStyle(
-                                    color: pdfGris,
-                                    fontSize: 9,
-                                  ),
+                                  style: pw.TextStyle(color: cG, fontSize: 9),
                                 ),
                               ],
                             ),
                           ),
-                          pw.Container(
-                            width: 1,
-                            height: 46,
-                            color: pdfGrisClaro,
-                          ),
+                          pw.Container(width: 1, height: 46, color: cGL),
                           pw.SizedBox(width: 14),
                           pw.Column(
                             crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -568,7 +574,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                               pw.Text(
                                 'ASIENTO',
                                 style: pw.TextStyle(
-                                  color: pdfGris,
+                                  color: cG,
                                   fontSize: 8,
                                   letterSpacing: 1.5,
                                 ),
@@ -580,13 +586,13 @@ class _HistorialScreenState extends State<HistorialScreen> {
                                   vertical: 5,
                                 ),
                                 decoration: pw.BoxDecoration(
-                                  color: colorPrimario,
+                                  color: cP,
                                   borderRadius: pw.BorderRadius.circular(8),
                                 ),
                                 child: pw.Text(
                                   asiento,
                                   style: pw.TextStyle(
-                                    color: pdfBlanco,
+                                    color: cW,
                                     fontSize: 20,
                                     fontWeight: pw.FontWeight.bold,
                                   ),
@@ -598,44 +604,20 @@ class _HistorialScreenState extends State<HistorialScreen> {
                       ),
                     ),
                   ),
-
                   pw.SizedBox(height: 14),
-
-                  // CHIPS
                   pw.Padding(
                     padding: const pw.EdgeInsets.symmetric(horizontal: 28),
                     child: pw.Row(
                       children: [
-                        _chipPdf(
-                          'PAGO',
-                          metodo,
-                          pdfGris,
-                          pdfOscuro,
-                          pdfGrisClaro,
-                        ),
+                        _chipPdf('PAGO', metodo, cG, cD, cGL),
                         pw.SizedBox(width: 10),
-                        _chipPdf(
-                          'PRECIO',
-                          '\$$precio MXN',
-                          pdfGris,
-                          colorSecundario,
-                          pdfGrisClaro,
-                        ),
+                        _chipPdf('PRECIO', '\$$precio MXN', cG, cS, cGL),
                         pw.SizedBox(width: 10),
-                        _chipPdf(
-                          'TOTAL',
-                          '\$$monto MXN',
-                          pdfGris,
-                          colorPrimario,
-                          pdfGrisClaro,
-                        ),
+                        _chipPdf('TOTAL', '\$$monto MXN', cG, cP, cGL),
                       ],
                     ),
                   ),
-
                   pw.SizedBox(height: 18),
-
-                  // LÍNEA
                   pw.Row(
                     children: [
                       pw.Container(
@@ -646,9 +628,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                           shape: pw.BoxShape.circle,
                         ),
                       ),
-                      pw.Expanded(
-                        child: pw.Container(height: 1, color: pdfGrisClaro),
-                      ),
+                      pw.Expanded(child: pw.Container(height: 1, color: cGL)),
                       pw.Container(
                         width: 14,
                         height: 14,
@@ -659,10 +639,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                       ),
                     ],
                   ),
-
                   pw.SizedBox(height: 18),
-
-                  // QR + INFO
                   pw.Padding(
                     padding: const pw.EdgeInsets.fromLTRB(28, 0, 28, 24),
                     child: pw.Row(
@@ -675,7 +652,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                             pw.Text(
                               'EMITIDO POR',
                               style: pw.TextStyle(
-                                color: pdfGris,
+                                color: cG,
                                 fontSize: 8,
                                 letterSpacing: 1.5,
                               ),
@@ -684,7 +661,7 @@ class _HistorialScreenState extends State<HistorialScreen> {
                             pw.Text(
                               'Rutas Baja Express',
                               style: pw.TextStyle(
-                                color: pdfOscuro,
+                                color: cD,
                                 fontSize: 11,
                                 fontWeight: pw.FontWeight.bold,
                               ),
@@ -692,13 +669,13 @@ class _HistorialScreenState extends State<HistorialScreen> {
                             pw.SizedBox(height: 12),
                             pw.Text(
                               'Preséntate 30 min antes de la salida.',
-                              style: pw.TextStyle(color: pdfGris, fontSize: 8),
+                              style: pw.TextStyle(color: cG, fontSize: 8),
                             ),
                             pw.SizedBox(height: 4),
                             pw.Text(
                               'www.rutasbaja.mx',
                               style: pw.TextStyle(
-                                color: colorPrimario,
+                                color: cP,
                                 fontSize: 8,
                                 fontWeight: pw.FontWeight.bold,
                               ),
@@ -710,16 +687,20 @@ class _HistorialScreenState extends State<HistorialScreen> {
                             pw.Container(
                               padding: const pw.EdgeInsets.all(6),
                               decoration: pw.BoxDecoration(
-                                color: pdfBlanco,
-                                border: pw.Border.all(color: pdfGrisClaro),
+                                color: cW,
+                                border: pw.Border.all(color: cGL),
                                 borderRadius: pw.BorderRadius.circular(6),
                               ),
-                              child: pw.Image(qrImage, width: 90, height: 90),
+                              child: pw.Image(
+                                pw.MemoryImage(qrBytes),
+                                width: 90,
+                                height: 90,
+                              ),
                             ),
                             pw.SizedBox(height: 4),
                             pw.Text(
                               'Escanea para verificar',
-                              style: pw.TextStyle(color: pdfGris, fontSize: 7),
+                              style: pw.TextStyle(color: cG, fontSize: 7),
                             ),
                           ],
                         ),
@@ -733,22 +714,21 @@ class _HistorialScreenState extends State<HistorialScreen> {
         ),
       );
     }
-
     return doc.save();
   }
 
   static pw.Widget _chipPdf(
     String label,
     String value,
-    PdfColor labelColor,
-    PdfColor valueColor,
-    PdfColor bgColor,
+    PdfColor lc,
+    PdfColor vc,
+    PdfColor bg,
   ) {
     return pw.Expanded(
       child: pw.Container(
         padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: pw.BoxDecoration(
-          color: bgColor,
+          color: bg,
           borderRadius: pw.BorderRadius.circular(8),
         ),
         child: pw.Column(
@@ -756,17 +736,13 @@ class _HistorialScreenState extends State<HistorialScreen> {
           children: [
             pw.Text(
               label,
-              style: pw.TextStyle(
-                color: labelColor,
-                fontSize: 7,
-                letterSpacing: 1,
-              ),
+              style: pw.TextStyle(color: lc, fontSize: 7, letterSpacing: 1),
             ),
             pw.SizedBox(height: 2),
             pw.Text(
               value,
               style: pw.TextStyle(
-                color: valueColor,
+                color: vc,
                 fontSize: 9,
                 fontWeight: pw.FontWeight.bold,
               ),
@@ -777,63 +753,71 @@ class _HistorialScreenState extends State<HistorialScreen> {
     );
   }
 
-  Future<void> _reimprimir(BuildContext context, int folio) async {
+  Future<void> _reimprimir(BuildContext ctx, int folio) async {
     showDialog(
-      context: context,
+      context: ctx,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+      builder: (_) => Center(
+        child: Container(
+          padding: const EdgeInsets.all(28),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: naranja),
+              const SizedBox(height: 16),
+              Text(
+                'Generando boleto…',
+                style: TextStyle(color: dark.withOpacity(.7), fontSize: 14),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
 
     try {
-      final response = await http
+      final res = await http
           .get(Uri.parse('${Config.baseUrl}/api/boleto/$folio/'))
           .timeout(const Duration(seconds: 10));
 
-      if (!context.mounted) return;
-      Navigator.pop(context);
+      if (!ctx.mounted) return;
+      Navigator.pop(ctx);
 
-      if (response.statusCode != 200) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('No se pudo cargar el boleto'),
-            backgroundColor: Colors.red.shade400,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
+      if (res.statusCode != 200) {
+        _snack(ctx, 'No se pudo cargar el boleto', true);
         return;
       }
 
-      final data = jsonDecode(response.body);
-      final pdfBytes = await _generarPdfDesdeHistorial(data);
-
-      if (!context.mounted) return;
-
+      final pdfBytes = await _generarPdf(jsonDecode(res.body));
+      if (!ctx.mounted) return;
       await Printing.layoutPdf(
         onLayout: (_) async => pdfBytes,
         name: 'Boleto_Folio_$folio.pdf',
       );
     } catch (e) {
-      if (context.mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red.shade400,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
+      if (ctx.mounted) {
+        Navigator.pop(ctx);
+        _snack(ctx, 'Error: $e', true);
       }
     }
   }
 
-  // ── BUILD ──────────────────────────────────────────────────────
+  void _snack(BuildContext ctx, String msg, bool error) {
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: error ? const Color(0xFFC62828) : naranja,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
 
+  // ── BUILD ─────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -842,9 +826,14 @@ class _HistorialScreenState extends State<HistorialScreen> {
         child: Column(
           children: [
             _buildHeader(),
-            if (mostrarFiltros) _buildPanelFiltros(),
-            if (hayFiltrosActivos) _buildBarraResultados(),
-            const SizedBox(height: 12),
+            // Panel de filtros con animación
+            SizeTransition(
+              sizeFactor: _filterPanelAnim,
+              axisAlignment: -1,
+              child: _buildPanelFiltros(),
+            ),
+            if (hayFiltros) _buildBarraResultados(),
+            const SizedBox(height: 8),
             Expanded(child: _buildContenido()),
           ],
         ),
@@ -852,118 +841,112 @@ class _HistorialScreenState extends State<HistorialScreen> {
     );
   }
 
+  // ── Header ────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
       decoration: BoxDecoration(
-        color: naranja,
+        gradient: const LinearGradient(
+          colors: [Color(0xFFEF7D44), Color(0xFFE9713A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: naranja.withOpacity(0.28),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Row(
         children: [
+          // Icono con fondo semi-transparente
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.2),
+              color: Colors.white.withOpacity(0.18),
               borderRadius: BorderRadius.circular(14),
             ),
             child: const Icon(
               Icons.history_rounded,
               color: Colors.white,
-              size: 26,
+              size: 24,
             ),
           ),
           const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Historial de ventas',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.3,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Historial de ventas',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                cargando
-                    ? ''
-                    : hayFiltrosActivos
-                    ? '${historialFiltrado.length} de ${historial.length} venta(s)'
-                    : '${historial.length} venta(s)',
-                style: const TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-            ],
+                const SizedBox(height: 2),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 300),
+                  child: Text(
+                    key: ValueKey('${historialFiltrado.length}-$cargando'),
+                    cargando
+                        ? 'Cargando…'
+                        : hayFiltros
+                        ? '${historialFiltrado.length} de ${historial.length} venta(s)'
+                        : '${historial.length} venta(s)',
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const Spacer(),
-          GestureDetector(
-            onTap: () => setState(() => mostrarFiltros = !mostrarFiltros),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: mostrarFiltros
-                    ? Colors.white
-                    : Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.tune_rounded,
-                    size: 16,
+          // Botón filtros
+          _HeaderBtn(
+            activo: mostrarFiltros,
+            tieneIndicador: hayFiltros,
+            onTap: () {
+              setState(() => mostrarFiltros = !mostrarFiltros);
+              mostrarFiltros
+                  ? _filterPanelCtrl.forward()
+                  : _filterPanelCtrl.reverse();
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.tune_rounded,
+                  size: 15,
+                  color: mostrarFiltros ? naranja : Colors.white,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  'Filtros',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                     color: mostrarFiltros ? naranja : Colors.white,
                   ),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Filtros',
-                    style: TextStyle(
-                      color: mostrarFiltros ? naranja : Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  if (hayFiltrosActivos) ...[
-                    const SizedBox(width: 4),
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: azul,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: 8),
-          GestureDetector(
+          // Botón refrescar
+          _HeaderBtn(
+            activo: false,
             onTap: () {
               limpiarFiltros();
-              setState(() => cargando = true);
               cargarHistorial();
             },
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: const Icon(
-                Icons.refresh_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
+            child: const Icon(
+              Icons.refresh_rounded,
+              color: Colors.white,
+              size: 18,
             ),
           ),
         ],
@@ -971,225 +954,116 @@ class _HistorialScreenState extends State<HistorialScreen> {
     );
   }
 
+  // ── Panel Filtros ─────────────────────────────────────
   Widget _buildPanelFiltros() {
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Selector tipo fecha
-          const Text(
-            'Filtrar fechas por',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: textoSecundario,
-            ),
-          ),
+          // Tipo fecha toggle
+          _SectionLabel('Filtrar fechas por'),
           const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
-                child: GestureDetector(
+                child: _ToggleChip(
+                  label: 'Fecha del viaje',
+                  icon: Icons.directions_bus_rounded,
+                  activo: _tipoFiltroFecha == 'viaje',
                   onTap: () {
                     setState(() => _tipoFiltroFecha = 'viaje');
                     aplicarFiltros();
                   },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _tipoFiltroFecha == 'viaje' ? naranja : fondo,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _tipoFiltroFecha == 'viaje'
-                            ? naranja
-                            : Colors.grey.shade300,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.directions_bus_rounded,
-                          size: 14,
-                          color: _tipoFiltroFecha == 'viaje'
-                              ? Colors.white
-                              : textoSecundario,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Fecha del viaje',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _tipoFiltroFecha == 'viaje'
-                                ? Colors.white
-                                : textoSecundario,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: GestureDetector(
+                child: _ToggleChip(
+                  label: 'Fecha de venta',
+                  icon: Icons.receipt_rounded,
+                  activo: _tipoFiltroFecha == 'compra',
                   onTap: () {
                     setState(() => _tipoFiltroFecha = 'compra');
                     aplicarFiltros();
                   },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _tipoFiltroFecha == 'compra' ? naranja : fondo,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: _tipoFiltroFecha == 'compra'
-                            ? naranja
-                            : Colors.grey.shade300,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.receipt_rounded,
-                          size: 14,
-                          color: _tipoFiltroFecha == 'compra'
-                              ? Colors.white
-                              : textoSecundario,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Fecha de venta',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: _tipoFiltroFecha == 'compra'
-                                ? Colors.white
-                                : textoSecundario,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
+          // Rango de fechas
           Row(
             children: [
               Expanded(
-                child: _buildBotonFecha(
+                child: _DateBtn(
                   label: 'Desde',
                   fecha: fechaDesde,
-                  onTap: () => seleccionarFecha(context, true),
+                  onTap: () => _selecFecha(context, true),
                   onClear: fechaDesde != null
                       ? () {
                           setState(() => fechaDesde = null);
                           aplicarFiltros();
                         }
                       : null,
+                  fmt: _fmtCorta,
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: _buildBotonFecha(
+                child: _DateBtn(
                   label: 'Hasta',
                   fecha: fechaHasta,
-                  onTap: () => seleccionarFecha(context, false),
+                  onTap: () => _selecFecha(context, false),
                   onClear: fechaHasta != null
                       ? () {
                           setState(() => fechaHasta = null);
                           aplicarFiltros();
                         }
                       : null,
+                  fmt: _fmtCorta,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          TextField(
-            controller: _origenController,
-            decoration: InputDecoration(
-              hintText: 'Ciudad de origen',
-              hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
-              prefixIcon: const Icon(
-                Icons.trip_origin_rounded,
-                color: naranja,
-                size: 18,
-              ),
-              suffixIcon: origenFiltro != null && origenFiltro!.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.close, size: 16),
-                      onPressed: () {
-                        _origenController.clear();
-                        setState(() => origenFiltro = null);
-                        aplicarFiltros();
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: fondo,
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-            ),
-            style: const TextStyle(fontSize: 13),
-            onChanged: (val) {
-              setState(() => origenFiltro = val);
+          // Origen / Destino
+          _FilterField(
+            controller: _origenCtrl,
+            hint: 'Ciudad de origen',
+            icon: Icons.trip_origin_rounded,
+            iconColor: naranja,
+            value: origenFiltro,
+            onChanged: (v) {
+              setState(() => origenFiltro = v);
+              aplicarFiltros();
+            },
+            onClear: () {
+              _origenCtrl.clear();
+              setState(() => origenFiltro = null);
               aplicarFiltros();
             },
           ),
           const SizedBox(height: 8),
-          TextField(
-            controller: _destinoController,
-            decoration: InputDecoration(
-              hintText: 'Ciudad de destino',
-              hintStyle: const TextStyle(fontSize: 13, color: Colors.grey),
-              prefixIcon: const Icon(
-                Icons.location_on_rounded,
-                color: azul,
-                size: 18,
-              ),
-              suffixIcon: destinoFiltro != null && destinoFiltro!.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.close, size: 16),
-                      onPressed: () {
-                        _destinoController.clear();
-                        setState(() => destinoFiltro = null);
-                        aplicarFiltros();
-                      },
-                    )
-                  : null,
-              filled: true,
-              fillColor: fondo,
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-            ),
-            style: const TextStyle(fontSize: 13),
-            onChanged: (val) {
-              setState(() => destinoFiltro = val);
+          _FilterField(
+            controller: _destinoCtrl,
+            hint: 'Ciudad de destino',
+            icon: Icons.location_on_rounded,
+            iconColor: azul,
+            value: destinoFiltro,
+            onChanged: (v) {
+              setState(() => destinoFiltro = v);
+              aplicarFiltros();
+            },
+            onClear: () {
+              _destinoCtrl.clear();
+              setState(() => destinoFiltro = null);
               aplicarFiltros();
             },
           ),
-          const SizedBox(height: 10),
-          const Text(
-            'Estado del viaje',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: textoSecundario,
-            ),
-          ),
+          const SizedBox(height: 12),
+          _SectionLabel('Estado del viaje'),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
@@ -1199,107 +1073,58 @@ class _HistorialScreenState extends State<HistorialScreen> {
               ..._estados.keys.map((e) => _buildChipEstado(e, e)),
             ],
           ),
-          const SizedBox(height: 10),
-          if (hayFiltrosActivos)
+          if (hayFiltros) ...[
+            const SizedBox(height: 10),
             SizedBox(
               width: double.infinity,
               child: TextButton.icon(
                 onPressed: limpiarFiltros,
-                icon: const Icon(Icons.clear_all_rounded, size: 18),
+                icon: const Icon(Icons.clear_all_rounded, size: 16),
                 label: const Text('Limpiar filtros'),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.grey.shade600,
-                ),
+                style: TextButton.styleFrom(foregroundColor: muted),
               ),
             ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildChipEstado(String? valor, String etiqueta) {
-    final seleccionado = estadoFiltro == valor;
+  Widget _buildChipEstado(String? valor, String label) {
+    final sel = estadoFiltro == valor;
     final info = valor != null ? _estados[valor] : null;
-    final color = info != null ? info['color'] as Color : naranja;
-    final icono = info != null ? info['icono'] as IconData : Icons.list_rounded;
+    final color = info?.color ?? naranja;
+    final icon = info?.icon ?? Icons.list_rounded;
 
     return GestureDetector(
       onTap: () {
         setState(() => estadoFiltro = valor);
         aplicarFiltros();
       },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: seleccionado ? color : fondo,
+          color: sel ? color : fondo,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: seleccionado ? color : Colors.grey.shade300,
+            color: sel ? color : Colors.grey.shade300,
             width: 1.5,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icono, size: 14, color: seleccionado ? Colors.white : color),
+            Icon(icon, size: 13, color: sel ? Colors.white : color),
             const SizedBox(width: 5),
             Text(
-              etiqueta,
+              label,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: seleccionado ? Colors.white : color,
+                color: sel ? Colors.white : color,
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBotonFecha({
-    required String label,
-    required DateTime? fecha,
-    required VoidCallback onTap,
-    VoidCallback? onClear,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: fondo,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: fecha != null ? naranja : Colors.transparent,
-            width: 1.5,
-          ),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.calendar_today_outlined,
-              size: 15,
-              color: fecha != null ? naranja : Colors.grey,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                fecha != null ? _formatFechaCorta(fecha) : label,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: fecha != null ? textoPrincipal : Colors.grey,
-                  fontWeight: fecha != null
-                      ? FontWeight.w600
-                      : FontWeight.normal,
-                ),
-              ),
-            ),
-            if (onClear != null)
-              GestureDetector(
-                onTap: onClear,
-                child: const Icon(Icons.close, size: 14, color: Colors.grey),
-              ),
           ],
         ),
       ),
@@ -1309,12 +1134,23 @@ class _HistorialScreenState extends State<HistorialScreen> {
   Widget _buildBarraResultados() {
     return Container(
       color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
       child: Row(
         children: [
-          Text(
-            '${historialFiltrado.length} resultado(s)',
-            style: const TextStyle(fontSize: 12, color: textoSecundario),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: naranja.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${historialFiltrado.length} resultado(s)',
+              style: const TextStyle(
+                fontSize: 12,
+                color: naranja,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           const Spacer(),
           GestureDetector(
@@ -1333,272 +1169,445 @@ class _HistorialScreenState extends State<HistorialScreen> {
     );
   }
 
+  // ── Contenido principal ────────────────────────────────
   Widget _buildContenido() {
-    if (cargando) {
-      return const Center(child: CircularProgressIndicator(color: naranja));
-    }
+    if (cargando) return _buildShimmer();
+
     if (historial.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.receipt_long_rounded,
-              color: Colors.grey.shade300,
-              size: 60,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'No hay ventas registradas',
-              style: TextStyle(
-                color: textoPrincipal,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Las ventas que realices aparecerán aquí',
-              style: TextStyle(color: textoSecundario, fontSize: 13),
-            ),
-          ],
-        ),
+      return _buildEmptyState(
+        icon: Icons.receipt_long_rounded,
+        titulo: 'Sin ventas registradas',
+        subtitulo: 'Las ventas que realices aparecerán aquí',
       );
     }
+
     if (historialFiltrado.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search_off_rounded,
-              color: Colors.grey.shade300,
-              size: 60,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Sin resultados para los filtros aplicados',
-              style: TextStyle(color: textoSecundario, fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: limpiarFiltros,
-              child: const Text(
-                'Limpiar filtros',
-                style: TextStyle(color: naranja),
-              ),
-            ),
-          ],
-        ),
+      return _buildEmptyState(
+        icon: Icons.search_off_rounded,
+        titulo: 'Sin resultados',
+        subtitulo: 'Intenta cambiar los filtros aplicados',
+        showClear: true,
       );
     }
+
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
       itemCount: historialFiltrado.length,
-      itemBuilder: (context, index) => _buildTarjeta(historialFiltrado[index]),
+      itemBuilder: (_, i) {
+        if (i >= _cardFadeAnims.length)
+          return _buildTarjeta(historialFiltrado[i], i);
+        return FadeTransition(
+          opacity: _cardFadeAnims[i],
+          child: SlideTransition(
+            position: _cardSlideAnims[i],
+            child: _buildTarjeta(historialFiltrado[i], i),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildTarjeta(Map venta) {
+  // ── Shimmer de carga ──────────────────────────────────
+  Widget _buildShimmer() {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      itemCount: 4,
+      itemBuilder: (_, __) => _ShimmerCard(),
+    );
+  }
+
+  Widget _buildEmptyState({
+    required IconData icon,
+    required String titulo,
+    required String subtitulo,
+    bool showClear = false,
+  }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: Colors.grey.shade300, size: 48),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              titulo,
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: dark,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitulo,
+              style: const TextStyle(fontSize: 13, color: muted),
+              textAlign: TextAlign.center,
+            ),
+            if (showClear) ...[
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: limpiarFiltros,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: naranja,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text(
+                  'Limpiar filtros',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Tarjeta de venta ───────────────────────────────────
+  Widget _buildTarjeta(Map venta, int index) {
     final esTarjeta = venta['metodo_pago'].toString().toLowerCase().contains(
       'tarjeta',
     );
     final estado = venta['estado']?.toString() ?? '';
-    final infoEstado = _estados[estado];
-    final colorEstado = infoEstado != null
-        ? infoEstado['color'] as Color
-        : Colors.grey.shade500;
-    final bgEstado = infoEstado != null
-        ? infoEstado['bg'] as Color
-        : Colors.grey.shade100;
-    final iconoEstado = infoEstado != null
-        ? infoEstado['icono'] as IconData
-        : Icons.help_outline_rounded;
+    final info = _estados[estado];
+    final colorE = info?.color ?? Colors.grey.shade500;
+    final bgE = info?.bg ?? Colors.grey.shade100;
+    final iconE = info?.icon ?? Icons.help_outline_rounded;
+    final enRuta = info?.pulsa == true;
+    final monto =
+        double.tryParse(venta['monto'].toString())?.toStringAsFixed(2) ??
+        '0.00';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
+    return _TarjetaVenta(
+      key: ValueKey(venta['folio']),
+      enRuta: enRuta,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── Fila 1: folio + estado + fecha ────────────
+            Row(
+              children: [
+                _FolioChip(folio: '#${venta['folio']}'),
+                const SizedBox(width: 8),
+                if (estado.isNotEmpty)
+                  _EstadoChip(
+                    label: estado,
+                    color: colorE,
+                    bg: bgE,
+                    icon: iconE,
+                    pulsa: enRuta,
+                  ),
+                const Spacer(),
+                Text(
+                  _fmtFecha(venta['fecha']),
+                  style: const TextStyle(fontSize: 10, color: muted),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+
+            // ── Ruta ──────────────────────────────────────
+            _RutaRow(origen: venta['origen'], destino: venta['destino']),
+
+            const SizedBox(height: 10),
+
+            // ── Fechas ────────────────────────────────────
+            _DateRow(
+              icon: Icons.receipt_outlined,
+              label: 'Venta',
+              value: venta['fecha'].toString().substring(0, 10),
+            ),
+            const SizedBox(height: 4),
+            _DateRow(
+              icon: Icons.directions_bus_outlined,
+              label: 'Viaje',
+              value: _fmtFechaStr(venta['hora_salida'].toString()),
+            ),
+
+            const SizedBox(height: 12),
+
+            // ── Divider decorativo ─────────────────────────
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
+                  width: 6,
+                  height: 6,
                   decoration: BoxDecoration(
-                    color: naranja.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(20),
+                    color: Colors.grey.shade200,
+                    shape: BoxShape.circle,
                   ),
-                  child: Text(
-                    'Folio #${venta['folio']}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: naranja,
-                    ),
+                ),
+                Expanded(
+                  child: Divider(color: Colors.grey.shade100, height: 1),
+                ),
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    shape: BoxShape.circle,
                   ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+
+            // ── Pasajeros + Pago + Monto ──────────────────
+            Row(
+              children: [
+                _MiniChip(
+                  icon: Icons.people_outline_rounded,
+                  label: '${venta['num_pasajeros']} pax',
                 ),
                 const SizedBox(width: 8),
-                if (estado.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: bgEstado,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(iconoEstado, size: 12, color: colorEstado),
-                        const SizedBox(width: 4),
-                        Text(
-                          estado,
-                          style: TextStyle(
-                            color: colorEstado,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                const Spacer(),
-                Text(
-                  _formatFecha(venta['fecha']),
-                  style: TextStyle(fontSize: 11, color: textoSecundario),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.trip_origin_rounded, color: naranja, size: 14),
-                const SizedBox(width: 6),
-                Text(
-                  venta['origen'],
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: textoPrincipal,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Icon(
-                  Icons.arrow_forward_rounded,
-                  color: Colors.grey.shade400,
-                  size: 14,
-                ),
-                const SizedBox(width: 6),
-                const Icon(Icons.location_on_rounded, color: azul, size: 14),
-                const SizedBox(width: 4),
-                Text(
-                  venta['destino'],
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                    color: textoPrincipal,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            // Fecha de venta
-            Row(
-              children: [
-                Icon(
-                  Icons.receipt_rounded,
-                  color: Colors.grey.shade400,
-                  size: 13,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Venta: ${venta['fecha'].toString().substring(0, 10)}',
-                  style: TextStyle(fontSize: 12, color: textoSecundario),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            // Fecha del viaje
-            Row(
-              children: [
-                Icon(
-                  Icons.directions_bus_rounded,
-                  color: Colors.grey.shade400,
-                  size: 13,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  'Viaje: ${_formatFechaStr(venta['hora_salida'].toString())}',
-                  style: TextStyle(fontSize: 12, color: textoSecundario),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Divider(height: 1, color: Colors.grey.shade100),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                _buildInfoChip(
-                  Icons.people_rounded,
-                  '${venta['num_pasajeros']} pasajero(s)',
-                  textoSecundario,
-                ),
-                const SizedBox(width: 12),
-                _buildInfoChip(
-                  esTarjeta
+                _MiniChip(
+                  icon: esTarjeta
                       ? Icons.credit_card_rounded
-                      : Icons.payments_rounded,
-                  venta['metodo_pago'],
-                  textoSecundario,
+                      : Icons.payments_outlined,
+                  label: venta['metodo_pago'],
                 ),
                 const Spacer(),
-                Text(
-                  '\$${double.parse(venta['monto']).toStringAsFixed(2)} MXN',
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: azul,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '\$$monto',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: azul,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const Text(
+                      'MXN',
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: muted,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                onPressed: () => _reimprimir(context, venta['folio']),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: naranja,
-                  side: const BorderSide(color: naranja, width: 1.5),
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
-                label: const Text(
-                  'Reimprimir boleto',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                ),
+
+            // ── Botón reimprimir ──────────────────────────
+            _ReimprimirBtn(onTap: () => _reimprimir(context, venta['folio'])),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  WIDGETS AUXILIARES
+// ═══════════════════════════════════════════════════════════
+
+class _EstadoMeta {
+  final Color color;
+  final Color bg;
+  final IconData icon;
+  final bool pulsa;
+  const _EstadoMeta({
+    required this.color,
+    required this.bg,
+    required this.icon,
+    this.pulsa = false,
+  });
+}
+
+// ── Tarjeta con efecto press ──────────────────────────────
+class _TarjetaVenta extends StatefulWidget {
+  final Widget child;
+  final bool enRuta;
+  const _TarjetaVenta({super.key, required this.child, this.enRuta = false});
+
+  @override
+  State<_TarjetaVenta> createState() => _TarjetaVentaState();
+}
+
+class _TarjetaVentaState extends State<_TarjetaVenta>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    );
+    _scale = Tween<double>(
+      begin: 1,
+      end: 0.975,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeIn));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) => _ctrl.reverse(),
+      onTapCancel: () => _ctrl.reverse(),
+      child: ScaleTransition(
+        scale: _scale,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: widget.enRuta
+                ? Border.all(
+                    color: const Color(0xFF1565C0).withOpacity(0.3),
+                    width: 1.5,
+                  )
+                : null,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.055),
+                blurRadius: 12,
+                spreadRadius: 0,
+                offset: const Offset(0, 4),
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.025),
+                blurRadius: 4,
+                spreadRadius: 0,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+// ── Folio chip ────────────────────────────────────────────
+class _FolioChip extends StatelessWidget {
+  final String folio;
+  const _FolioChip({required this.folio});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE9713A).withOpacity(0.09),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        'Folio $folio',
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFFE9713A),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Estado chip con pulso opcional ───────────────────────
+class _EstadoChip extends StatefulWidget {
+  final String label;
+  final Color color, bg;
+  final IconData icon;
+  final bool pulsa;
+
+  const _EstadoChip({
+    required this.label,
+    required this.color,
+    required this.bg,
+    required this.icon,
+    this.pulsa = false,
+  });
+
+  @override
+  State<_EstadoChip> createState() => _EstadoChipState();
+}
+
+class _EstadoChipState extends State<_EstadoChip>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    _anim = Tween<double>(
+      begin: 0.6,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    if (widget.pulsa) _ctrl.repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, child) =>
+          Opacity(opacity: widget.pulsa ? _anim.value : 1.0, child: child),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: widget.bg,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(widget.icon, size: 12, color: widget.color),
+            const SizedBox(width: 4),
+            Text(
+              widget.label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: widget.color,
               ),
             ),
           ],
@@ -1606,14 +1615,543 @@ class _HistorialScreenState extends State<HistorialScreen> {
       ),
     );
   }
+}
 
-  Widget _buildInfoChip(IconData icono, String label, Color color) {
+// ── Ruta row ──────────────────────────────────────────────
+class _RutaRow extends StatelessWidget {
+  final String origen, destino;
+  const _RutaRow({required this.origen, required this.destino});
+
+  @override
+  Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icono, size: 14, color: color),
+        const Icon(
+          Icons.radio_button_checked_rounded,
+          color: Color(0xFFE9713A),
+          size: 15,
+        ),
+        const SizedBox(width: 6),
+        Text(
+          origen,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1C2D3A),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: List.generate(
+              5,
+              (i) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 1.5),
+                child: Container(
+                  width: 4,
+                  height: 1.5,
+                  color: Colors.grey.shade300,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const Icon(
+          Icons.location_on_rounded,
+          color: Color(0xFF2C7FB1),
+          size: 15,
+        ),
         const SizedBox(width: 4),
-        Text(label, style: TextStyle(fontSize: 12, color: color)),
+        Text(
+          destino,
+          style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF1C2D3A),
+          ),
+        ),
       ],
+    );
+  }
+}
+
+// ── Fecha row ─────────────────────────────────────────────
+class _DateRow extends StatelessWidget {
+  final IconData icon;
+  final String label, value;
+  const _DateRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 13, color: const Color(0xFF8FA8BE)),
+        const SizedBox(width: 6),
+        Text(
+          '$label: ',
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF8FA8BE),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF1C2D3A),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Mini chip ─────────────────────────────────────────────
+class _MiniChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _MiniChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F3F8),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: const Color(0xFF8FA8BE)),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              color: Color(0xFF1C2D3A),
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Botón reimprimir ──────────────────────────────────────
+class _ReimprimirBtn extends StatefulWidget {
+  final VoidCallback onTap;
+  const _ReimprimirBtn({required this.onTap});
+
+  @override
+  State<_ReimprimirBtn> createState() => _ReimprimirBtnState();
+}
+
+class _ReimprimirBtnState extends State<_ReimprimirBtn>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+    );
+    _scale = Tween<double>(
+      begin: 1,
+      end: 0.96,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeIn));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) {
+        _ctrl.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _ctrl.reverse(),
+      child: ScaleTransition(
+        scale: _scale,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFEF7D44), Color(0xFFE9713A)],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFE9713A).withOpacity(0.3),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: 17),
+              SizedBox(width: 8),
+              Text(
+                'Reimprimir boleto',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Header button ─────────────────────────────────────────
+class _HeaderBtn extends StatelessWidget {
+  final bool activo;
+  final bool tieneIndicador;
+  final VoidCallback onTap;
+  final Widget child;
+
+  const _HeaderBtn({
+    required this.activo,
+    required this.onTap,
+    required this.child,
+    this.tieneIndicador = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: activo ? Colors.white : Colors.white.withOpacity(0.18),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            child,
+            if (tieneIndicador)
+              Positioned(
+                right: -3,
+                top: -3,
+                child: Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF2C7FB1),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Toggle chip ───────────────────────────────────────────
+class _ToggleChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool activo;
+  final VoidCallback onTap;
+  const _ToggleChip({
+    required this.label,
+    required this.icon,
+    required this.activo,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: activo ? const Color(0xFFE9713A) : const Color(0xFFF0F3F8),
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(
+            color: activo ? const Color(0xFFE9713A) : Colors.grey.shade300,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 14,
+              color: activo ? Colors.white : const Color(0xFF8FA8BE),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: activo ? Colors.white : const Color(0xFF8FA8BE),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Date button ───────────────────────────────────────────
+class _DateBtn extends StatelessWidget {
+  final String label;
+  final DateTime? fecha;
+  final VoidCallback onTap;
+  final VoidCallback? onClear;
+  final String Function(DateTime) fmt;
+  const _DateBtn({
+    required this.label,
+    required this.fecha,
+    required this.onTap,
+    this.onClear,
+    required this.fmt,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0F3F8),
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(
+            color: fecha != null ? const Color(0xFFE9713A) : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              Icons.calendar_today_outlined,
+              size: 14,
+              color: fecha != null
+                  ? const Color(0xFFE9713A)
+                  : Colors.grey.shade400,
+            ),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Text(
+                fecha != null ? fmt(fecha!) : label,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: fecha != null
+                      ? const Color(0xFF1C2D3A)
+                      : Colors.grey.shade400,
+                  fontWeight: fecha != null
+                      ? FontWeight.w600
+                      : FontWeight.normal,
+                ),
+              ),
+            ),
+            if (onClear != null)
+              GestureDetector(
+                onTap: onClear,
+                child: Icon(Icons.close, size: 13, color: Colors.grey.shade400),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Filter field ──────────────────────────────────────────
+class _FilterField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final IconData icon;
+  final Color iconColor;
+  final String? value;
+  final void Function(String) onChanged;
+  final VoidCallback onClear;
+  const _FilterField({
+    required this.controller,
+    required this.hint,
+    required this.icon,
+    required this.iconColor,
+    required this.value,
+    required this.onChanged,
+    required this.onClear,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+        prefixIcon: Icon(icon, color: iconColor, size: 18),
+        suffixIcon: (value?.isNotEmpty == true)
+            ? IconButton(
+                icon: const Icon(Icons.close, size: 15),
+                onPressed: onClear,
+              )
+            : null,
+        filled: true,
+        fillColor: const Color(0xFFF0F3F8),
+        contentPadding: const EdgeInsets.symmetric(vertical: 11),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(11),
+          borderSide: BorderSide.none,
+        ),
+      ),
+      style: const TextStyle(fontSize: 13),
+      onChanged: onChanged,
+    );
+  }
+}
+
+// ── Section label ─────────────────────────────────────────
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+        color: Color(0xFF8FA8BE),
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+}
+
+// ── Shimmer card ──────────────────────────────────────────
+class _ShimmerCard extends StatefulWidget {
+  @override
+  State<_ShimmerCard> createState() => _ShimmerCardState();
+}
+
+class _ShimmerCardState extends State<_ShimmerCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    _anim = Tween<double>(
+      begin: -2,
+      end: 2,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+    _ctrl.repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _anim,
+      builder: (_, __) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _shimmerBox(80, 22, radius: 20),
+                  const SizedBox(width: 8),
+                  _shimmerBox(70, 22, radius: 20),
+                  const Spacer(),
+                  _shimmerBox(90, 14, radius: 6),
+                ],
+              ),
+              const SizedBox(height: 14),
+              _shimmerBox(200, 18, radius: 6),
+              const SizedBox(height: 10),
+              _shimmerBox(140, 13, radius: 6),
+              const SizedBox(height: 6),
+              _shimmerBox(160, 13, radius: 6),
+              const SizedBox(height: 14),
+              _shimmerBox(double.infinity, 42, radius: 12),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _shimmerBox(double w, double h, {double radius = 4}) {
+    return Container(
+      width: w == double.infinity ? double.infinity : w,
+      height: h,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: LinearGradient(
+          begin: Alignment(_anim.value - 1, 0),
+          end: Alignment(_anim.value + 1, 0),
+          colors: [
+            Colors.grey.shade200,
+            Colors.grey.shade100,
+            Colors.grey.shade200,
+          ],
+        ),
+      ),
     );
   }
 }

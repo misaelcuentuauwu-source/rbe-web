@@ -1,3 +1,4 @@
+import '../../utils/transitions.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -1273,21 +1274,19 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
             onPressed: () {
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(
-                  builder: (_) {
-                    if (widget.tipoUsuario == 'taquillero' &&
-                        widget.datosUsuario != null) {
-                      return HomeNavigationScreen(
-                        taquillero: widget.datosUsuario!,
-                      );
-                    } else if (widget.tipoUsuario == 'cliente' &&
-                        widget.datosUsuario != null) {
-                      return HomeClienteScreen(cliente: widget.datosUsuario!);
-                    } else {
-                      return const HomeInvitadoScreen();
-                    }
-                  },
-                ),
+                AppRoutes.fadeSlideUp(() {
+                  if (widget.tipoUsuario == 'taquillero' &&
+                      widget.datosUsuario != null) {
+                    return HomeNavigationScreen(
+                      taquillero: widget.datosUsuario!,
+                    );
+                  } else if (widget.tipoUsuario == 'cliente' &&
+                      widget.datosUsuario != null) {
+                    return HomeClienteScreen(cliente: widget.datosUsuario!);
+                  } else {
+                    return const HomeInvitadoScreen();
+                  }
+                }()),
                 (route) => false,
               );
             },

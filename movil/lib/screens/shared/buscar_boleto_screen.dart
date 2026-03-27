@@ -1,3 +1,4 @@
+import '../../utils/transitions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
@@ -84,7 +85,7 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
   Future<void> _abrirEscaner() async {
     final result = await Navigator.push<String>(
       context,
-      MaterialPageRoute(builder: (_) => const _QrScannerPage()),
+      AppRoutes.zoomFade(const _QrScannerPage()),
     );
     if (result != null && result.isNotEmpty) {
       String folio = result;

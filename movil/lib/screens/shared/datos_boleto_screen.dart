@@ -1,3 +1,4 @@
+import '../../utils/transitions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
@@ -225,19 +226,17 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     if (mounted) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => SeatSelectionScreen(
-            viajeId: widget.viajeId,
-            pasajeros: pasajerosData,
-            origenNombre: widget.origenNombre,
-            destinoNombre: widget.destinoNombre,
-            horaSalida: widget.horaSalida,
-            precioPorPasajero: double.parse(widget.precio),
-            vendedorId: widget.vendedorId,
-            tipoUsuario: widget.tipoUsuario,
-            datosUsuario: widget.datosUsuario,
-          ),
-        ),
+        AppRoutes.slideLeft(SeatSelectionScreen(
+          viajeId: widget.viajeId,
+          pasajeros: pasajerosData,
+          origenNombre: widget.origenNombre,
+          destinoNombre: widget.destinoNombre,
+          horaSalida: widget.horaSalida,
+          precioPorPasajero: double.parse(widget.precio),
+          vendedorId: widget.vendedorId,
+          tipoUsuario: widget.tipoUsuario,
+          datosUsuario: widget.datosUsuario,
+        )),
       );
     }
   }

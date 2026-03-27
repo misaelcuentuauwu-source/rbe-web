@@ -1,3 +1,4 @@
+import '../../utils/transitions.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -229,26 +230,24 @@ class _InicioScreenState extends State<InicioScreen> {
 
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ResultadosScreen(
-          origen: origenSeleccionado!,
-          destino: destinoSeleccionado ?? 'todas',
-          origenNombre: origenNombre,
-          destinoNombre: destinoNombre,
-          fecha: fechaSeleccionada,
-          pasajeros: {
-            'adultos': adultos,
-            'estudiantes': estudiantes,
-            'inapam': inapam,
-            'discapacidad': discapacidad,
-          },
-          vendedorId: widget.vendedorId ?? widget.clienteId ?? 0,
-          correoCliente: widget.correoCliente,
-          tipoUsuario: widget.tipoUsuario,
-          buscarCercanos: true,
-          datosUsuario: widget.datosUsuario,
-        ),
-      ),
+      AppRoutes.slideLeft(ResultadosScreen(
+        origen: origenSeleccionado!,
+        destino: destinoSeleccionado ?? 'todas',
+        origenNombre: origenNombre,
+        destinoNombre: destinoNombre,
+        fecha: fechaSeleccionada,
+        pasajeros: {
+          'adultos': adultos,
+          'estudiantes': estudiantes,
+          'inapam': inapam,
+          'discapacidad': discapacidad,
+        },
+        vendedorId: widget.vendedorId ?? widget.clienteId ?? 0,
+        correoCliente: widget.correoCliente,
+        tipoUsuario: widget.tipoUsuario,
+        buscarCercanos: true,
+        datosUsuario: widget.datosUsuario,
+      )),
     );
   }
 

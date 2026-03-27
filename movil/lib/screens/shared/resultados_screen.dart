@@ -1,3 +1,4 @@
+import '../../utils/transitions.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:async';
@@ -602,20 +603,18 @@ class _ResultadosScreenState extends State<ResultadosScreen> {
                       ? () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(
-                              builder: (_) => DatosBoletoScreen(
-                                viajeId: viaje['numero'],
-                                pasajeros: widget.pasajeros,
-                                origenNombre: origen,
-                                destinoNombre: destino,
-                                horaSalida: horaSalida,
-                                precio: ruta['precio'],
-                                vendedorId: widget.vendedorId,
-                                correoCliente: widget.correoCliente,
-                                tipoUsuario: widget.tipoUsuario,
-                                datosUsuario: widget.datosUsuario,
-                              ),
-                            ),
+                            AppRoutes.slideLeft(DatosBoletoScreen(
+                              viajeId: viaje['numero'],
+                              pasajeros: widget.pasajeros,
+                              origenNombre: origen,
+                              destinoNombre: destino,
+                              horaSalida: horaSalida,
+                              precio: ruta['precio'],
+                              vendedorId: widget.vendedorId,
+                              correoCliente: widget.correoCliente,
+                              tipoUsuario: widget.tipoUsuario,
+                              datosUsuario: widget.datosUsuario,
+                            )),
                           );
                         }
                       : null,

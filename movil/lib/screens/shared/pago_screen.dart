@@ -1,3 +1,4 @@
+import '../../utils/transitions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
@@ -129,19 +130,17 @@ class _PagoScreenState extends State<PagoScreen> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(
-              builder: (_) => ResumenCompraScreen(
-                pagoId: data['pago_id'],
-                origenNombre: widget.origenNombre,
-                destinoNombre: widget.destinoNombre,
-                horaSalida: widget.horaSalida,
-                montoTotal: widget.montoTotal,
-                pasajeros: widget.pasajeros,
-                metodoPago: metodoPago,
-                tipoUsuario: widget.tipoUsuario,
-                datosUsuario: widget.datosUsuario,
-              ),
-            ),
+            AppRoutes.slideLeft(ResumenCompraScreen(
+              pagoId: data['pago_id'],
+              origenNombre: widget.origenNombre,
+              destinoNombre: widget.destinoNombre,
+              horaSalida: widget.horaSalida,
+              montoTotal: widget.montoTotal,
+              pasajeros: widget.pasajeros,
+              metodoPago: metodoPago,
+              tipoUsuario: widget.tipoUsuario,
+              datosUsuario: widget.datosUsuario,
+            )),
           );
         }
       } else {
