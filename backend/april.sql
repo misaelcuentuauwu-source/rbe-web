@@ -2,7 +2,7 @@
 -- Viajes Tijuana → todas las terminales: 20 Mar - 30 Abr 2026
 -- ============================================================
 
-USE rbe;
+USE rbe; 
 
 INSERT INTO viaje (numero, fecHoraSalida, fecHoraEntrada, ruta, estado, autobus, conductor) VALUES
 (100, '2026-03-20 06:00:00', '2026-03-20 08:50:00', 7, 1, 1, 1),

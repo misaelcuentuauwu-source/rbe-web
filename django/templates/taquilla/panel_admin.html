@@ -8,7 +8,42 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   {% load static %}
   <link rel="stylesheet" href="{% static 'dashboard/panel_admin.css' %}?v=2">
-</head>
+  <style>
+    /* ── Foto de perfil en Configuración ── */
+    .cfg-foto-section { margin-bottom: 4px; }
+    .cfg-foto-wrap {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      flex-wrap: wrap;
+    }
+    .cfg-avatar {
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      background: var(--bg2, #e8f0f7);
+      border: 3px solid var(--azul, #1181c3);
+      flex-shrink: 0;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .cfg-avatar-ph {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      color: var(--muted, #6b8fa8);
+    }
+    .cfg-foto-info { flex: 1; min-width: 180px; }
+
+    /* ── Imagen en tabla de Gestión ── */
+    #gestion-tbody img { transition: transform .15s; }
+    #gestion-tbody img:hover { transform: scale(1.1); }
+  </style>
 <body>
 
 <!-- overlay para cerrar sidebar en mobile -->
@@ -357,7 +392,36 @@
     ════════════════════════════════════ -->
     <div id="page-configuracion" class="page">
       <h2 class="page-title">Configuración de Usuario</h2>
-      <div class="card config-form">
+      <div class="card config-form" style="max-width:680px;">
+
+        <!-- FOTO DE PERFIL -->
+        <div class="cfg-foto-section">
+          <div class="cfg-foto-wrap">
+            <div class="cfg-avatar">
+              {% if taquillero.foto %}
+                <img src="/media/{{ taquillero.foto }}" alt="Foto" id="cfg-avatar-img" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+              {% else %}
+                <img src="" alt="Foto" id="cfg-avatar-img" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:none;">
+                <div class="cfg-avatar-ph" id="cfg-avatar-ph">
+                  <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                </div>
+              {% endif %}
+            </div>
+            <div class="cfg-foto-info">
+              <div style="font-weight:800;font-size:16px;color:var(--azul);">{{ taquillero.taqnombre }} {{ taquillero.taqprimerapell }}</div>
+              <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Taquillero · ID #{{ taquillero.registro }}</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <label class="btn btn-primary btn-sm" for="cfg-foto-input" style="cursor:pointer;">📷 Cambiar foto</label>
+                <input type="file" id="cfg-foto-input" accept="image/*" style="display:none" onchange="previsualizarFoto(this)">
+                <button class="btn btn-naranja btn-sm" id="cfg-foto-submit" style="display:none" onclick="subirFoto()">✔ Subir</button>
+                <button class="btn btn-gray btn-sm"   id="cfg-foto-cancel" style="display:none" onclick="cancelarFoto()">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <hr style="border:none;border-top:1px solid var(--border);margin:20px 0 16px;">
+
         <div class="form-field"><label>Nombre *</label><input type="text" id="cfg-nombre"></div>
         <div class="form-field"><label>Primer Apellido *</label><input type="text" id="cfg-ap1"></div>
         <div class="form-field"><label>Segundo Apellido</label><input type="text" id="cfg-ap2"></div>
@@ -1134,6 +1198,23 @@ function exportarPasajerosCSV() {
 }
 
 // ════ GESTIÓN CRUD ════
+
+// Columnas que contienen rutas de imagen (ruta relativa en /media/)
+const COLS_IMAGEN = new Set(['foto']);
+
+function celdaGestion(col, val) {
+  if (COLS_IMAGEN.has(col) && val && val !== '—') {
+    const url = val.startsWith('http') ? val : `/media/${val}`;
+    return `<td>
+      <img src="${url}" alt="foto"
+        style="width:44px;height:44px;object-fit:cover;border-radius:50%;border:2px solid var(--border);cursor:pointer;vertical-align:middle;"
+        onerror="this.style.display='none'"
+        onclick="verFotoGrande('${url}')">
+    </td>`;
+  }
+  return `<td>${val??'—'}</td>`;
+}
+
 async function recargarGestion() {
   const tabla=tablaActual.nombre; if(!tabla)return;
   document.getElementById('gestion-tbody').innerHTML='<tr><td colspan="20"><span class="spinner"></span></td></tr>';
@@ -1144,7 +1225,7 @@ async function recargarGestion() {
   const pk=d.cols[0];
   document.getElementById('gestion-tbody').innerHTML=d.rows.map(row=>`
     <tr>
-      ${d.cols.map(c=>`<td>${row[c]??'—'}</td>`).join('')}
+      ${d.cols.map(c=>celdaGestion(c, row[c])).join('')}
       <td style="white-space:nowrap"><div style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="btn btn-gray btn-sm"    onclick='verDetalle(${JSON.stringify(d.cols)},${JSON.stringify(row)})'>Ver</button>
         <button class="btn btn-naranja btn-sm" onclick='abrirEditar("${tabla}","${pk}","${row[pk]}")'>Editar</button>
@@ -1152,6 +1233,14 @@ async function recargarGestion() {
       </div></td>
     </tr>`).join('');
   document.getElementById('gestion-info').textContent=`${d.rows.length} registro(s)`;
+}
+
+function verFotoGrande(url) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+  overlay.innerHTML=`<img src="${url}" style="max-width:90vw;max-height:85vh;border-radius:12px;box-shadow:0 8px 48px rgba(0,0,0,.6);">`;
+  overlay.onclick=()=>overlay.remove();
+  document.body.appendChild(overlay);
 }
 async function abrirInsertar() {
   const tabla=tablaActual.nombre; if(!tabla){toast('Selecciona una tabla','err');return;}
@@ -1234,6 +1323,63 @@ async function guardarConfig() {
   body.append('csrfmiddlewaretoken',CSRF);
   const d=await fetch('/api/config/',{method:'POST',body}).then(r=>r.json());
   d.ok?toast('Cambios guardados'):toast('Error: '+d.error,'err');
+}
+
+// ════ FOTO TAQUILLERO ════
+let _fotoFile = null;
+const TAQ_ID = {{ taquillero.registro }};
+
+function previsualizarFoto(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 5 * 1024 * 1024) { toast('La imagen no puede superar 5 MB', 'err'); return; }
+  _fotoFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = document.getElementById('cfg-avatar-img');
+    const ph  = document.getElementById('cfg-avatar-ph');
+    img.src = e.target.result;
+    img.style.display = 'block';
+    if (ph) ph.style.display = 'none';
+    document.getElementById('cfg-foto-submit').style.display = 'inline-block';
+    document.getElementById('cfg-foto-cancel').style.display = 'inline-block';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function subirFoto() {
+  if (!_fotoFile) return;
+  const form = new FormData();
+  form.append('foto', _fotoFile);
+  form.append('csrfmiddlewaretoken', CSRF);
+  try {
+    const r = await fetch(`/api/taquillero/${TAQ_ID}/foto/`, { method:'POST', body:form });
+    const d = await r.json();
+    if (r.ok) {
+      toast('Foto actualizada ✔');
+      document.getElementById('cfg-foto-submit').style.display = 'none';
+      document.getElementById('cfg-foto-cancel').style.display = 'none';
+      _fotoFile = null;
+    } else {
+      toast('Error: ' + (d.error || 'desconocido'), 'err');
+    }
+  } catch(e) { toast('Error de conexión', 'err'); }
+}
+
+function cancelarFoto() {
+  _fotoFile = null;
+  document.getElementById('cfg-foto-input').value = '';
+  document.getElementById('cfg-foto-submit').style.display = 'none';
+  document.getElementById('cfg-foto-cancel').style.display = 'none';
+  // Revertir: recargar la imagen original si hay, sino mostrar placeholder
+  {% if taquillero.foto %}
+    document.getElementById('cfg-avatar-img').src = '/media/{{ taquillero.foto }}';
+  {% else %}
+    const img = document.getElementById('cfg-avatar-img');
+    const ph  = document.getElementById('cfg-avatar-ph');
+    img.src = ''; img.style.display = 'none';
+    if (ph) ph.style.display = 'flex';
+  {% endif %}
 }
 
 // ════ MODALES ════

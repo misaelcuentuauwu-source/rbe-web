@@ -22,3 +22,13 @@ iniciarlo para movil:
 python manage.py runserver 0.0.0.0:8000
 
 
+
+--en dado caso la api de elipse este caida pueden ir a esta pagina
+https://console.groq.com/
+
+-crean su cuenta le dan a apikeys crear api-key
+
+y pueden crear su propia api-key para luego ponerla en el archivo .env en
+GROQ_API_KEY=
+
+

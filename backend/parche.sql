@@ -1,4 +1,4 @@
--- Active: 1772565691688@@127.0.0.1@3306@rbe
+-- Active: 1760978807635@@127.0.0.1@3306@mysql
 -- ============================================================
 -- RBE - Rutas Baja Express
 -- Script completo: schema + datos
@@ -173,6 +173,7 @@ CREATE TABLE taquillero (
     usuario VARCHAR(20) NOT NULL,
     contrasena VARCHAR(20) NOT NULL,
     terminal INT NOT NULL,
+    foto  VARCHAR(200),  
     supervisa BOOLEAN,
     FOREIGN KEY (terminal) REFERENCES terminal(numero)
 );
