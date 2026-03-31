@@ -840,7 +840,9 @@ tbody td { padding: 9px 12px; }
   #sidebar .btn-logout::after, #sidebar.collapsed .btn-logout::after { display: none !important; }
   #sidebar .gestion-sub { display: block; }
 
-  #main, #sidebar.collapsed ~ #main { margin-left: 0 !important; height: 100vh; overflow: hidden; }
+  #main, #sidebar.collapsed ~ #main { margin-left: 0 !important; width: 100% !important; height: 100vh; overflow: hidden; }
+  #sidebar-overlay.active ~ #main,
+#sidebar.mobile-open ~ #main { margin-left: 0 !important; }
 
   #topbar       { padding: 0 10px; height: 50px; gap: 8px; }
   #topbar-title { font-size: 16px; }
@@ -966,4 +968,56 @@ tbody td { padding: 9px 12px; }
   #content      { padding: 22px 30px; }
   .kpi-grid     { grid-template-columns: repeat(5, 1fr); }
   .charts-grid  { grid-template-columns: repeat(3, 1fr); }
+}
+/* ── Foto de perfil en Configuración ── */
+.cfg-foto-section { margin-bottom: 16px; }
+.cfg-foto-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+.cfg-avatar {
+  width: 90px;
+  height: 90px;
+  min-width: 90px;
+  max-width: 90px;
+  max-height: 90px;        /* ← esto es lo que faltaba */
+  border-radius: 50%;
+  background: var(--bg2, #e8f0f7);
+  border: 3px solid var(--azul, #1181c3);
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.cfg-avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+  border-radius: 50%;
+}
+.cfg-avatar-ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--muted, #6b8fa8);
+}
+.cfg-foto-info { flex: 1; min-width: 180px; }
+    /* ── Imagen en tabla de Gestión ── */
+    #gestion-tbody img { transition: transform .15s; }
+    #gestion-tbody img:hover { transform: scale(1.1); }
+
+.page-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
 }

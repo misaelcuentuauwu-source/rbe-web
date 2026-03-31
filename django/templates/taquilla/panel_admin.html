@@ -7,43 +7,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet"/>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   {% load static %}
-  <link rel="stylesheet" href="{% static 'dashboard/panel_admin.css' %}?v=2">
-  <style>
-    /* ── Foto de perfil en Configuración ── */
-    .cfg-foto-section { margin-bottom: 4px; }
-    .cfg-foto-wrap {
-      display: flex;
-      align-items: center;
-      gap: 22px;
-      flex-wrap: wrap;
-    }
-    .cfg-avatar {
-      width: 90px;
-      height: 90px;
-      border-radius: 50%;
-      background: var(--bg2, #e8f0f7);
-      border: 3px solid var(--azul, #1181c3);
-      flex-shrink: 0;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
-    }
-    .cfg-avatar-ph {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      height: 100%;
-      color: var(--muted, #6b8fa8);
-    }
-    .cfg-foto-info { flex: 1; min-width: 180px; }
-
-    /* ── Imagen en tabla de Gestión ── */
-    #gestion-tbody img { transition: transform .15s; }
-    #gestion-tbody img:hover { transform: scale(1.1); }
-  </style>
+  <link rel="stylesheet" href="{% static 'dashboard/panel_admin.css' %}?v=4">
+</head>
 <body>
 
 <!-- overlay para cerrar sidebar en mobile -->
@@ -83,7 +48,6 @@
     </button>
   </div>
   <div class="sb-footer">
-    <!-- BOTÓN ELIPSE -->
     <button class="btn-elipse" id="btn-elipse" onclick="irAEclipse()" title="Elipse — Módulo avanzado">
       <span class="elipse-inner">
         <span class="elipse-bolt">⚡</span>
@@ -114,12 +78,9 @@
 
   <div id="content">
 
-    <!-- ════════════════════════════════════
-         KPI GENERALES
-    ════════════════════════════════════ -->
+    <!-- ════ KPI GENERALES ════ -->
     <div id="page-kpi-generales" class="page">
       <h2 class="page-title">Dashboard — KPIs Generales</h2>
-
       <div class="filtros-row">
         <div class="filtro-group">
           <label>Rango</label>
@@ -196,9 +157,7 @@
       </div>
     </div>
 
-    <!-- ════════════════════════════════════
-         KPI ESPECÍFICOS
-    ════════════════════════════════════ -->
+    <!-- ════ KPI ESPECÍFICOS ════ -->
     <div id="page-kpi-especificos" class="page">
       <h2 class="page-title">KPIs Específicos</h2>
       <div class="filtros-row">
@@ -261,19 +220,13 @@
       </div>
     </div>
 
-    <!-- ════════════════════════════════════
-         SALIDAS
-    ════════════════════════════════════ -->
+    <!-- ════ SALIDAS ════ -->
     <div id="page-salidas" class="page">
-
-      <!-- CABECERA -->
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
-        <h2 class="page-title" style="margin:0;font-size:20px;font-weight:800;color:var(--azul);">Salidas programadas</h2>
-        <button class="btn btn-success" style="flex-shrink:0;" onclick="abrirModalViaje()">+ Agregar viaje</button>
+      <div class="page-header-row">
+        <h2 class="page-title" style="margin:0">Salidas programadas</h2>
+        <button class="btn btn-success" onclick="abrirModalViaje()">+ Agregar viaje</button>
       </div>
-
-      <!-- FILTROS -->
-      <div class="filtros-row" style="margin-bottom:14px;">
+      <div class="filtros-row">
         <div class="filtro-group">
           <label>Fecha</label>
           <input type="date" id="sal-fecha">
@@ -286,34 +239,23 @@
           <label>Destino</label>
           <select id="sal-destino"><option value="">-- Todas --</option></select>
         </div>
-
-        <!-- Toggle: Precisión exacta de fecha -->
-        <label class="sal-precision-wrap" id="sal-precision-label" title="Activado: busca solo la fecha exacta. Desactivado: muestra el viaje más cercano a la fecha.">
+        <label class="sal-precision-wrap" id="sal-precision-label">
           <div class="sal-precision-track" id="sal-precision-track">
             <div class="sal-precision-thumb"></div>
           </div>
           <input type="checkbox" id="sal-precision" style="display:none;">
           <span class="sal-precision-text" id="sal-precision-text">Precisión: <b>Cercana</b></span>
         </label>
-
         <button class="btn btn-naranja" onclick="aplicarFiltrosSalidas()">Filtrar</button>
-        <button class="btn btn-gray"    onclick="limpiarFiltrosSalidas()">Limpiar filtros</button>
+        <button class="btn btn-gray"    onclick="limpiarFiltrosSalidas()">Limpiar</button>
       </div>
-
-      <!-- INFO BAR -->
       <div class="info-bar" id="sal-info"></div>
-
-      <!-- CARDS -->
       <div id="salidas-container"><span class="spinner"></span></div>
     </div>
 
-    <!-- ════════════════════════════════════
-         HISTORIAL DE VIAJES
-    ════════════════════════════════════ -->
+    <!-- ════ HISTORIAL ════ -->
     <div id="page-historial" class="page">
       <h2 class="page-title">Historial de Viajes</h2>
-
-      <!-- FILA 1: Origen, Destino, Estado, Buscar -->
       <div class="filtros-row" style="margin-bottom:10px;">
         <div class="filtro-group">
           <label>Origen</label>
@@ -335,41 +277,31 @@
         </div>
         <div class="filtro-group">
           <label>Buscar</label>
-          <input type="text" id="hist-search"
-            placeholder="Ciudad, conductor, autobús..."
-            oninput="filtrarHistorial()">
+          <input type="text" id="hist-search" placeholder="Ciudad, conductor, autobús..." oninput="filtrarHistorial()">
         </div>
       </div>
-
-      <!-- FILA 2: Fecha + toggle precisión + botones -->
       <div class="filtros-row" style="margin-bottom:14px;">
         <div class="filtro-group">
           <label>Fecha</label>
           <input type="date" id="hist-fecha">
         </div>
-
-        <label class="sal-precision-wrap" id="hist-precision-label"
-               title="Desactivado: muestra los viajes del día más cercano. Activado: solo la fecha exacta.">
+        <label class="sal-precision-wrap" id="hist-precision-label">
           <div class="sal-precision-track" id="hist-precision-track">
             <div class="sal-precision-thumb"></div>
           </div>
           <input type="checkbox" id="hist-precision" style="display:none;">
           <span class="sal-precision-text" id="hist-precision-text">Precisión: <b>Cercana</b></span>
         </label>
-
         <button class="btn btn-naranja" onclick="aplicarFiltrosFechaHistorial()">Filtrar fecha</button>
         <button class="btn btn-gray"    onclick="limpiarFiltrosHistorial()">Limpiar todo</button>
       </div>
-
       <div class="info-bar" id="hist-info"></div>
       <div id="hist-cards-container">
         <div style="text-align:center;padding:40px"><span class="spinner"></span></div>
       </div>
     </div>
 
-    <!-- ════════════════════════════════════
-         GESTIÓN CRUD
-    ════════════════════════════════════ -->
+    <!-- ════ GESTIÓN CRUD ════ -->
     <div id="page-gestion" class="page">
       <div class="gestion-header">
         <h2 id="gestion-title">Gestión</h2>
@@ -387,21 +319,17 @@
       </div>
     </div>
 
-    <!-- ════════════════════════════════════
-         CONFIGURACIÓN
-    ════════════════════════════════════ -->
+    <!-- ════ CONFIGURACIÓN ════ -->
     <div id="page-configuracion" class="page">
       <h2 class="page-title">Configuración de Usuario</h2>
       <div class="card config-form" style="max-width:680px;">
-
-        <!-- FOTO DE PERFIL -->
         <div class="cfg-foto-section">
           <div class="cfg-foto-wrap">
             <div class="cfg-avatar">
               {% if taquillero.foto %}
-                <img src="/media/{{ taquillero.foto }}" alt="Foto" id="cfg-avatar-img" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                <img src="/media/{{ taquillero.foto }}" alt="Foto" id="cfg-avatar-img">
               {% else %}
-                <img src="" alt="Foto" id="cfg-avatar-img" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:none;">
+                <img src="" alt="Foto" id="cfg-avatar-img" style="display:none;">
                 <div class="cfg-avatar-ph" id="cfg-avatar-ph">
                   <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 </div>
@@ -419,9 +347,7 @@
             </div>
           </div>
         </div>
-
         <hr style="border:none;border-top:1px solid var(--border);margin:20px 0 16px;">
-
         <div class="form-field"><label>Nombre *</label><input type="text" id="cfg-nombre"></div>
         <div class="form-field"><label>Primer Apellido *</label><input type="text" id="cfg-ap1"></div>
         <div class="form-field"><label>Segundo Apellido</label><input type="text" id="cfg-ap2"></div>
@@ -434,42 +360,23 @@
   </div><!-- /content -->
 </div><!-- /main -->
 
-<!-- ════════════════════════════════════════
-     MODAL — INFORMACIÓN DEL AUTOBÚS
-════════════════════════════════════════ -->
+<!-- ════ MODALES ════ -->
 <div class="modal-overlay" id="modal-autobus">
   <div class="modal-box">
     <div class="modal-title azul" id="modal-autobus-title">Información del Autobús</div>
-    <div class="bus-info-grid" id="modal-autobus-body">
-      <div style="text-align:center;padding:20px"><span class="spinner"></span></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-gray" onclick="cerrarModal('modal-autobus')">Cerrar</button>
-    </div>
+    <div class="bus-info-grid" id="modal-autobus-body"><div style="text-align:center;padding:20px"><span class="spinner"></span></div></div>
+    <div class="modal-actions"><button class="btn btn-gray" onclick="cerrarModal('modal-autobus')">Cerrar</button></div>
   </div>
 </div>
 
-<!-- ════════════════════════════════════════
-     MODAL — PASAJEROS DEL VIAJE
-════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-pasajeros">
   <div class="modal-box modal-wide">
     <div class="modal-title azul" id="modal-pasajeros-title">Pasajeros del viaje</div>
     <div class="pasajeros-header" id="modal-pasajeros-header"></div>
     <div class="tbl-wrap">
       <table class="pasajeros-tabla">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Nombre completo</th>
-            <th>Edad</th>
-            <th>Núm. boleto</th>
-            <th>Núm. asiento</th>
-          </tr>
-        </thead>
-        <tbody id="modal-pasajeros-tbody">
-          <tr><td colspan="5" style="text-align:center;padding:20px"><span class="spinner"></span></td></tr>
-        </tbody>
+        <thead><tr><th>#</th><th>Nombre completo</th><th>Edad</th><th>Núm. boleto</th><th>Núm. asiento</th></tr></thead>
+        <tbody id="modal-pasajeros-tbody"><tr><td colspan="5" style="text-align:center;padding:20px"><span class="spinner"></span></td></tr></tbody>
       </table>
     </div>
     <div class="pasajeros-export-row">
@@ -479,24 +386,14 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════════════
-     MODAL — AGREGAR VIAJE
-════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-viaje">
   <div class="modal-box">
     <div class="modal-title">🚌 Agregar nuevo viaje</div>
-    <div class="form-field">
-      <label>Ruta</label>
-      <select id="mv-ruta" onchange="calcularLlegadaAuto()"></select>
-    </div>
-    <div class="form-field">
-      <label>Fecha y hora de salida</label>
-      <input type="datetime-local" id="mv-salida" oninput="calcularLlegadaAuto()">
-    </div>
+    <div class="form-field"><label>Ruta</label><select id="mv-ruta" onchange="calcularLlegadaAuto()"></select></div>
+    <div class="form-field"><label>Fecha y hora de salida</label><input type="datetime-local" id="mv-salida" oninput="calcularLlegadaAuto()"></div>
     <div class="form-field">
       <label>Llegada estimada (calculada automáticamente)</label>
-      <input type="text" id="mv-llegada-display" placeholder="Selecciona ruta y hora de salida…" readonly
-             style="background:rgba(17,129,195,.06);border-color:var(--azul);color:var(--azul);font-weight:700;cursor:default;">
+      <input type="text" id="mv-llegada-display" placeholder="Selecciona ruta y hora de salida…" readonly style="background:rgba(17,129,195,.06);border-color:var(--azul);color:var(--azul);font-weight:700;cursor:default;">
       <input type="hidden" id="mv-llegada" />
     </div>
     <div class="form-field"><label>Autobús</label><select id="mv-autobus"></select></div>
@@ -509,9 +406,6 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════════════
-     MODAL — CRUD
-════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-crud">
   <div class="modal-box">
     <div class="modal-title" id="crud-modal-title">Formulario</div>
@@ -523,29 +417,19 @@
   </div>
 </div>
 
-<!-- ════════════════════════════════════════
-     MODAL — DETALLE CRUD
-════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-detalle">
   <div class="modal-box">
     <div class="modal-title" id="detalle-title">Detalle</div>
     <div id="detalle-body"></div>
-    <div class="modal-actions">
-      <button class="btn btn-gray" onclick="cerrarModal('modal-detalle')">Cerrar</button>
-    </div>
+    <div class="modal-actions"><button class="btn btn-gray" onclick="cerrarModal('modal-detalle')">Cerrar</button></div>
   </div>
 </div>
 
-<!-- ════════════════════════════════════════
-     MODAL — DETALLES DE SALIDA
-════════════════════════════════════════ -->
 <div class="modal-overlay" id="modal-det-salida">
   <div class="modal-box">
     <div class="modal-title azul">🚌 Detalles del viaje</div>
     <div id="modal-det-salida-body"></div>
-    <div class="modal-actions">
-      <button class="btn btn-gray" onclick="cerrarModal('modal-det-salida')">Cerrar</button>
-    </div>
+    <div class="modal-actions"><button class="btn btn-gray" onclick="cerrarModal('modal-det-salida')">Cerrar</button></div>
   </div>
 </div>
 
@@ -555,7 +439,6 @@
      JAVASCRIPT
 ════════════════════════════════════════ -->
 <script>
-// ── Estado global ──────────────────────────────────────────────────────────────
 const CSRF = '{{ csrf_token }}';
 const tablaActual = { nombre:'', esquema:null, modo:null, pkName:null, pkValue:null };
 
@@ -569,7 +452,6 @@ let kgCharts          = {};
 let pasajerosActuales  = [];
 let pasajerosViajeInfo = {};
 
-// ── Utilidades ─────────────────────────────────────────────────────────────────
 const csrfHeaders = () => ({ 'Content-Type':'application/json', 'X-CSRFToken':CSRF });
 
 function toast(msg, tipo='ok') {
@@ -596,21 +478,30 @@ function mesRango(m, y) {
   return [ini, fin];
 }
 
-// ── Sidebar — RESPONSIVO ───────────────────────────────────────────────────────
-const isMobile  = () => window.innerWidth <= 767;
-const isTablet  = () => window.innerWidth >= 768 && window.innerWidth <= 1023;
+// ── Sidebar ────────────────────────────────────────────────────────────────────
+const isMobile = () => window.innerWidth <= 767;
+const isTablet = () => window.innerWidth >= 768 && window.innerWidth <= 1023;
 
 function toggleSidebar() {
-  const sb  = document.getElementById('sidebar');
-  const ov  = document.getElementById('sidebar-overlay');
+  const sb   = document.getElementById('sidebar');
+  const ov   = document.getElementById('sidebar-overlay');
+  const main = document.getElementById('main');
+
   if (isMobile()) {
     const isOpen = sb.classList.contains('mobile-open');
     if (isOpen) { closeSidebarMobile(); }
-    else { sb.classList.add('mobile-open'); ov.classList.add('active'); document.body.style.overflow = 'hidden'; }
-  } else if (isTablet()) {
-    sb.classList.toggle('expanded');
+    else {
+      sb.classList.add('mobile-open');
+      ov.classList.add('active');
+      document.body.style.overflow = 'hidden';
+    }
   } else {
+    // Desktop y tablet: toggle collapsed
     sb.classList.toggle('collapsed');
+    const collapsed = sb.classList.contains('collapsed');
+    main.style.marginLeft = collapsed
+      ? 'var(--sidebar-w-collapsed)'
+      : 'var(--sidebar-w)';
   }
 }
 
@@ -628,6 +519,25 @@ function toggleGestion() {
   document.getElementById('btn-gestion').querySelector('.label').textContent =
     sub.classList.contains('open') ? 'Gestión ▴' : 'Gestión ▾';
 }
+
+window.addEventListener('resize', () => {
+  const main = document.getElementById('main');
+  const sb   = document.getElementById('sidebar');
+  if (!isMobile()) {
+    // Al agrandar la pantalla limpiar estados mobile
+    sb.classList.remove('mobile-open');
+    document.getElementById('sidebar-overlay').classList.remove('active');
+    document.body.style.overflow = '';
+    // Sincronizar margin con estado collapsed
+    const collapsed = sb.classList.contains('collapsed');
+    main.style.marginLeft = collapsed
+      ? 'var(--sidebar-w-collapsed)'
+      : 'var(--sidebar-w)';
+  } else {
+    // En móvil el main siempre ocupa todo
+    main.style.marginLeft = '0';
+  }
+});
 
 // ── Navegación ─────────────────────────────────────────────────────────────────
 function showPage(id) {
@@ -866,7 +776,6 @@ async function cargarSalidas() {
   document.getElementById('sal-fecha').value = today();
   renderSalidaCards(salidasData);
 }
-
 function poblarFiltrosSalidas() {
   const origenes = [...new Set(salidasData.map(r => r.origen_ciudad).filter(Boolean))].sort();
   const destinos = [...new Set(salidasData.map(r => r.destino_ciudad).filter(Boolean))].sort();
@@ -878,7 +787,6 @@ function poblarFiltrosSalidas() {
   if (prevOrig) selOrig.value = prevOrig;
   if (prevDest) selDest.value = prevDest;
 }
-
 function aplicarFiltrosSalidas() {
   const fechaSel  = document.getElementById('sal-fecha').value;
   const origenSel = document.getElementById('sal-origen').value.trim().toLowerCase();
@@ -899,7 +807,6 @@ function aplicarFiltrosSalidas() {
   }
   renderSalidaCards(filtered, precision ? null : fechaSel);
 }
-
 function limpiarFiltrosSalidas() {
   document.getElementById('sal-fecha').value   = today();
   document.getElementById('sal-origen').value  = '';
@@ -912,7 +819,6 @@ function limpiarFiltrosSalidas() {
   if (tx) tx.innerHTML = 'Precisión: <b>Cercana</b>';
   renderSalidaCards(salidasData);
 }
-
 function renderSalidaCards(trips, closestDate) {
   const cont = document.getElementById('salidas-container');
   const info = document.getElementById('sal-info');
@@ -933,7 +839,6 @@ function renderSalidaCards(trips, closestDate) {
       </div>
     </div>`).join('')}</div>`;
 }
-
 function verDetalleSalida(r) {
   document.getElementById('modal-det-salida-body').innerHTML = `
     <div style="margin-bottom:18px;">
@@ -956,7 +861,6 @@ function verDetalleSalida(r) {
     </div>`;
   abrirModal('modal-det-salida');
 }
-
 async function abrirModalViaje() {
   const d=await fetch('/api/viaje/opciones/').then(r=>r.json());
   rutasDuracion = {};
@@ -973,7 +877,6 @@ async function abrirModalViaje() {
   calcularLlegadaAuto();
   abrirModal('modal-viaje');
 }
-
 function calcularLlegadaAuto() {
   const rutaId = document.getElementById('mv-ruta').value;
   const salidaStr = document.getElementById('mv-salida').value;
@@ -990,14 +893,12 @@ function calcularLlegadaAuto() {
   displayEl.value = llegada.toLocaleDateString('es-MX', opts) +
     '  (+' + (minutos >= 60 ? Math.floor(minutos/60)+'h '+(minutos%60?minutos%60+'min':'') : minutos+'min') + ')';
 }
-
 function parseDuracionAMinutos(dur) {
   if (!dur) return 0;
   dur = String(dur).trim();
   if (dur.includes(':')) { const [h,m] = dur.split(':').map(Number); return (h*60)+(m||0); }
   const n = parseInt(dur); return isNaN(n) ? 0 : n;
 }
-
 async function submitViaje() {
   const llegada = document.getElementById('mv-llegada').value;
   const body={
@@ -1009,7 +910,7 @@ async function submitViaje() {
     estado:   document.getElementById('mv-estado').value,
   };
   if (!body.salida||!body.llegada||!body.ruta||!body.autobus||!body.conductor||!body.estado) {
-    toast('Completa todos los campos (asegúrate de seleccionar la ruta y hora de salida)','err'); return;
+    toast('Completa todos los campos','err'); return;
   }
   const d=await fetch('/api/viaje/agregar/',{method:'POST',headers:csrfHeaders(),body:JSON.stringify(body)}).then(r=>r.json());
   d.ok?(toast('Viaje agregado'),cerrarModal('modal-viaje'),cargarSalidas()):toast('Error: '+d.error,'err');
@@ -1033,7 +934,6 @@ async function cargarHistorial() {
   document.getElementById('hist-fecha').value = '';
   filtrarHistorial();
 }
-
 function filtrarHistorial() {
   const q  = document.getElementById('hist-search').value.toLowerCase();
   const es = document.getElementById('hist-estado').value;
@@ -1047,13 +947,11 @@ function filtrarHistorial() {
   if (fecha) { _aplicarFechaHistorial(historialBase, fecha); }
   else { historialFiltered = historialBase; _renderHistInfoAndCards(historialFiltered); }
 }
-
 function aplicarFiltrosFechaHistorial() {
   const fecha = document.getElementById('hist-fecha').value;
   if (!fecha) { historialFiltered = historialBase; _renderHistInfoAndCards(historialFiltered, null); return; }
   _aplicarFechaHistorial(historialBase, fecha);
 }
-
 function _aplicarFechaHistorial(subset, fecha) {
   const precision = document.getElementById('hist-precision').checked;
   if (precision) {
@@ -1069,13 +967,11 @@ function _aplicarFechaHistorial(subset, fecha) {
     _renderHistInfoAndCards(historialFiltered, fechaCercana);
   }
 }
-
 function _renderHistInfoAndCards(rows, fechaHint) {
   const hint = fechaHint ? ` — más cercano al ${document.getElementById('hist-fecha').value} (${fechaHint})` : '';
   document.getElementById('hist-info').textContent = `Mostrando ${rows.length} de ${historialData.length} viajes${hint}`;
   renderHistorialCards(rows);
 }
-
 function limpiarFiltrosHistorial() {
   document.getElementById('hist-search').value  = '';
   document.getElementById('hist-estado').value  = '';
@@ -1091,8 +987,6 @@ function limpiarFiltrosHistorial() {
   historialBase = historialData; historialFiltered = historialData;
   _renderHistInfoAndCards(historialData, null);
 }
-
-// ── Helper toggle precisión ────────────────────────────────────────────────────
 function initPrecisionToggle(cbId, trackId, txtId, labelId) {
   const cb    = document.getElementById(cbId);
   const track = document.getElementById(trackId);
@@ -1107,7 +1001,6 @@ function initPrecisionToggle(cbId, trackId, txtId, labelId) {
   label.addEventListener('click', () => { cb.checked = !cb.checked; sync(); });
   sync();
 }
-
 function renderHistorialCards(rows) {
   const container=document.getElementById('hist-cards-container');
   if (!rows.length){ container.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><p>No se encontraron viajes.</p></div>`; return; }
@@ -1162,7 +1055,6 @@ async function verAutobus(viajeId, busNum) {
       <div class="bus-info-row"><span class="bus-info-label">Por tipo:</span><span class="bus-info-value">${tiposHtml}</span></div>`;
   } catch(e) { document.getElementById('modal-autobus-body').innerHTML='<p style="color:var(--danger)">Error al cargar.</p>'; }
 }
-
 async function verPasajeros(viajeId) {
   document.getElementById('modal-pasajeros-title').textContent=`Pasajeros del viaje ${viajeId}`;
   document.getElementById('modal-pasajeros-header').innerHTML='';
@@ -1183,7 +1075,6 @@ async function verPasajeros(viajeId) {
     document.getElementById('modal-pasajeros-tbody').innerHTML=pasajerosActuales.map((p,i)=>`<tr><td>${i+1}</td><td>${p.nombre_completo??'—'}</td><td>${p.edad??'—'}</td><td>${p.numero_boleto??'—'}</td><td>${p.numero_asiento??'—'}</td></tr>`).join('');
   } catch(e){ document.getElementById('modal-pasajeros-tbody').innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:20px">Error.</td></tr>'; }
 }
-
 function exportarPasajerosCSV() {
   if (!pasajerosActuales.length){toast('Sin pasajeros','err');return;}
   const v=pasajerosViajeInfo;
@@ -1198,23 +1089,18 @@ function exportarPasajerosCSV() {
 }
 
 // ════ GESTIÓN CRUD ════
-
-// Columnas que contienen rutas de imagen (ruta relativa en /media/)
 const COLS_IMAGEN = new Set(['foto']);
 
 function celdaGestion(col, val) {
   if (COLS_IMAGEN.has(col) && val && val !== '—') {
     const url = val.startsWith('http') ? val : `/media/${val}`;
-    return `<td>
-      <img src="${url}" alt="foto"
-        style="width:44px;height:44px;object-fit:cover;border-radius:50%;border:2px solid var(--border);cursor:pointer;vertical-align:middle;"
-        onerror="this.style.display='none'"
-        onclick="verFotoGrande('${url}')">
-    </td>`;
+    return `<td><img src="${url}" alt="foto"
+      style="width:44px;height:44px;object-fit:cover;border-radius:50%;border:2px solid var(--border);cursor:pointer;vertical-align:middle;"
+      onerror="this.style.display='none'"
+      onclick="verFotoGrande('${url}')"></td>`;
   }
   return `<td>${val??'—'}</td>`;
 }
-
 async function recargarGestion() {
   const tabla=tablaActual.nombre; if(!tabla)return;
   document.getElementById('gestion-tbody').innerHTML='<tr><td colspan="20"><span class="spinner"></span></td></tr>';
@@ -1234,7 +1120,6 @@ async function recargarGestion() {
     </tr>`).join('');
   document.getElementById('gestion-info').textContent=`${d.rows.length} registro(s)`;
 }
-
 function verFotoGrande(url) {
   const overlay = document.createElement('div');
   overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
@@ -1346,7 +1231,6 @@ function previsualizarFoto(input) {
   };
   reader.readAsDataURL(file);
 }
-
 async function subirFoto() {
   if (!_fotoFile) return;
   const form = new FormData();
@@ -1360,18 +1244,14 @@ async function subirFoto() {
       document.getElementById('cfg-foto-submit').style.display = 'none';
       document.getElementById('cfg-foto-cancel').style.display = 'none';
       _fotoFile = null;
-    } else {
-      toast('Error: ' + (d.error || 'desconocido'), 'err');
-    }
+    } else { toast('Error: ' + (d.error || 'desconocido'), 'err'); }
   } catch(e) { toast('Error de conexión', 'err'); }
 }
-
 function cancelarFoto() {
   _fotoFile = null;
   document.getElementById('cfg-foto-input').value = '';
   document.getElementById('cfg-foto-submit').style.display = 'none';
   document.getElementById('cfg-foto-cancel').style.display = 'none';
-  // Revertir: recargar la imagen original si hay, sino mostrar placeholder
   {% if taquillero.foto %}
     document.getElementById('cfg-avatar-img').src = '/media/{{ taquillero.foto }}';
   {% else %}
@@ -1392,7 +1272,7 @@ document.querySelectorAll('.modal-overlay').forEach(m=>
 
 const cerrarSesion = () => { if(confirm('¿Cerrar sesión?')) window.location.href='/logout/'; };
 
-// ── Elipse: animación permanente al primer hover ──────────────────────────────
+// ── Elipse ────────────────────────────────────────────────────────────────────
 (function() {
   function setupElipse() {
     const btn = document.getElementById('btn-elipse');
@@ -1409,17 +1289,7 @@ const cerrarSesion = () => { if(confirm('¿Cerrar sesión?')) window.location.hr
 
 function irAEclipse() { window.location.href = '/elipse/'; }
 
-window.addEventListener('resize', () => {
-  if (!isMobile()) {
-    document.getElementById('sidebar').classList.remove('mobile-open');
-    document.getElementById('sidebar-overlay').classList.remove('active');
-    document.body.style.overflow = '';
-  }
-});
-
-// ════════════════════════════════════════════════════════════
-//  INIT
-// ════════════════════════════════════════════════════════════
+// ════ INIT ════
 (function init() {
   const h=today(), now=new Date();
   const mes=String(now.getMonth()+1).padStart(2,'0');
@@ -1430,9 +1300,18 @@ window.addEventListener('resize', () => {
   document.getElementById('ke-anio').value=now.getFullYear();
   document.getElementById('kg-anio').value=now.getFullYear();
 
-  // ── Inicializar toggle de precisión de Salidas ──
-  // Se hace aquí para garantizar que initPrecisionToggle ya está definida
   initPrecisionToggle('sal-precision','sal-precision-track','sal-precision-text','sal-precision-label');
+
+  // Inicializar margin del main según estado del sidebar
+  const sb   = document.getElementById('sidebar');
+  const main = document.getElementById('main');
+  if (isMobile()) {
+    main.style.marginLeft = '0';
+  } else {
+    main.style.marginLeft = sb.classList.contains('collapsed')
+      ? 'var(--sidebar-w-collapsed)'
+      : 'var(--sidebar-w)';
+  }
 
   showPage('kpi-generales');
 })();
