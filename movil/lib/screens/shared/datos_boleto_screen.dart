@@ -12,6 +12,8 @@ class DatosBoletoScreen extends StatefulWidget {
   final String origenNombre;
   final String destinoNombre;
   final String horaSalida;
+  final String horaLlegada;
+  final String fechaViaje;
   final String precio;
   final int vendedorId;
   final String? correoCliente;
@@ -25,6 +27,8 @@ class DatosBoletoScreen extends StatefulWidget {
     required this.origenNombre,
     required this.destinoNombre,
     required this.horaSalida,
+    this.horaLlegada = '',
+    this.fechaViaje = '',
     required this.precio,
     required this.vendedorId,
     this.correoCliente,
@@ -226,17 +230,21 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     if (mounted) {
       Navigator.push(
         context,
-        AppRoutes.slideLeft(SeatSelectionScreen(
-          viajeId: widget.viajeId,
-          pasajeros: pasajerosData,
-          origenNombre: widget.origenNombre,
-          destinoNombre: widget.destinoNombre,
-          horaSalida: widget.horaSalida,
-          precioPorPasajero: double.parse(widget.precio),
-          vendedorId: widget.vendedorId,
-          tipoUsuario: widget.tipoUsuario,
-          datosUsuario: widget.datosUsuario,
-        )),
+        AppRoutes.slideLeft(
+          SeatSelectionScreen(
+            viajeId: widget.viajeId,
+            pasajeros: pasajerosData,
+            origenNombre: widget.origenNombre,
+            destinoNombre: widget.destinoNombre,
+            horaSalida: widget.horaSalida,
+            horaLlegada: widget.horaLlegada,
+            fechaViaje: widget.fechaViaje,
+            precioPorPasajero: double.parse(widget.precio),
+            vendedorId: widget.vendedorId,
+            tipoUsuario: widget.tipoUsuario,
+            datosUsuario: widget.datosUsuario,
+          ),
+        ),
       );
     }
   }

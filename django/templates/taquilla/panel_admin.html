@@ -8,6 +8,126 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   {% load static %}
   <link rel="stylesheet" href="{% static 'dashboard/panel_admin.css' %}?v=4">
+  <style>
+    /* ── Separador sección económica ── */
+    .eco-section-header {
+      display: flex; align-items: center; gap: 10px;
+      margin: 28px 0 16px;
+    }
+    .eco-section-icon { font-size: 20px; }
+    .eco-section-label {
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 800; font-size: 15px;
+      color: var(--azul, #1181c3);
+      white-space: nowrap;
+    }
+    .eco-section-line {
+      flex: 1; height: 2px;
+      background: linear-gradient(90deg, var(--azul, #1181c3) 0%, transparent 100%);
+      border-radius: 2px; opacity: .25;
+    }
+
+    /* ── Fila de stats grandes ── */
+    .eco-stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 900px) { .eco-stats-row { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 580px) { .eco-stats-row { grid-template-columns: 1fr; } }
+
+    .eco-stat-card {
+      background: #fff;
+      border-radius: 16px;
+      border: 1.5px solid var(--border, #e2e8f0);
+      padding: 20px 20px 18px;
+      display: flex; gap: 14px; align-items: flex-start;
+      box-shadow: 0 2px 8px rgba(0,0,0,.04);
+      transition: box-shadow .2s, transform .2s;
+      border-left-width: 4px;
+    }
+    .eco-stat-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.08); transform: translateY(-2px); }
+    .eco-green  { border-left-color: #22c55e; }
+    .eco-blue   { border-left-color: #1181c3; }
+    .eco-orange { border-left-color: #ed7237; }
+
+    .eco-stat-icon {
+      font-size: 28px; line-height: 1;
+      flex-shrink: 0; margin-top: 2px;
+    }
+    .eco-stat-body { flex: 1; min-width: 0; }
+    .eco-stat-label {
+      font-size: 11px; font-weight: 700; letter-spacing: .5px;
+      text-transform: uppercase; color: var(--muted, #6b8fa8);
+      margin-bottom: 4px;
+    }
+    .eco-stat-value {
+      font-size: 26px; font-weight: 900; line-height: 1.1;
+      color: var(--text, #1a2b3c); margin-bottom: 4px;
+      letter-spacing: -.5px;
+    }
+    .eco-stat-sub {
+      font-size: 11px; color: var(--muted, #6b8fa8); font-weight: 600;
+    }
+
+    /* ── Split efectivo/tarjeta ── */
+    .eco-split-row {
+      display: flex; gap: 16px; margin-bottom: 10px; margin-top: 6px;
+    }
+    .eco-split-item { display: flex; align-items: center; gap: 5px; }
+    .eco-split-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .dot-cash { background: #22c55e; }
+    .dot-card { background: #1181c3; }
+    .eco-split-label { font-size: 11px; color: var(--muted, #6b8fa8); font-weight: 600; }
+    .eco-split-val   { font-size: 13px; font-weight: 800; color: var(--text, #1a2b3c); }
+
+    .eco-bar-split {
+      display: flex; height: 6px; border-radius: 99px;
+      overflow: hidden; background: #f0f4f8;
+      margin-bottom: 6px;
+    }
+    .eco-bar-efectivo { background: #22c55e; transition: width .6s ease; }
+    .eco-bar-tarjeta  { background: #1181c3; transition: width .6s ease; }
+
+    /* ── Tarjeta wide taquilleros ── */
+    .kpi-card-wide { grid-column: 1 / -1; }
+
+    /* tabla interna taquilleros */
+    .eco-taq-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .eco-taq-table th {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--muted, #6b8fa8);
+      padding: 6px 10px; text-align: left;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+    }
+    .eco-taq-table td {
+      font-size: 13px; padding: 8px 10px;
+      border-bottom: 1px solid #f4f6f9; vertical-align: middle;
+    }
+    .eco-taq-table tr:last-child td { border-bottom: none; }
+    .eco-taq-rank {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 22px; height: 22px; border-radius: 50%;
+      font-size: 11px; font-weight: 800; color: #fff;
+    }
+    .eco-taq-rank.r1 { background: #f59e0b; }
+    .eco-taq-rank.r2 { background: #94a3b8; }
+    .eco-taq-rank.r3 { background: #cd7c3a; }
+    .eco-taq-rank.rn { background: #cbd5e1; color: #475569; }
+    .eco-taq-total   { font-weight: 900; color: #22c55e; }
+    .eco-taq-bar-wrap { width: 80px; }
+    .eco-taq-mini-bar {
+      height: 5px; border-radius: 99px; background: #e2e8f0;
+      overflow: hidden;
+    }
+    .eco-taq-mini-fill {
+      height: 100%; border-radius: 99px; background: #22c55e;
+      transition: width .5s ease;
+    }
+  </style>
 </head>
 <body>
 
@@ -118,12 +238,71 @@
       </div>
 
       <div id="kg-view-cards" class="kg-cards-view">
+        <!-- Tarjetas operativas (fila original) -->
         <div class="kpi-grid">
           <div class="kpi-card"><div class="kpi-card-title">Boletos vendidos por destino</div><div id="kg-boletos"><span class="spinner"></span></div></div>
           <div class="kpi-card"><div class="kpi-card-title">Top conductores</div><div id="kg-conductores"><span class="spinner"></span></div></div>
           <div class="kpi-card"><div class="kpi-card-title">Top autobuses</div><div id="kg-autobuses"><span class="spinner"></span></div></div>
           <div class="kpi-card"><div class="kpi-card-title">Ciudades destino</div><div id="kg-destinos"><span class="spinner"></span></div></div>
           <div class="kpi-card"><div class="kpi-card-title">Ciudades origen</div><div id="kg-origenes"><span class="spinner"></span></div></div>
+        </div>
+
+        <!-- Separador económico -->
+        <div class="eco-section-header">
+          <span class="eco-section-icon">💰</span>
+          <span class="eco-section-label">Resumen Económico</span>
+          <div class="eco-section-line"></div>
+        </div>
+
+        <!-- Fila 1: métricas numéricas grandes -->
+        <div class="eco-stats-row">
+          <div class="eco-stat-card eco-green">
+            <div class="eco-stat-icon">💵</div>
+            <div class="eco-stat-body">
+              <div class="eco-stat-label">Total recaudado</div>
+              <div class="eco-stat-value" id="eco-total">—</div>
+              <div class="eco-stat-sub" id="eco-txn">— transacciones</div>
+            </div>
+          </div>
+          <div class="eco-stat-card eco-blue">
+            <div class="eco-stat-icon">🎫</div>
+            <div class="eco-stat-body">
+              <div class="eco-stat-label">Promedio por boleto</div>
+              <div class="eco-stat-value" id="eco-promedio">—</div>
+              <div class="eco-stat-sub" id="eco-boletos-count">— boletos vendidos</div>
+            </div>
+          </div>
+          <div class="eco-stat-card eco-orange">
+            <div class="eco-stat-icon">💳</div>
+            <div class="eco-stat-body">
+              <div class="eco-stat-label">Efectivo vs Tarjeta</div>
+              <div class="eco-split-row">
+                <div class="eco-split-item">
+                  <span class="eco-split-dot dot-cash"></span>
+                  <span class="eco-split-label">Efectivo</span>
+                  <span class="eco-split-val" id="eco-efectivo">—</span>
+                </div>
+                <div class="eco-split-item">
+                  <span class="eco-split-dot dot-card"></span>
+                  <span class="eco-split-label">Tarjeta</span>
+                  <span class="eco-split-val" id="eco-tarjeta">—</span>
+                </div>
+              </div>
+              <div class="eco-bar-split">
+                <div class="eco-bar-efectivo" id="eco-bar-efectivo" style="width:50%"></div>
+                <div class="eco-bar-tarjeta"  id="eco-bar-tarjeta"  style="width:50%"></div>
+              </div>
+              <div class="eco-stat-sub" id="eco-split-pct">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fila 2: top taquilleros -->
+        <div class="kpi-grid" style="margin-top:0">
+          <div class="kpi-card kpi-card-wide">
+            <div class="kpi-card-title">🏆 Top taquilleros por ventas</div>
+            <div id="kg-taquilleros"><span class="spinner"></span></div>
+          </div>
         </div>
       </div>
 
@@ -438,883 +617,18 @@
 <!-- ════════════════════════════════════════
      JAVASCRIPT
 ════════════════════════════════════════ -->
-<script>
-const CSRF = '{{ csrf_token }}';
-const tablaActual = { nombre:'', esquema:null, modo:null, pkName:null, pkValue:null };
-
-let historialData     = [];
-let historialFiltered = [];
-let keData            = [];
-let kgData            = null;
-let kgView            = 'cards';
-let kgTableCurrent    = 'boletos';
-let kgCharts          = {};
-let pasajerosActuales  = [];
-let pasajerosViajeInfo = {};
-
-const csrfHeaders = () => ({ 'Content-Type':'application/json', 'X-CSRFToken':CSRF });
-
-function toast(msg, tipo='ok') {
-  const t = document.getElementById('toast');
-  t.textContent = msg; t.className = `show ${tipo}`;
-  setTimeout(() => t.className = '', 2800);
-}
-
-const fmt   = dt => dt ? dt.replace('T',' ').substring(0,16) : '—';
-const today = ()  => new Date().toISOString().split('T')[0];
-
-function semanaRango() {
-  const now = new Date(), day = now.getDay();
-  const lun = new Date(now); lun.setDate(now.getDate() + (day===0 ? -6 : 1-day));
-  const dom = new Date(lun); dom.setDate(lun.getDate() + 6);
-  return [lun.toISOString().split('T')[0], dom.toISOString().split('T')[0]];
-}
-
-function mesRango(m, y) {
-  const anio = y || new Date().getFullYear();
-  const mes  = parseInt(m || new Date().getMonth()+1);
-  const ini  = `${anio}-${String(mes).padStart(2,'0')}-01`;
-  const fin  = `${anio}-${String(mes).padStart(2,'0')}-${new Date(anio,mes,0).getDate()}`;
-  return [ini, fin];
-}
-
-// ── Sidebar ────────────────────────────────────────────────────────────────────
-const isMobile = () => window.innerWidth <= 767;
-const isTablet = () => window.innerWidth >= 768 && window.innerWidth <= 1023;
-
-function toggleSidebar() {
-  const sb   = document.getElementById('sidebar');
-  const ov   = document.getElementById('sidebar-overlay');
-  const main = document.getElementById('main');
-
-  if (isMobile()) {
-    const isOpen = sb.classList.contains('mobile-open');
-    if (isOpen) { closeSidebarMobile(); }
-    else {
-      sb.classList.add('mobile-open');
-      ov.classList.add('active');
-      document.body.style.overflow = 'hidden';
-    }
-  } else {
-    // Desktop y tablet: toggle collapsed
-    sb.classList.toggle('collapsed');
-    const collapsed = sb.classList.contains('collapsed');
-    main.style.marginLeft = collapsed
-      ? 'var(--sidebar-w-collapsed)'
-      : 'var(--sidebar-w)';
-  }
-}
-
-function closeSidebarMobile() {
-  document.getElementById('sidebar').classList.remove('mobile-open');
-  document.getElementById('sidebar-overlay').classList.remove('active');
-  document.body.style.overflow = '';
-}
-
-function afterNav() { if (isMobile()) closeSidebarMobile(); }
-
-function toggleGestion() {
-  const sub = document.getElementById('gestion-sub');
-  sub.classList.toggle('open');
-  document.getElementById('btn-gestion').querySelector('.label').textContent =
-    sub.classList.contains('open') ? 'Gestión ▴' : 'Gestión ▾';
-}
-
-window.addEventListener('resize', () => {
-  const main = document.getElementById('main');
-  const sb   = document.getElementById('sidebar');
-  if (!isMobile()) {
-    // Al agrandar la pantalla limpiar estados mobile
-    sb.classList.remove('mobile-open');
-    document.getElementById('sidebar-overlay').classList.remove('active');
-    document.body.style.overflow = '';
-    // Sincronizar margin con estado collapsed
-    const collapsed = sb.classList.contains('collapsed');
-    main.style.marginLeft = collapsed
-      ? 'var(--sidebar-w-collapsed)'
-      : 'var(--sidebar-w)';
-  } else {
-    // En móvil el main siempre ocupa todo
-    main.style.marginLeft = '0';
-  }
-});
-
-// ── Navegación ─────────────────────────────────────────────────────────────────
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('page-'+id)?.classList.add('active');
-  document.getElementById('topbar-title').textContent = {
-    'kpi-generales'   : 'KPIs Generales',
-    'kpi-especificos' : 'KPIs Específicos',
-    'salidas'         : 'Salidas',
-    'historial'       : 'Historial de Viajes',
-    'gestion'         : 'Gestión',
-    'configuracion'   : 'Configuración'
-  }[id] || id;
-  if (id==='salidas')         cargarSalidas();
-  if (id==='historial')       cargarHistorial();
-  if (id==='kpi-generales')   cargarKpiGenerales();
-  if (id==='kpi-especificos') { cargarKpiOpciones(); cargarKpiEspecificos(false); }
-  if (id==='configuracion')   cargarConfig();
-  afterNav();
-}
-
-function showGestion(tabla) {
-  showPage('gestion');
-  document.getElementById('gestion-title').textContent =
-    'Gestión — ' + tabla.charAt(0).toUpperCase() + tabla.slice(1);
-  tablaActual.nombre = tabla;
-  recargarGestion();
-}
-
-// ════ KPI GENERALES ════
-function kgRangoChange() {
-  const r = document.getElementById('kg-rango').value;
-  document.getElementById('kg-dia-wrap').style.display  = r==='dia' ? '' : 'none';
-  document.getElementById('kg-mes-wrap').style.display  = r==='mes' ? '' : 'none';
-  document.getElementById('kg-anio-wrap').style.display = r==='mes' ? '' : 'none';
-}
-function kgGetRango() {
-  const r = document.getElementById('kg-rango').value;
-  if (r==='dia')    { const d = document.getElementById('kg-fecha').value||today(); return [d,d]; }
-  if (r==='semana') return semanaRango();
-  return mesRango(document.getElementById('kg-mes').value, document.getElementById('kg-anio').value);
-}
-async function cargarKpiGenerales() {
-  const [desde,hasta] = kgGetRango();
-  kgData = await fetch(`/api/kpi/generales/?desde=${desde}&hasta=${hasta}`).then(r=>r.json());
-  renderKgView();
-}
-function kgSetView(v) {
-  kgView = v;
-  ['cards','charts','table'].forEach(x => {
-    document.getElementById(`kg-view-${x}`).style.display = x===v ? '' : 'none';
-    document.getElementById(`vbtn-${x}`).classList.toggle('active', x===v);
-  });
-  if (kgData) renderKgView();
-}
-function renderKgView() {
-  if (kgView==='cards')  renderKgCards();
-  if (kgView==='charts') renderKgCharts();
-  if (kgView==='table')  renderKgTable(kgTableCurrent);
-}
-function renderTop5Cards(id, data, lf, cf='total') {
-  const el = document.getElementById(id);
-  if (!data?.length) { el.innerHTML='<div style="color:var(--muted);font-size:13px;padding:8px 0">Sin datos</div>'; return; }
-  el.innerHTML = data.map((r,i)=>`
-    <div class="kpi-item" style="animation-delay:${i*.06}s">
-      <span class="kpi-item-label">${i+1}. ${r[lf]??r[cf]??''}</span>
-      <span class="kpi-item-count">${r[cf]??0}</span>
-    </div>`).join('');
-}
-function renderKgCards() {
-  renderTop5Cards('kg-boletos',    kgData.boletos,    'ciudad',      'total');
-  renderTop5Cards('kg-conductores',kgData.conductores,'nombre',      'total');
-  renderTop5Cards('kg-autobuses',  kgData.autobuses,  'autobus_num', 'total');
-  renderTop5Cards('kg-destinos',   kgData.destinos,   'nombre',      'total');
-  renderTop5Cards('kg-origenes',   kgData.origenes,   'nombre',      'total');
-}
-const PIE_COLORS = ['#ed7237','#1181c3','#52b788','#f4a261','#264653','#e9c46a','#2a9d8f'];
-function destroyChart(id) { if(kgCharts[id]){kgCharts[id].destroy();delete kgCharts[id];} }
-function makeChart(cid, type, labels, values) {
-  destroyChart(cid);
-  const ctx = document.getElementById(cid); if (!ctx||!labels.length) return;
-  const isPie = type==='doughnut';
-  kgCharts[cid] = new Chart(ctx, {
-    type,
-    data:{ labels, datasets:[{ data:values, backgroundColor:PIE_COLORS,
-      borderColor:isPie?'#fff':'transparent', borderWidth:isPie?3:0, borderRadius:isPie?0:6 }] },
-    options:{ responsive:true, maintainAspectRatio:false,
-      animation:{duration:700,easing:'easeOutQuart'},
-      plugins:{ legend:{display:isPie,position:'bottom',
-        labels:{font:{family:'DM Sans',size:11,weight:'700'},padding:12,color:'#1a2b3c'}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${c.parsed.y??c.parsed}`}} },
-      scales: isPie ? {} : {
-        x:{grid:{display:false},ticks:{font:{family:'DM Sans',size:11},color:'#6b8fa8'}},
-        y:{grid:{color:'#e2e8f0'},ticks:{font:{family:'DM Sans',size:11},color:'#6b8fa8'},beginAtZero:true}
-      }
-    }
-  });
-}
-function renderKgCharts() {
-  const d = kgData;
-  makeChart('ch-boletos',    'doughnut', d.boletos.map(r=>r.ciudad),                 d.boletos.map(r=>r.total));
-  makeChart('ch-conductores','bar',      d.conductores.map(r=>r.nombre),             d.conductores.map(r=>r.total));
-  makeChart('ch-autobuses',  'bar',      d.autobuses.map(r=>`Bus #${r.autobus_num}`),d.autobuses.map(r=>r.total));
-  makeChart('ch-destinos',   'doughnut', d.destinos.map(r=>r.nombre),                d.destinos.map(r=>r.total));
-  makeChart('ch-origenes',   'bar',      d.origenes.map(r=>r.nombre),                d.origenes.map(r=>r.total));
-}
-function kgTableTab(key, btn) {
-  kgTableCurrent = key;
-  document.querySelectorAll('.kg-tab').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  if (kgData) renderKgTable(key);
-}
-const KG_CFG = {
-  boletos:    {h:['#','Ciudad destino','Boletos vendidos','Barra'],lf:'ciudad',     cf:'total'},
-  conductores:{h:['#','Conductor','Viajes realizados','Barra'],   lf:'nombre',     cf:'total'},
-  autobuses:  {h:['#','Autobús #','Viajes','Barra'],              lf:'autobus_num',cf:'total'},
-  destinos:   {h:['#','Ciudad destino','Viajes','Barra'],         lf:'nombre',     cf:'total'},
-  origenes:   {h:['#','Ciudad origen','Viajes','Barra'],          lf:'nombre',     cf:'total'},
-};
-function renderKgTable(key) {
-  const cfg=KG_CFG[key], rows=kgData[key]||[], max=rows[0]?.[cfg.cf]||1;
-  document.getElementById('kg-full-thead').innerHTML=`<tr>${cfg.h.map(h=>`<th>${h}</th>`).join('')}</tr>`;
-  const tb=document.getElementById('kg-full-tbody');
-  if (!rows.length){tb.innerHTML=`<tr><td colspan="4" style="text-align:center;padding:24px;color:var(--muted)">Sin datos</td></tr>`;return;}
-  tb.innerHTML=rows.map((r,i)=>{
-    const pct=Math.round((r[cfg.cf]??0)/max*100);
-    const rc=i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank-n';
-    return `<tr style="animation:slideIn .3s ease ${i*.04}s both">
-      <td><span class="rank-badge ${rc}">${i+1}</span></td>
-      <td style="font-weight:700">${r[cfg.lf]??'—'}</td>
-      <td style="font-weight:800;color:var(--naranja)">${r[cfg.cf]??0}</td>
-      <td style="min-width:120px"><div class="bar-cell">
-        <div class="mini-bar-wrap"><div class="mini-bar" style="width:${pct}%"></div></div>
-        <span style="font-size:11px;color:var(--muted);min-width:28px">${pct}%</span>
-      </div></td></tr>`;
-  }).join('');
-}
-function exportarKgCSV() {
-  if (!kgData){toast('No hay datos','err');return;}
-  const cfg=KG_CFG[kgTableCurrent], rows=kgData[kgTableCurrent]||[];
-  if (!rows.length){toast('Sin datos','err');return;}
-  const csv=[cfg.h[1]+','+cfg.h[2], ...rows.map(r=>`"${r[cfg.lf]??''}","${r[cfg.cf]??0}"`)].join('\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-  a.download=`kpi_generales_${kgTableCurrent}.csv`; a.click();
-  toast('CSV exportado');
-}
-
-// ════ KPI ESPECÍFICOS ════
-function keScopeChange() {
-  const s=document.getElementById('ke-scope').value;
-  document.getElementById('ke-dia-wrap').style.display  = s==='dia' ?''  :'none';
-  document.getElementById('ke-mes-wrap').style.display  = s==='mes' ?''  :'none';
-  document.getElementById('ke-anio-wrap').style.display = s==='mes' ?''  :'none';
-}
-function keTipoChange() {
-  const t=document.getElementById('ke-tipo').value;
-  document.getElementById('ke-conductor-wrap').style.display = t==='conductor'?'':'none';
-  document.getElementById('ke-autobus-wrap').style.display   = t==='autobus'  ?'':'none';
-  document.getElementById('ke-ciudad-wrap').style.display    = t==='ciudad'   ?'':'none';
-  cargarKpiEspecificos(false);
-}
-async function cargarKpiOpciones() {
-  const d=await fetch('/api/kpi/filtros/').then(r=>r.json());
-  fillSelect('ke-conductor',d.conductores,'Todos');
-  fillSelect('ke-autobus',d.autobuses,'Todos');
-  fillSelect('ke-ciudad',d.ciudades,'Todas');
-}
-function fillSelect(id,items,ph) {
-  const sel=document.getElementById(id), prev=sel.value;
-  sel.innerHTML=`<option value="">${ph}</option>`+items.map(i=>`<option value="${i.value}">${i.label}</option>`).join('');
-  sel.value=prev;
-}
-function keGetRango() {
-  const s=document.getElementById('ke-scope').value;
-  if (s==='todos') return [null,null];
-  if (s==='dia')   { const d=document.getElementById('ke-fecha').value||today(); return [d,d]; }
-  if (s==='semana') return semanaRango();
-  return mesRango(document.getElementById('ke-mes').value,document.getElementById('ke-anio').value);
-}
-async function cargarKpiEspecificos(aplicar) {
-  const tipo=document.getElementById('ke-tipo').value;
-  const [desde,hasta]=keGetRango();
-  const c=document.getElementById('ke-conductor').value;
-  const a=document.getElementById('ke-autobus').value;
-  const ci=document.getElementById('ke-ciudad').value;
-  let url=`/api/kpi/especificos/?tipo=${tipo}&aplicar=${aplicar?1:0}`;
-  if (desde) url+=`&desde=${desde}&hasta=${hasta}`;
-  if (c)  url+=`&conductor=${c}`;
-  if (a)  url+=`&autobus=${a}`;
-  if (ci) url+=`&ciudad=${ci}`;
-  const d=await fetch(url).then(r=>r.json());
-  keData=d.rows; renderKeTablo(tipo,d.rows);
-}
-function renderKeTablo(tipo,rows) {
-  const tbl=document.getElementById('ke-tabla');
-  let h=[],map;
-  if (tipo==='boletos') {
-    h=['Viaje','F. salida','Origen','Destino','Autobús','Vendidos','Disponibles'];
-    map=r=>[r.trip_id,fmt(r.departure),r.origin_city,r.dest_city,r.bus_number,r.vendidos,r.disponibles];
-  } else if (tipo==='conductor') {
-    h=['Conductor','Viaje','Salida','Llegada','Origen','Destino','Autobús'];
-    map=r=>[`${r.con_nombre||''} ${r.con_ap1||''}`,r.trip_id,fmt(r.departure),fmt(r.arrival),r.origin_city,r.dest_city,r.bus_number];
-  } else if (tipo==='autobus') {
-    h=['Número','Matrícula','Marca','Modelo','Año','Asientos'];
-    map=r=>[r.bus_number,r.placas,r.marca_nombre,r.modelo_nombre,r.modelo_ano,r.numasientos];
-  } else {
-    h=['Ciudad','Salida','Viaje','Destino','Autobús','Matrícula','Operador'];
-    map=r=>[r.ciudad,fmt(r.salida),r.viaje,r.destino,r.autobus,r.matricula,r.operador];
-  }
-  tbl.querySelector('thead').innerHTML=`<tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>`;
-  tbl.querySelector('tbody').innerHTML=rows.map(r=>`<tr>${map(r).map(v=>`<td>${v??'—'}</td>`).join('')}</tr>`).join('')
-    || `<tr><td colspan="${h.length}" style="text-align:center;color:var(--muted);padding:24px">Sin datos</td></tr>`;
-  document.getElementById('ke-info').textContent=`Resultados: ${rows.length} registro(s)`;
-}
-function exportarCSV() {
-  if (!keData.length){toast('No hay datos','err');return;}
-  const tipo=document.getElementById('ke-tipo').value;
-  const hd=Object.keys(keData[0]);
-  const csv=[hd.join(','),...keData.map(r=>hd.map(h=>`"${(r[h]??'').toString().replace(/"/g,'""')}"`).join(','))].join('\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download=`kpi_${tipo}.csv`; a.click();
-}
-
-// ════ SALIDAS ════
-let salidasData   = [];
-let rutasDuracion = {};
-
-async function cargarSalidas() {
-  document.getElementById('salidas-container').innerHTML = '<span class="spinner"></span>';
-  const d = await fetch('/api/salidas/').then(r => r.json());
-  salidasData = d.rows || [];
-  poblarFiltrosSalidas();
-  document.getElementById('sal-fecha').value = today();
-  renderSalidaCards(salidasData);
-}
-function poblarFiltrosSalidas() {
-  const origenes = [...new Set(salidasData.map(r => r.origen_ciudad).filter(Boolean))].sort();
-  const destinos = [...new Set(salidasData.map(r => r.destino_ciudad).filter(Boolean))].sort();
-  const selOrig = document.getElementById('sal-origen');
-  const selDest = document.getElementById('sal-destino');
-  const prevOrig = selOrig.value, prevDest = selDest.value;
-  selOrig.innerHTML = '<option value="">-- Todas --</option>' + origenes.map(o=>`<option value="${o}">${o}</option>`).join('');
-  selDest.innerHTML = '<option value="">-- Todas --</option>' + destinos.map(d=>`<option value="${d}">${d}</option>`).join('');
-  if (prevOrig) selOrig.value = prevOrig;
-  if (prevDest) selDest.value = prevDest;
-}
-function aplicarFiltrosSalidas() {
-  const fechaSel  = document.getElementById('sal-fecha').value;
-  const origenSel = document.getElementById('sal-origen').value.trim().toLowerCase();
-  const destSel   = document.getElementById('sal-destino').value.trim().toLowerCase();
-  const precision = document.getElementById('sal-precision').checked;
-  let filtered = salidasData;
-  if (origenSel) filtered = filtered.filter(r => (r.origen_ciudad||'').toLowerCase() === origenSel);
-  if (destSel)   filtered = filtered.filter(r => (r.dest_city||r.destino_ciudad||'').toLowerCase() === destSel);
-  if (fechaSel) {
-    if (precision) {
-      filtered = filtered.filter(r => r.fecHoraSalida && r.fecHoraSalida.substring(0,10) === fechaSel);
-    } else if (filtered.length) {
-      const target = new Date(fechaSel+'T00:00:00').getTime();
-      const distancias = filtered.map(r => r.fecHoraSalida ? Math.abs(new Date(r.fecHoraSalida).getTime()-target) : Infinity);
-      const minDist = Math.min(...distancias);
-      filtered = filtered.filter((_,i) => distancias[i]-minDist < 86400000);
-    }
-  }
-  renderSalidaCards(filtered, precision ? null : fechaSel);
-}
-function limpiarFiltrosSalidas() {
-  document.getElementById('sal-fecha').value   = today();
-  document.getElementById('sal-origen').value  = '';
-  document.getElementById('sal-destino').value = '';
-  const cb = document.getElementById('sal-precision');
-  if (cb) cb.checked = false;
-  const tr = document.getElementById('sal-precision-track');
-  const tx = document.getElementById('sal-precision-text');
-  if (tr) tr.classList.remove('active');
-  if (tx) tx.innerHTML = 'Precisión: <b>Cercana</b>';
-  renderSalidaCards(salidasData);
-}
-function renderSalidaCards(trips, closestDate) {
-  const cont = document.getElementById('salidas-container');
-  const info = document.getElementById('sal-info');
-  if (!trips.length) {
-    cont.innerHTML = `<div class="empty-state"><div class="empty-icon">🚌</div><p>No hay salidas para los filtros seleccionados.</p></div>`;
-    if (info) info.textContent = ''; return;
-  }
-  if (info) info.textContent = `Mostrando ${trips.length} salida(s)${closestDate ? ' — más cercano al '+closestDate : ''}`;
-  cont.innerHTML = `<div class="salidas-grid">${trips.map((r,idx)=>`
-    <div class="salida-card-trip" style="animation-delay:${Math.min(idx*.04,.4)}s">
-      <div class="sc-salida-title">Salida: ${fmt(r.fecHoraSalida)}</div>
-      <div class="sc-viaje-num">Viaje #${r.numero}</div>
-      <div class="sc-ruta">${r.origen_ciudad||'—'} → ${r.destino_ciudad||'—'}</div>
-      <div class="sc-meta">Autobús: ${r.autobus_placas?'#'+r.autobus_num+' ('+r.autobus_placas+')':'—'} &nbsp;|&nbsp; Conductor: ${r.conductor||'—'}</div>
-      <div class="sc-footer">
-        <span class="badge badge-info">${r.estado||'—'}</span>
-        <button class="btn btn-naranja btn-sm" onclick='verDetalleSalida(${JSON.stringify(r)})'>Detalles</button>
-      </div>
-    </div>`).join('')}</div>`;
-}
-function verDetalleSalida(r) {
-  document.getElementById('modal-det-salida-body').innerHTML = `
-    <div style="margin-bottom:18px;">
-      <div style="font-size:18px;font-weight:900;color:var(--azul);margin-bottom:14px;">Viaje #${r.numero} — Ruta #${r.ruta??'—'}</div>
-      <div class="det-grid2" style="margin-bottom:14px;">
-        <div><div class="det-label">Fecha y hora de salida</div><div class="det-value">${fmt(r.fecHoraSalida)}</div></div>
-        <div><div class="det-label">Fecha y hora de llegada est.</div><div class="det-value">${fmt(r.fecHoraEntrada)}</div></div>
-      </div>
-      <div class="det-grid2" style="margin-bottom:14px;">
-        <div><div class="det-label">Ciudad de origen</div><div class="det-value">${r.origen_ciudad||'—'}</div></div>
-        <div><div class="det-label">Terminal de salida</div><div class="det-value">${r.origen_terminal||'—'}</div></div>
-        <div style="margin-top:10px;"><div class="det-label">Ciudad de destino</div><div class="det-value">${r.destino_ciudad||'—'}</div></div>
-        <div style="margin-top:10px;"><div class="det-label">Terminal de llegada</div><div class="det-value">${r.destino_terminal||'—'}</div></div>
-      </div>
-      <div style="margin-bottom:14px;"><div class="det-label">Nombre completo del operador</div><div class="det-value">${r.conductor||'Sin asignar'}</div></div>
-      <div class="det-grid2">
-        <div><div class="det-label">Número del autobús</div><div class="det-value">${r.autobus_num?'#'+r.autobus_num:'—'}</div></div>
-        <div><div class="det-label">Matrícula</div><div class="det-value">${r.autobus_placas||'—'}</div></div>
-      </div>
-    </div>`;
-  abrirModal('modal-det-salida');
-}
-async function abrirModalViaje() {
-  const d=await fetch('/api/viaje/opciones/').then(r=>r.json());
-  rutasDuracion = {};
-  d.rutas.forEach(r => { rutasDuracion[String(r.value)] = r.duracion || ''; });
-  fillSelect('mv-ruta',d.rutas,'Seleccionar...');
-  fillSelect('mv-autobus',d.autobuses,'Seleccionar...');
-  fillSelect('mv-conductor',d.conductores,'Seleccionar...');
-  fillSelect('mv-estado',d.estados,'Seleccionar...');
-  const now=new Date();
-  now.setMinutes(Math.ceil(now.getMinutes()/15)*15, 0, 0);
-  document.getElementById('mv-salida').value=now.toISOString().slice(0,16);
-  document.getElementById('mv-llegada').value='';
-  document.getElementById('mv-llegada-display').value='Selecciona ruta para calcular…';
-  calcularLlegadaAuto();
-  abrirModal('modal-viaje');
-}
-function calcularLlegadaAuto() {
-  const rutaId = document.getElementById('mv-ruta').value;
-  const salidaStr = document.getElementById('mv-salida').value;
-  const displayEl = document.getElementById('mv-llegada-display');
-  const hiddenEl  = document.getElementById('mv-llegada');
-  if (!rutaId || !salidaStr) { displayEl.value='Selecciona ruta y hora de salida…'; hiddenEl.value=''; return; }
-  const minutos = parseDuracionAMinutos(rutasDuracion[String(rutaId)] || '');
-  if (!minutos) { displayEl.value='Duración de ruta no disponible'; hiddenEl.value=''; return; }
-  const salida = new Date(salidaStr);
-  if (isNaN(salida.getTime())) { displayEl.value='Fecha de salida inválida'; hiddenEl.value=''; return; }
-  const llegada = new Date(salida.getTime() + minutos * 60000);
-  hiddenEl.value = llegada.toISOString().slice(0,16);
-  const opts = { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' };
-  displayEl.value = llegada.toLocaleDateString('es-MX', opts) +
-    '  (+' + (minutos >= 60 ? Math.floor(minutos/60)+'h '+(minutos%60?minutos%60+'min':'') : minutos+'min') + ')';
-}
-function parseDuracionAMinutos(dur) {
-  if (!dur) return 0;
-  dur = String(dur).trim();
-  if (dur.includes(':')) { const [h,m] = dur.split(':').map(Number); return (h*60)+(m||0); }
-  const n = parseInt(dur); return isNaN(n) ? 0 : n;
-}
-async function submitViaje() {
-  const llegada = document.getElementById('mv-llegada').value;
-  const body={
-    salida:   document.getElementById('mv-salida').value,
-    llegada,
-    ruta:     document.getElementById('mv-ruta').value,
-    autobus:  document.getElementById('mv-autobus').value,
-    conductor:document.getElementById('mv-conductor').value,
-    estado:   document.getElementById('mv-estado').value,
-  };
-  if (!body.salida||!body.llegada||!body.ruta||!body.autobus||!body.conductor||!body.estado) {
-    toast('Completa todos los campos','err'); return;
-  }
-  const d=await fetch('/api/viaje/agregar/',{method:'POST',headers:csrfHeaders(),body:JSON.stringify(body)}).then(r=>r.json());
-  d.ok?(toast('Viaje agregado'),cerrarModal('modal-viaje'),cargarSalidas()):toast('Error: '+d.error,'err');
-}
-
-// ════ HISTORIAL ════
-let historialBase = [];
-
-async function cargarHistorial() {
-  document.getElementById('hist-cards-container').innerHTML=
-    '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
-  const d = await fetch('/api/historial/').then(r=>r.json());
-  historialData = d.rows;
-  historialBase = d.rows;
-  const uniq = fn => [...new Set(d.rows.map(fn).filter(Boolean))].sort();
-  const opt  = v  => `<option value="${v}">${v}</option>`;
-  document.getElementById('hist-estado').innerHTML  = '<option value="">Todos</option>'       + uniq(r=>r.estado).map(opt).join('');
-  document.getElementById('hist-origen').innerHTML  = '<option value="">-- Todas --</option>' + uniq(r=>r.origen_ciudad).map(opt).join('');
-  document.getElementById('hist-destino').innerHTML = '<option value="">-- Todas --</option>' + uniq(r=>r.destino_ciudad).map(opt).join('');
-  initPrecisionToggle('hist-precision','hist-precision-track','hist-precision-text','hist-precision-label');
-  document.getElementById('hist-fecha').value = '';
-  filtrarHistorial();
-}
-function filtrarHistorial() {
-  const q  = document.getElementById('hist-search').value.toLowerCase();
-  const es = document.getElementById('hist-estado').value;
-  const or = document.getElementById('hist-origen').value;
-  const de = document.getElementById('hist-destino').value;
-  historialBase = historialData.filter(r => {
-    const txt = [r.origen_ciudad,r.destino_ciudad,r.conductor,r.autobus_placas,String(r.numero),String(r.autobus_num)].join(' ').toLowerCase();
-    return txt.includes(q) && (!es||r.estado===es) && (!or||r.origen_ciudad===or) && (!de||r.destino_ciudad===de);
-  });
-  const fecha = document.getElementById('hist-fecha').value;
-  if (fecha) { _aplicarFechaHistorial(historialBase, fecha); }
-  else { historialFiltered = historialBase; _renderHistInfoAndCards(historialFiltered); }
-}
-function aplicarFiltrosFechaHistorial() {
-  const fecha = document.getElementById('hist-fecha').value;
-  if (!fecha) { historialFiltered = historialBase; _renderHistInfoAndCards(historialFiltered, null); return; }
-  _aplicarFechaHistorial(historialBase, fecha);
-}
-function _aplicarFechaHistorial(subset, fecha) {
-  const precision = document.getElementById('hist-precision').checked;
-  if (precision) {
-    historialFiltered = subset.filter(r => r.fecHoraSalida && r.fecHoraSalida.substring(0,10)===fecha);
-    _renderHistInfoAndCards(historialFiltered, null);
-  } else {
-    if (!subset.length) { _renderHistInfoAndCards([], null); return; }
-    const target = new Date(fecha+'T00:00:00').getTime();
-    const dists  = subset.map(r => r.fecHoraSalida ? Math.abs(new Date(r.fecHoraSalida).getTime()-target) : Infinity);
-    const minDist = Math.min(...dists);
-    historialFiltered = subset.filter((_,i) => dists[i]-minDist < 86400000);
-    const fechaCercana = historialFiltered.length ? historialFiltered[0].fecHoraSalida.substring(0,10) : null;
-    _renderHistInfoAndCards(historialFiltered, fechaCercana);
-  }
-}
-function _renderHistInfoAndCards(rows, fechaHint) {
-  const hint = fechaHint ? ` — más cercano al ${document.getElementById('hist-fecha').value} (${fechaHint})` : '';
-  document.getElementById('hist-info').textContent = `Mostrando ${rows.length} de ${historialData.length} viajes${hint}`;
-  renderHistorialCards(rows);
-}
-function limpiarFiltrosHistorial() {
-  document.getElementById('hist-search').value  = '';
-  document.getElementById('hist-estado').value  = '';
-  document.getElementById('hist-origen').value  = '';
-  document.getElementById('hist-destino').value = '';
-  document.getElementById('hist-fecha').value   = '';
-  const cb = document.getElementById('hist-precision');
-  if (cb) cb.checked = false;
-  const track = document.getElementById('hist-precision-track');
-  const txt   = document.getElementById('hist-precision-text');
-  if (track) track.classList.remove('active');
-  if (txt)   txt.innerHTML = 'Precisión: <b>Cercana</b>';
-  historialBase = historialData; historialFiltered = historialData;
-  _renderHistInfoAndCards(historialData, null);
-}
-function initPrecisionToggle(cbId, trackId, txtId, labelId) {
-  const cb    = document.getElementById(cbId);
-  const track = document.getElementById(trackId);
-  const txt   = document.getElementById(txtId);
-  const label = document.getElementById(labelId);
-  if (!cb || !track) return;
-  const sync = () => {
-    const on = cb.checked;
-    track.classList.toggle('active', on);
-    if (txt) txt.innerHTML = on ? 'Precisión: <b>Exacta</b>' : 'Precisión: <b>Cercana</b>';
-  };
-  label.addEventListener('click', () => { cb.checked = !cb.checked; sync(); });
-  sync();
-}
-function renderHistorialCards(rows) {
-  const container=document.getElementById('hist-cards-container');
-  if (!rows.length){ container.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><p>No se encontraron viajes.</p></div>`; return; }
-  container.innerHTML=rows.map((r,idx)=>`
-    <div class="viaje-card" style="animation-delay:${Math.min(idx*.04,.4)}s">
-      <div class="viaje-card-inner">
-        <div class="viaje-card-stripe"></div>
-        <div class="viaje-card-body">
-          <div class="viaje-card-header">
-            <span class="viaje-card-num">Viaje #${r.numero}</span>
-            <span style="color:var(--muted)">—</span>
-            <span class="viaje-card-ruta">Ruta #${r.ruta??'—'}</span>
-            <span class="badge badge-info" style="margin-left:auto">${r.estado??'—'}</span>
-          </div>
-          <div class="viaje-card-route">${r.origen_terminal??r.origen_ciudad??'—'}<span class="arrow">→</span>${r.destino_terminal??r.destino_ciudad??'—'}</div>
-          <div class="viaje-card-meta">
-            <span><b>Salida:</b> ${fmt(r.fecHoraSalida)}</span><span>•</span>
-            <span><b>Llegada:</b> ${fmt(r.fecHoraEntrada)}</span>
-          </div>
-          <div class="viaje-card-row2">
-            <span><b>Operador:</b> ${r.conductor??'—'}</span><span>•</span>
-            <span><b>Autobús:</b> ${r.autobus_num?'#'+r.autobus_num:'—'}${r.autobus_placas?' · '+r.autobus_placas:''}</span><span>•</span>
-            <span><b>Asientos:</b> ${r.asientos_total??'—'}</span><span>•</span>
-            <span><b>Pasajeros:</b> ${r.pasajeros_count??'—'}</span>
-          </div>
-        </div>
-        <div class="viaje-card-actions">
-          <button class="btn btn-naranja" onclick="verAutobus(${r.numero},${r.autobus_num??'null'})">Autobús</button>
-          <button class="btn btn-primary"  onclick="verPasajeros(${r.numero})">Pasajeros</button>
-        </div>
-      </div>
-    </div>`).join('');
-}
-
-// ════ MODALES HISTORIAL ════
-async function verAutobus(viajeId, busNum) {
-  if (!busNum){toast('Sin autobús asignado','err');return;}
-  document.getElementById('modal-autobus-title').textContent=`Información del Autobús — Viaje ${viajeId}`;
-  document.getElementById('modal-autobus-body').innerHTML='<div style="text-align:center;padding:20px"><span class="spinner"></span></div>';
-  abrirModal('modal-autobus');
-  try {
-    const d=await fetch(`/api/autobus/detalle/${busNum}/`).then(r=>r.json());
-    if (d.error){document.getElementById('modal-autobus-body').innerHTML=`<p style="color:var(--danger)">${d.error}</p>`;return;}
-    const tiposHtml=d.tipos_asiento?.length?`<ul class="bus-tipo-list">${d.tipos_asiento.map(t=>`<li>${t.descripcion} (${t.codigo}): ${t.cantidad}</li>`).join('')}</ul>`:'—';
-    document.getElementById('modal-autobus-body').innerHTML=`
-      <div class="bus-info-row"><span class="bus-info-label">Número:</span><span class="bus-info-value">${d.numero}</span></div>
-      <div class="bus-info-row"><span class="bus-info-label">Matrícula:</span><span class="bus-info-value">${d.placas}</span></div>
-      <div class="bus-info-row"><span class="bus-info-label">Marca:</span><span class="bus-info-value">${d.marca}</span></div>
-      <div class="bus-info-row"><span class="bus-info-label">Modelo:</span><span class="bus-info-value">${d.modelo}</span></div>
-      <div class="bus-info-row"><span class="bus-info-label">Año:</span><span class="bus-info-value">${d.anio}</span></div>
-      <div class="bus-info-row"><span class="bus-info-label">Asientos:</span><span class="bus-info-value">${d.num_asientos}</span></div>
-      <div class="bus-info-row"><span class="bus-info-label">Por tipo:</span><span class="bus-info-value">${tiposHtml}</span></div>`;
-  } catch(e) { document.getElementById('modal-autobus-body').innerHTML='<p style="color:var(--danger)">Error al cargar.</p>'; }
-}
-async function verPasajeros(viajeId) {
-  document.getElementById('modal-pasajeros-title').textContent=`Pasajeros del viaje ${viajeId}`;
-  document.getElementById('modal-pasajeros-header').innerHTML='';
-  document.getElementById('modal-pasajeros-tbody').innerHTML='<tr><td colspan="5" style="text-align:center;padding:20px"><span class="spinner"></span></td></tr>';
-  abrirModal('modal-pasajeros');
-  try {
-    const d=await fetch(`/api/viaje/pasajeros/${viajeId}/`).then(r=>r.json());
-    if (d.error){ document.getElementById('modal-pasajeros-tbody').innerHTML=`<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:20px">${d.error}</td></tr>`; return; }
-    pasajerosActuales=d.pasajeros||[]; pasajerosViajeInfo={...d.viaje||{},viaje_id:viajeId};
-    const v=d.viaje||{};
-    document.getElementById('modal-pasajeros-header').innerHTML=`
-      <span class="pasajeros-header-item">Viaje: <b>${viajeId}</b></span>
-      <span class="pasajeros-header-item">Origen: <b>${v.origen??'—'}</b></span>
-      <span class="pasajeros-header-item">Destino: <b>${v.destino??'—'}</b></span>
-      <span class="pasajeros-header-item">Salida: <b>${v.salida?fmt(v.salida):'—'}</b></span>
-      <span class="pasajeros-header-item">Autobús: <b>${v.autobus??'—'}</b></span>`;
-    if (!pasajerosActuales.length){ document.getElementById('modal-pasajeros-tbody').innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">Sin pasajeros</td></tr>'; return; }
-    document.getElementById('modal-pasajeros-tbody').innerHTML=pasajerosActuales.map((p,i)=>`<tr><td>${i+1}</td><td>${p.nombre_completo??'—'}</td><td>${p.edad??'—'}</td><td>${p.numero_boleto??'—'}</td><td>${p.numero_asiento??'—'}</td></tr>`).join('');
-  } catch(e){ document.getElementById('modal-pasajeros-tbody').innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--danger);padding:20px">Error.</td></tr>'; }
-}
-function exportarPasajerosCSV() {
-  if (!pasajerosActuales.length){toast('Sin pasajeros','err');return;}
-  const v=pasajerosViajeInfo;
-  const meta=`# Viaje: ${v.viaje_id??'?'} | Origen: ${v.origen??'?'} | Destino: ${v.destino??'?'}`;
-  const csv=[meta,'Nombre completo,Edad,Número boleto,Número asiento',
-    ...pasajerosActuales.map(p=>`"${p.nombre_completo??''}","${p.edad??''}","${p.numero_boleto??''}","${p.numero_asiento??''}"`)
-  ].join('\n');
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-  a.download=`pasajeros_viaje_${v.viaje_id??'x'}.csv`; a.click();
-  toast('CSV exportado');
-}
-
-// ════ GESTIÓN CRUD ════
-const COLS_IMAGEN = new Set(['foto']);
-
-function celdaGestion(col, val) {
-  if (COLS_IMAGEN.has(col) && val && val !== '—') {
-    const url = val.startsWith('http') ? val : `/media/${val}`;
-    return `<td><img src="${url}" alt="foto"
-      style="width:44px;height:44px;object-fit:cover;border-radius:50%;border:2px solid var(--border);cursor:pointer;vertical-align:middle;"
-      onerror="this.style.display='none'"
-      onclick="verFotoGrande('${url}')"></td>`;
-  }
-  return `<td>${val??'—'}</td>`;
-}
-async function recargarGestion() {
-  const tabla=tablaActual.nombre; if(!tabla)return;
-  document.getElementById('gestion-tbody').innerHTML='<tr><td colspan="20"><span class="spinner"></span></td></tr>';
-  const d=await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
-  if (d.error){toast(d.error,'err');return;}
-  document.getElementById('gestion-thead').innerHTML=`<tr>${d.cols.map(c=>`<th>${c}</th>`).join('')}<th>Acciones</th></tr>`;
-  if (!d.rows.length){ document.getElementById('gestion-tbody').innerHTML='<tr><td colspan="20" style="text-align:center;color:var(--muted)">Sin registros</td></tr>'; return; }
-  const pk=d.cols[0];
-  document.getElementById('gestion-tbody').innerHTML=d.rows.map(row=>`
-    <tr>
-      ${d.cols.map(c=>celdaGestion(c, row[c])).join('')}
-      <td style="white-space:nowrap"><div style="display:flex;gap:4px;flex-wrap:wrap">
-        <button class="btn btn-gray btn-sm"    onclick='verDetalle(${JSON.stringify(d.cols)},${JSON.stringify(row)})'>Ver</button>
-        <button class="btn btn-naranja btn-sm" onclick='abrirEditar("${tabla}","${pk}","${row[pk]}")'>Editar</button>
-        <button class="btn btn-danger btn-sm"  onclick='eliminarReg("${tabla}","${pk}","${row[pk]}")'>Eliminar</button>
-      </div></td>
-    </tr>`).join('');
-  document.getElementById('gestion-info').textContent=`${d.rows.length} registro(s)`;
-}
-function verFotoGrande(url) {
-  const overlay = document.createElement('div');
-  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
-  overlay.innerHTML=`<img src="${url}" style="max-width:90vw;max-height:85vh;border-radius:12px;box-shadow:0 8px 48px rgba(0,0,0,.6);">`;
-  overlay.onclick=()=>overlay.remove();
-  document.body.appendChild(overlay);
-}
-async function abrirInsertar() {
-  const tabla=tablaActual.nombre; if(!tabla){toast('Selecciona una tabla','err');return;}
-  const d=await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
-  tablaActual.esquema=d; tablaActual.modo='insertar';
-  document.getElementById('crud-modal-title').textContent=`Insertar en ${tabla}`;
-  document.getElementById('crud-submit-btn').textContent='Insertar';
-  renderCrudForm(d,null); abrirModal('modal-crud');
-}
-async function abrirEditar(tabla,pk,pkv) {
-  const esq=await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
-  const datos=await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
-  const row=datos.rows.find(r=>String(r[pk])===String(pkv));
-  tablaActual.esquema=esq; tablaActual.modo='editar'; tablaActual.pkName=pk; tablaActual.pkValue=pkv;
-  document.getElementById('crud-modal-title').textContent=`Editar — ${tabla}`;
-  document.getElementById('crud-submit-btn').textContent='Guardar';
-  renderCrudForm(esq,row); abrirModal('modal-crud');
-}
-function renderCrudForm(esq,vals) {
-  const c=document.getElementById('crud-form-fields'); c.innerHTML='';
-  esq.columnas.forEach(col=>{
-    const name=col.Field, val=vals?(vals[name]??''):'';
-    const isAI=(col.Extra||'').toLowerCase().includes('auto_increment');
-    const isPK=col.Key==='PRI';
-    const div=document.createElement('div'); div.className='form-field';
-    if (esq.fk_map[name]) {
-      const opts=esq.opciones[name]||[];
-      div.innerHTML=`<label>${name}</label><select data-field="${name}" ${isPK?'disabled':''}><option value="">— seleccionar —</option>${opts.map(o=>`<option value="${o.value}" ${String(o.value)===String(val)?'selected':''}>${o.label}</option>`).join('')}</select>`;
-    } else {
-      const ro=isPK&&tablaActual.modo==='editar';
-      div.innerHTML=`<label>${name}${isAI?' (auto)':''}</label><input data-field="${name}" type="text" value="${val}" placeholder="${col.Type}" ${ro||isAI?'readonly':''}/>`;
-    }
-    c.appendChild(div);
-  });
-}
-async function submitCrud() {
-  const tabla=tablaActual.nombre;
-  const campos=document.querySelectorAll('#crud-form-fields [data-field]');
-  const data={};
-  campos.forEach(el=>{ if(el.readOnly||el.disabled)return; const v=el.value.trim(); data[el.dataset.field]=v===''?null:v; });
-  if (tablaActual.modo==='insertar') {
-    const d=await fetch(`/api/crud/${tabla}/insertar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify(data)}).then(r=>r.json());
-    d.ok?(toast('Registro insertado'),cerrarModal('modal-crud'),recargarGestion()):toast('Error: '+d.error,'err');
-  } else {
-    data.__pk_name__=tablaActual.pkName; data.__pk_value__=tablaActual.pkValue;
-    const d=await fetch(`/api/crud/${tabla}/actualizar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify(data)}).then(r=>r.json());
-    d.ok?(toast('Registro actualizado'),cerrarModal('modal-crud'),recargarGestion()):toast('Error: '+d.error,'err');
-  }
-}
-async function eliminarReg(tabla,pk,pkv) {
-  if (!confirm(`¿Eliminar el registro ${pkv} de ${tabla}?`))return;
-  const d=await fetch(`/api/crud/${tabla}/eliminar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify({pk_name:pk,pk_value:pkv})}).then(r=>r.json());
-  d.ok?(toast('Registro eliminado'),recargarGestion()):toast('Error: '+d.error,'err');
-}
-function verDetalle(cols,row) {
-  document.getElementById('detalle-title').textContent=`Detalle — ${tablaActual.nombre}`;
-  document.getElementById('detalle-body').innerHTML=cols.map(c=>
-    `<div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--border)">
-      <span style="font-weight:700;color:var(--muted);flex-shrink:0">${c}</span>
-      <span style="text-align:right;word-break:break-all">${row[c]??'—'}</span>
-    </div>`).join('');
-  abrirModal('modal-detalle');
-}
-
-// ════ CONFIGURACIÓN ════
-function cargarConfig() {
-  document.getElementById('cfg-nombre').value  = '{{ taquillero.taqnombre }}';
-  document.getElementById('cfg-ap1').value     = '{{ taquillero.taqprimerapell }}';
-  document.getElementById('cfg-ap2').value     = '{{ taquillero.taqsegundoapell|default:"" }}';
-  document.getElementById('cfg-usuario').value = '{{ taquillero.usuario }}';
-  document.getElementById('cfg-pass').value    = '{{ taquillero.contrasena }}';
-}
-async function guardarConfig() {
-  const body=new FormData();
-  body.append('nombre',          document.getElementById('cfg-nombre').value.trim());
-  body.append('primer_apellido', document.getElementById('cfg-ap1').value.trim());
-  body.append('segundo_apellido',document.getElementById('cfg-ap2').value.trim());
-  body.append('usuario',         document.getElementById('cfg-usuario').value.trim());
-  body.append('contrasena',      document.getElementById('cfg-pass').value.trim());
-  body.append('csrfmiddlewaretoken',CSRF);
-  const d=await fetch('/api/config/',{method:'POST',body}).then(r=>r.json());
-  d.ok?toast('Cambios guardados'):toast('Error: '+d.error,'err');
-}
-
-// ════ FOTO TAQUILLERO ════
-let _fotoFile = null;
-const TAQ_ID = {{ taquillero.registro }};
-
-function previsualizarFoto(input) {
-  const file = input.files[0];
-  if (!file) return;
-  if (file.size > 5 * 1024 * 1024) { toast('La imagen no puede superar 5 MB', 'err'); return; }
-  _fotoFile = file;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const img = document.getElementById('cfg-avatar-img');
-    const ph  = document.getElementById('cfg-avatar-ph');
-    img.src = e.target.result;
-    img.style.display = 'block';
-    if (ph) ph.style.display = 'none';
-    document.getElementById('cfg-foto-submit').style.display = 'inline-block';
-    document.getElementById('cfg-foto-cancel').style.display = 'inline-block';
-  };
-  reader.readAsDataURL(file);
-}
-async function subirFoto() {
-  if (!_fotoFile) return;
-  const form = new FormData();
-  form.append('foto', _fotoFile);
-  form.append('csrfmiddlewaretoken', CSRF);
-  try {
-    const r = await fetch(`/api/taquillero/${TAQ_ID}/foto/`, { method:'POST', body:form });
-    const d = await r.json();
-    if (r.ok) {
-      toast('Foto actualizada ✔');
-      document.getElementById('cfg-foto-submit').style.display = 'none';
-      document.getElementById('cfg-foto-cancel').style.display = 'none';
-      _fotoFile = null;
-    } else { toast('Error: ' + (d.error || 'desconocido'), 'err'); }
-  } catch(e) { toast('Error de conexión', 'err'); }
-}
-function cancelarFoto() {
-  _fotoFile = null;
-  document.getElementById('cfg-foto-input').value = '';
-  document.getElementById('cfg-foto-submit').style.display = 'none';
-  document.getElementById('cfg-foto-cancel').style.display = 'none';
-  {% if taquillero.foto %}
-    document.getElementById('cfg-avatar-img').src = '/media/{{ taquillero.foto }}';
-  {% else %}
-    const img = document.getElementById('cfg-avatar-img');
-    const ph  = document.getElementById('cfg-avatar-ph');
-    img.src = ''; img.style.display = 'none';
-    if (ph) ph.style.display = 'flex';
-  {% endif %}
-}
-
-// ════ MODALES ════
-const abrirModal  = id => document.getElementById(id).classList.add('open');
-const cerrarModal = id => document.getElementById(id).classList.remove('open');
-
-document.querySelectorAll('.modal-overlay').forEach(m=>
-  m.addEventListener('click', e=>{ if(e.target===m) m.classList.remove('open'); })
-);
-
-const cerrarSesion = () => { if(confirm('¿Cerrar sesión?')) window.location.href='/logout/'; };
-
-// ── Elipse ────────────────────────────────────────────────────────────────────
-(function() {
-  function setupElipse() {
-    const btn = document.getElementById('btn-elipse');
-    if (!btn) return;
-    btn.addEventListener('mouseenter', function onFirst() {
-      btn.classList.add('elipse-on');
-      btn.removeEventListener('mouseenter', onFirst);
-    });
-  }
-  if (document.readyState === 'loading')
-    document.addEventListener('DOMContentLoaded', setupElipse);
-  else setupElipse();
-})();
-
-function irAEclipse() { window.location.href = '/elipse/'; }
-
-// ════ INIT ════
-(function init() {
-  const h=today(), now=new Date();
-  const mes=String(now.getMonth()+1).padStart(2,'0');
-  document.getElementById('kg-fecha').value=h;
-  document.getElementById('ke-fecha').value=h;
-  document.getElementById('ke-mes').value=mes;
-  document.getElementById('kg-mes').value=mes;
-  document.getElementById('ke-anio').value=now.getFullYear();
-  document.getElementById('kg-anio').value=now.getFullYear();
-
-  initPrecisionToggle('sal-precision','sal-precision-track','sal-precision-text','sal-precision-label');
-
-  // Inicializar margin del main según estado del sidebar
-  const sb   = document.getElementById('sidebar');
-  const main = document.getElementById('main');
-  if (isMobile()) {
-    main.style.marginLeft = '0';
-  } else {
-    main.style.marginLeft = sb.classList.contains('collapsed')
-      ? 'var(--sidebar-w-collapsed)'
-      : 'var(--sidebar-w)';
-  }
-
-  showPage('kpi-generales');
-})();
-</script>
+  <script>
+    const CSRF      = '{{ csrf_token }}';
+    const TAQ_ID    = {{ taquillero.registro }};
+    const TAQ_FOTO  = '{{ taquillero.foto|default:"" }}';
+    const TAQ_DATA  = {
+      nombre:   '{{ taquillero.taqnombre }}',
+      ap1:      '{{ taquillero.taqprimerapell }}',
+      ap2:      '{{ taquillero.taqsegundoapell|default:"" }}',
+      usuario:  '{{ taquillero.usuario }}',
+      contrasena: '{{ taquillero.contrasena }}',
+    };
+  </script>
+  <script src="{% static 'dashboard/panel_admin.js' %}"></script>
 </body>
 </html>

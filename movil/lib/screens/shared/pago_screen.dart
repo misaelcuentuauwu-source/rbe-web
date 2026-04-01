@@ -12,6 +12,8 @@ class PagoScreen extends StatefulWidget {
   final String origenNombre;
   final String destinoNombre;
   final String horaSalida;
+  final String horaLlegada;
+  final String fechaViaje;
   final double montoTotal;
   final int vendedorId;
   final String tipoUsuario;
@@ -24,6 +26,8 @@ class PagoScreen extends StatefulWidget {
     required this.origenNombre,
     required this.destinoNombre,
     required this.horaSalida,
+    this.horaLlegada = '',
+    this.fechaViaje = '',
     required this.montoTotal,
     required this.vendedorId,
     this.tipoUsuario = 'invitado',
@@ -130,17 +134,21 @@ class _PagoScreenState extends State<PagoScreen> {
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            AppRoutes.slideLeft(ResumenCompraScreen(
-              pagoId: data['pago_id'],
-              origenNombre: widget.origenNombre,
-              destinoNombre: widget.destinoNombre,
-              horaSalida: widget.horaSalida,
-              montoTotal: widget.montoTotal,
-              pasajeros: widget.pasajeros,
-              metodoPago: metodoPago,
-              tipoUsuario: widget.tipoUsuario,
-              datosUsuario: widget.datosUsuario,
-            )),
+            AppRoutes.slideLeft(
+              ResumenCompraScreen(
+                pagoId: data['pago_id'],
+                origenNombre: widget.origenNombre,
+                destinoNombre: widget.destinoNombre,
+                horaSalida: widget.horaSalida,
+                horaLlegada: widget.horaLlegada,
+                fechaViaje: widget.fechaViaje,
+                montoTotal: widget.montoTotal,
+                pasajeros: widget.pasajeros,
+                metodoPago: metodoPago,
+                tipoUsuario: widget.tipoUsuario,
+                datosUsuario: widget.datosUsuario,
+              ),
+            ),
           );
         }
       } else {

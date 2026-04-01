@@ -17,6 +17,8 @@ class ResumenCompraScreen extends StatefulWidget {
   final String origenNombre;
   final String destinoNombre;
   final String horaSalida;
+  final String horaLlegada;
+  final String fechaViaje;
   final double montoTotal;
   final List<Map<String, dynamic>> pasajeros;
   final int metodoPago;
@@ -29,6 +31,8 @@ class ResumenCompraScreen extends StatefulWidget {
     required this.origenNombre,
     required this.destinoNombre,
     required this.horaSalida,
+    this.horaLlegada = '',
+    this.fechaViaje = '',
     required this.montoTotal,
     required this.pasajeros,
     required this.metodoPago,
@@ -80,45 +84,57 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
     final origen = widget.origenNombre;
     final destino = widget.destinoNombre;
     final salida = widget.horaSalida;
-    final monto = widget.montoTotal.toStringAsFixed(2);
+    final llegada = widget.horaLlegada.isNotEmpty
+        ? widget.horaLlegada
+        : '--:--';
+    final fechaViaje = widget.fechaViaje.isNotEmpty
+        ? widget.fechaViaje
+        : _hoyStr();
     final metodo = widget.metodoPago == 2 ? 'Tarjeta' : 'Efectivo';
-    final fecha = _hoyStr();
 
-    final esTaquillero = widget.tipoUsuario == 'taquillero';
-    final colorPrimario = esTaquillero
-        ? PdfColor.fromHex('E9713A')
-        : PdfColor.fromHex('2C7FB1');
-    final colorSecundario = esTaquillero
-        ? PdfColor.fromHex('2C7FB1')
-        : PdfColor.fromHex('E9713A');
+    // ── Colores fijos: AZUL arriba, NARANJA abajo ──────────────────
+    final pdfAzul = PdfColor.fromHex('2C7FB1');
+    final pdfNaranja = PdfColor.fromHex('E9713A');
     final pdfOscuro = PdfColor.fromHex('1C2D3A');
     final pdfGris = PdfColor.fromHex('6B8FA8');
     final pdfBlanco = PdfColors.white;
     final pdfFondo = PdfColor.fromHex('F4F6F9');
-    final pdfGrisClaro = PdfColor.fromHex('E8ECF0');
+    final pdfGrisClaro = PdfColor.fromHex('E2E8F0');
 
-    final formato = PdfPageFormat(
-      210 * PdfPageFormat.mm,
-      99 * PdfPageFormat.mm,
-      marginAll: 0,
-    );
+    // Formato ticket real: 80 × 148 mm (tamaño A6 apaisado vertical)
+    // Cuerpo blanco: headerH(18) + contenido(~72) = 90mm, talón: 51mm, pie: 7mm
+    const double W = 80 * PdfPageFormat.mm;
+    const double H = 148 * PdfPageFormat.mm;
+    const double headerH = 18 * PdfPageFormat.mm;
+    const double talonY = 90 * PdfPageFormat.mm;
+    const double pieH = 7 * PdfPageFormat.mm;
+    const double pad = 4 * PdfPageFormat.mm;
+    final double talonH = H - talonY - pieH;
+
+    final formato = PdfPageFormat(W, H, marginAll: 0);
+    // Nota: W y H son const, pero PdfPageFormat los necesita en puntos (ya lo son vía PdfPageFormat.mm)
 
     for (final p in widget.pasajeros) {
-      final nombre = '${p['nombre'] ?? ''} ${p['primer_apellido'] ?? ''}'
-          .trim();
+      final nombre =
+          '${p['nombre'] ?? ''} ${p['primer_apellido'] ?? ''} ${p['segundo_apellido'] ?? ''}'
+              .trim();
       final asiento = p['asiento_id']?.toString() ?? '-';
       final tipo = p['tipo']?.toString() ?? 'Adulto';
       final precio =
           (p['precio_unitario'] as double?)?.toStringAsFixed(2) ?? '0.00';
+      final tipoAsientoDesc = _descAsiento(tipo);
 
       final qrData = jsonEncode({
         'folio': folio,
+        'viaje': widget.pagoId,
         'pasajero': nombre,
         'asiento': asiento,
+        'tipo': tipo,
         'origen': origen,
         'destino': destino,
-        'fecha': fecha,
+        'fecha': fechaViaje,
         'salida': salida,
+        'llegada': llegada,
       });
       final qrBytes = await _generarQrBytes(qrData);
       final qrImage = pw.MemoryImage(qrBytes);
@@ -127,491 +143,515 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
         pw.Page(
           pageFormat: formato,
           margin: pw.EdgeInsets.zero,
-          build: (_) {
-            const double totalW = 210 * PdfPageFormat.mm;
-            const double totalH = 99 * PdfPageFormat.mm;
-            const double talonW = 62 * PdfPageFormat.mm;
-            const double mainW = totalW - talonW;
-            const double headerH = 18 * PdfPageFormat.mm;
-            const double pad = 5 * PdfPageFormat.mm;
+          build: (_) => pw.Stack(
+            children: [
+              // ══ FONDO ═══════════════════════════════════════
+              pw.Positioned(
+                left: 0,
+                top: 0,
+                child: pw.Container(width: W, height: H, color: pdfFondo),
+              ),
 
-            return pw.Stack(
-              children: [
-                // ── FONDO GENERAL ────────────────────────────────
-                pw.Positioned(
-                  left: 0,
-                  top: 0,
-                  child: pw.Container(
-                    width: totalW,
-                    height: totalH,
-                    color: pdfFondo,
+              // ══ HEADER AZUL ══════════════════════════════════
+              pw.Positioned(
+                left: 0,
+                top: 0,
+                child: pw.Container(
+                  width: W,
+                  height: headerH,
+                  color: pdfAzul,
+                  padding: pw.EdgeInsets.symmetric(
+                    horizontal: pad,
+                    vertical: 3 * PdfPageFormat.mm,
+                  ),
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        mainAxisAlignment: pw.MainAxisAlignment.center,
+                        children: [
+                          pw.Text(
+                            'RUTAS BAJA',
+                            style: pw.TextStyle(
+                              color: pdfBlanco,
+                              fontSize: 11,
+                              fontWeight: pw.FontWeight.bold,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          pw.Text(
+                            'EXPRESS',
+                            style: pw.TextStyle(
+                              color: PdfColor.fromHex('FFFFFFCC'),
+                              fontSize: 6.5,
+                              letterSpacing: 3,
+                            ),
+                          ),
+                        ],
+                      ),
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.end,
+                        mainAxisAlignment: pw.MainAxisAlignment.center,
+                        children: [
+                          pw.Text(
+                            'BOARDING PASS',
+                            style: pw.TextStyle(
+                              color: PdfColor.fromHex('FFFFFFAA'),
+                              fontSize: 5,
+                              letterSpacing: 1.5,
+                            ),
+                          ),
+                          pw.SizedBox(height: 1 * PdfPageFormat.mm),
+                          pw.Text(
+                            '#$folio',
+                            style: pw.TextStyle(
+                              color: pdfBlanco,
+                              fontSize: 12,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
+              ),
 
-                // ── HEADER PRINCIPAL ─────────────────────────────
-                pw.Positioned(
-                  left: 0,
-                  top: 0,
-                  child: pw.Container(
-                    width: mainW,
-                    height: headerH,
-                    color: colorPrimario,
-                    padding: pw.EdgeInsets.symmetric(
-                      horizontal: pad,
-                      vertical: 3 * PdfPageFormat.mm,
-                    ),
-                    child: pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: pw.CrossAxisAlignment.center,
-                      children: [
-                        pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+              // ══ CUERPO BLANCO ════════════════════════════════
+              pw.Positioned(
+                left: 0,
+                top: headerH,
+                child: pw.Container(
+                  width: W,
+                  height: talonY - headerH,
+                  color: pdfBlanco,
+                  padding: pw.EdgeInsets.fromLTRB(
+                    pad,
+                    2.5 * PdfPageFormat.mm,
+                    pad,
+                    0,
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      // ── RUTA ────────────────────────────────
+                      pw.Container(
+                        width: double.infinity,
+                        padding: pw.EdgeInsets.symmetric(
+                          vertical: 2.5 * PdfPageFormat.mm,
+                          horizontal: 2 * PdfPageFormat.mm,
+                        ),
+                        decoration: pw.BoxDecoration(
+                          color: pdfFondo,
+                          borderRadius: pw.BorderRadius.circular(6),
+                        ),
+                        child: pw.Row(
                           mainAxisAlignment: pw.MainAxisAlignment.center,
+                          crossAxisAlignment: pw.CrossAxisAlignment.center,
                           children: [
-                            pw.Text(
-                              'RUTAS BAJA EXPRESS',
-                              style: pw.TextStyle(
-                                color: pdfBlanco,
-                                fontSize: 13,
-                                fontWeight: pw.FontWeight.bold,
-                                letterSpacing: 1,
+                            pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.center,
+                              children: [
+                                pw.Text(
+                                  'ORIGEN',
+                                  style: pw.TextStyle(
+                                    color: pdfGris,
+                                    fontSize: 5,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                pw.SizedBox(height: 0.5 * PdfPageFormat.mm),
+                                pw.Text(
+                                  _abreviatura(origen),
+                                  style: pw.TextStyle(
+                                    color: pdfAzul,
+                                    fontSize: 20,
+                                    fontWeight: pw.FontWeight.bold,
+                                  ),
+                                ),
+                                pw.Text(
+                                  origen.length > 9
+                                      ? '${origen.substring(0, 9)}.'
+                                      : origen,
+                                  style: pw.TextStyle(
+                                    color: pdfGris,
+                                    fontSize: 5.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            pw.Padding(
+                              padding: pw.EdgeInsets.symmetric(
+                                horizontal: 4 * PdfPageFormat.mm,
+                              ),
+                              child: pw.Text(
+                                '→',
+                                style: pw.TextStyle(
+                                  color: pdfNaranja,
+                                  fontSize: 14,
+                                ),
                               ),
                             ),
-                            pw.Text(
-                              'BUS TICKET',
-                              style: pw.TextStyle(
-                                color: pdfBlanco,
-                                fontSize: 7,
-                                letterSpacing: 2,
-                              ),
+                            pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.center,
+                              children: [
+                                pw.Text(
+                                  'DESTINO',
+                                  style: pw.TextStyle(
+                                    color: pdfGris,
+                                    fontSize: 5,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                pw.SizedBox(height: 0.5 * PdfPageFormat.mm),
+                                pw.Text(
+                                  _abreviatura(destino),
+                                  style: pw.TextStyle(
+                                    color: pdfOscuro,
+                                    fontSize: 20,
+                                    fontWeight: pw.FontWeight.bold,
+                                  ),
+                                ),
+                                pw.Text(
+                                  destino.length > 9
+                                      ? '${destino.substring(0, 9)}.'
+                                      : destino,
+                                  style: pw.TextStyle(
+                                    color: pdfGris,
+                                    fontSize: 5.5,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                        pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.end,
-                          mainAxisAlignment: pw.MainAxisAlignment.center,
-                          children: [
-                            pw.Text(
-                              'FOLIO',
-                              style: pw.TextStyle(
-                                color: PdfColor.fromHex('FFFFFF99'),
-                                fontSize: 7,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                            pw.Text(
+                      ),
+
+                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+
+                      // ── VIAJE + PAGO ─────────────────────────
+                      pw.Row(
+                        children: [
+                          pw.Expanded(
+                            child: _infoBlock(
+                              'NÚMERO DE VIAJE',
                               '#$folio',
-                              style: pw.TextStyle(
-                                color: pdfBlanco,
-                                fontSize: 14,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
+                              pdfGris,
+                              pdfAzul,
                             ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                          ),
+                          pw.SizedBox(width: 3 * PdfPageFormat.mm),
+                          pw.Expanded(
+                            child: _infoBlock(
+                              'MÉTODO DE PAGO',
+                              metodo,
+                              pdfGris,
+                              pdfOscuro,
+                            ),
+                          ),
+                        ],
+                      ),
 
-                // ── CUERPO PRINCIPAL ─────────────────────────────
-                pw.Positioned(
-                  left: 0,
-                  top: headerH,
-                  child: pw.Container(
-                    width: mainW,
-                    height: totalH - headerH,
-                    color: pdfBlanco,
-                    padding: pw.EdgeInsets.all(pad),
-                    child: pw.Row(
-                      children: [
-                        // Columna izquierda — ruta y pasajero
-                        pw.Expanded(
-                          flex: 3,
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
-                            children: [
-                              // Origen → Destino
-                              pw.Row(
-                                crossAxisAlignment: pw.CrossAxisAlignment.end,
-                                children: [
-                                  pw.Column(
-                                    crossAxisAlignment:
-                                        pw.CrossAxisAlignment.start,
-                                    children: [
-                                      pw.Text(
-                                        'SALIDA',
-                                        style: pw.TextStyle(
-                                          color: pdfGris,
-                                          fontSize: 7,
-                                          letterSpacing: 1.5,
-                                        ),
-                                      ),
-                                      pw.SizedBox(height: 1 * PdfPageFormat.mm),
-                                      pw.Text(
-                                        origen.toUpperCase(),
-                                        style: pw.TextStyle(
-                                          color: pdfOscuro,
-                                          fontSize: 18,
-                                          fontWeight: pw.FontWeight.bold,
-                                        ),
-                                      ),
-                                      pw.Text(
-                                        salida,
-                                        style: pw.TextStyle(
-                                          color: colorPrimario,
-                                          fontSize: 13,
-                                          fontWeight: pw.FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  pw.SizedBox(width: 3 * PdfPageFormat.mm),
-                                  pw.Padding(
-                                    padding: pw.EdgeInsets.only(
-                                      bottom: 3 * PdfPageFormat.mm,
-                                    ),
-                                    child: pw.Text(
-                                      '→',
-                                      style: pw.TextStyle(
-                                        color: pdfGris,
-                                        fontSize: 18,
-                                      ),
-                                    ),
-                                  ),
-                                  pw.SizedBox(width: 3 * PdfPageFormat.mm),
-                                  pw.Column(
-                                    crossAxisAlignment:
-                                        pw.CrossAxisAlignment.start,
-                                    children: [
-                                      pw.Text(
-                                        'LLEGADA',
-                                        style: pw.TextStyle(
-                                          color: pdfGris,
-                                          fontSize: 7,
-                                          letterSpacing: 1.5,
-                                        ),
-                                      ),
-                                      pw.SizedBox(height: 1 * PdfPageFormat.mm),
-                                      pw.Text(
-                                        destino.toUpperCase(),
-                                        style: pw.TextStyle(
-                                          color: pdfOscuro,
-                                          fontSize: 18,
-                                          fontWeight: pw.FontWeight.bold,
-                                        ),
-                                      ),
-                                      pw.Text(
-                                        fecha,
-                                        style: pw.TextStyle(
-                                          color: colorSecundario,
-                                          fontSize: 11,
-                                          fontWeight: pw.FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
+                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.Container(
+                        height: 0.4,
+                        color: pdfGrisClaro,
+                        width: double.infinity,
+                      ),
+                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+
+                      // ── SALIDA / LLEGADA ─────────────────────
+                      pw.Row(
+                        children: [
+                          pw.Expanded(
+                            child: pw.Container(
+                              padding: pw.EdgeInsets.all(2 * PdfPageFormat.mm),
+                              decoration: pw.BoxDecoration(
+                                color: PdfColor.fromHex('EBF4FB'),
+                                borderRadius: pw.BorderRadius.circular(5),
                               ),
-
-                              // Línea divisora
-                              pw.Container(
-                                height: 0.5,
-                                color: pdfGrisClaro,
-                                width: double.infinity,
-                              ),
-
-                              // Pasajero
-                              pw.Column(
+                              child: pw.Column(
                                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                                 children: [
                                   pw.Text(
-                                    'PASAJERO',
+                                    'SALIDA',
                                     style: pw.TextStyle(
                                       color: pdfGris,
-                                      fontSize: 7,
-                                      letterSpacing: 1.5,
+                                      fontSize: 5,
+                                      letterSpacing: 1,
                                     ),
                                   ),
-                                  pw.SizedBox(height: 1 * PdfPageFormat.mm),
+                                  pw.SizedBox(height: 0.8 * PdfPageFormat.mm),
                                   pw.Text(
-                                    nombre,
+                                    fechaViaje,
                                     style: pw.TextStyle(
                                       color: pdfOscuro,
-                                      fontSize: 13,
+                                      fontSize: 7,
                                       fontWeight: pw.FontWeight.bold,
                                     ),
                                   ),
+                                  pw.SizedBox(height: 0.4 * PdfPageFormat.mm),
                                   pw.Text(
-                                    tipo,
+                                    salida,
+                                    style: pw.TextStyle(
+                                      color: pdfAzul,
+                                      fontSize: 10,
+                                      fontWeight: pw.FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          pw.SizedBox(width: 3 * PdfPageFormat.mm),
+                          pw.Expanded(
+                            child: pw.Container(
+                              padding: pw.EdgeInsets.all(2 * PdfPageFormat.mm),
+                              decoration: pw.BoxDecoration(
+                                color: PdfColor.fromHex('FDF0EA'),
+                                borderRadius: pw.BorderRadius.circular(5),
+                              ),
+                              child: pw.Column(
+                                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                                children: [
+                                  pw.Text(
+                                    'LLEGADA',
                                     style: pw.TextStyle(
                                       color: pdfGris,
-                                      fontSize: 8,
+                                      fontSize: 5,
+                                      letterSpacing: 1,
                                     ),
                                   ),
-                                ],
-                              ),
-
-                              // Chips
-                              pw.Row(
-                                children: [
-                                  _chipBoleto(
-                                    'FECHA',
-                                    fecha,
-                                    pdfGris,
-                                    pdfOscuro,
-                                    pdfFondo,
-                                    pdfGrisClaro,
-                                  ),
-                                  pw.SizedBox(width: 2 * PdfPageFormat.mm),
-                                  _chipBoleto(
-                                    'PAGO',
-                                    metodo,
-                                    pdfGris,
-                                    pdfOscuro,
-                                    pdfFondo,
-                                    pdfGrisClaro,
-                                  ),
-                                  pw.SizedBox(width: 2 * PdfPageFormat.mm),
-                                  _chipBoleto(
-                                    'PRECIO',
-                                    '\$$precio MXN',
-                                    pdfGris,
-                                    colorPrimario,
-                                    pdfFondo,
-                                    pdfGrisClaro,
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-
-                        pw.SizedBox(width: 4 * PdfPageFormat.mm),
-
-                        // Columna derecha — asiento + QR
-                        pw.Column(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
-                          crossAxisAlignment: pw.CrossAxisAlignment.center,
-                          children: [
-                            // Badge asiento
-                            pw.Column(
-                              children: [
-                                pw.Text(
-                                  'ASIENTO',
-                                  style: pw.TextStyle(
-                                    color: pdfGris,
-                                    fontSize: 7,
-                                    letterSpacing: 1.5,
-                                  ),
-                                ),
-                                pw.SizedBox(height: 1 * PdfPageFormat.mm),
-                                pw.Container(
-                                  padding: pw.EdgeInsets.symmetric(
-                                    horizontal: 5 * PdfPageFormat.mm,
-                                    vertical: 2 * PdfPageFormat.mm,
-                                  ),
-                                  decoration: pw.BoxDecoration(
-                                    color: colorPrimario,
-                                    borderRadius: pw.BorderRadius.circular(6),
-                                  ),
-                                  child: pw.Text(
-                                    asiento,
+                                  pw.SizedBox(height: 0.8 * PdfPageFormat.mm),
+                                  pw.Text(
+                                    fechaViaje,
                                     style: pw.TextStyle(
-                                      color: pdfBlanco,
-                                      fontSize: 18,
+                                      color: pdfOscuro,
+                                      fontSize: 7,
                                       fontWeight: pw.FontWeight.bold,
                                     ),
                                   ),
-                                ),
-                              ],
-                            ),
-
-                            // QR
-                            pw.Column(
-                              children: [
-                                pw.Container(
-                                  padding: const pw.EdgeInsets.all(3),
-                                  decoration: pw.BoxDecoration(
-                                    color: pdfBlanco,
-                                    border: pw.Border.all(color: pdfGrisClaro),
-                                    borderRadius: pw.BorderRadius.circular(4),
+                                  pw.SizedBox(height: 0.4 * PdfPageFormat.mm),
+                                  pw.Text(
+                                    llegada,
+                                    style: pw.TextStyle(
+                                      color: pdfNaranja,
+                                      fontSize: 10,
+                                      fontWeight: pw.FontWeight.bold,
+                                    ),
                                   ),
-                                  child: pw.Image(
-                                    qrImage,
-                                    width: 22 * PdfPageFormat.mm,
-                                    height: 22 * PdfPageFormat.mm,
-                                  ),
-                                ),
-                                pw.SizedBox(height: 1 * PdfPageFormat.mm),
-                                pw.Text(
-                                  'Escanea para verificar',
-                                  style: pw.TextStyle(
-                                    color: pdfGris,
-                                    fontSize: 6,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // ── LÍNEA PUNTEADA SEPARADORA ─────────────────────
-                pw.Positioned(
-                  left: mainW - 0.3,
-                  top: 0,
-                  child: pw.Container(
-                    width: 0.5,
-                    height: totalH,
-                    color: pdfGrisClaro,
-                  ),
-                ),
-                // Círculo superior
-                pw.Positioned(
-                  left: mainW - 4 * PdfPageFormat.mm,
-                  top: -4 * PdfPageFormat.mm,
-                  child: pw.Container(
-                    width: 8 * PdfPageFormat.mm,
-                    height: 8 * PdfPageFormat.mm,
-                    decoration: pw.BoxDecoration(
-                      color: pdfFondo,
-                      shape: pw.BoxShape.circle,
-                    ),
-                  ),
-                ),
-                // Círculo inferior
-                pw.Positioned(
-                  left: mainW - 4 * PdfPageFormat.mm,
-                  top: totalH - 4 * PdfPageFormat.mm,
-                  child: pw.Container(
-                    width: 8 * PdfPageFormat.mm,
-                    height: 8 * PdfPageFormat.mm,
-                    decoration: pw.BoxDecoration(
-                      color: pdfFondo,
-                      shape: pw.BoxShape.circle,
-                    ),
-                  ),
-                ),
-
-                // ── TALÓN HEADER ──────────────────────────────────
-                pw.Positioned(
-                  left: mainW,
-                  top: 0,
-                  child: pw.Container(
-                    width: talonW,
-                    height: headerH,
-                    color: colorSecundario,
-                    padding: pw.EdgeInsets.symmetric(
-                      horizontal: 3 * PdfPageFormat.mm,
-                      vertical: 3 * PdfPageFormat.mm,
-                    ),
-                    child: pw.Column(
-                      mainAxisAlignment: pw.MainAxisAlignment.center,
-                      crossAxisAlignment: pw.CrossAxisAlignment.center,
-                      children: [
-                        pw.Text(
-                          'BUS TICKET',
-                          style: pw.TextStyle(
-                            color: pdfBlanco,
-                            fontSize: 10,
-                            fontWeight: pw.FontWeight.bold,
-                            letterSpacing: 1,
-                          ),
-                        ),
-                        pw.Text(
-                          'TALÓN',
-                          style: pw.TextStyle(
-                            color: pdfBlanco,
-                            fontSize: 6,
-                            letterSpacing: 2,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // ── TALÓN CUERPO ──────────────────────────────────
-                pw.Positioned(
-                  left: mainW,
-                  top: headerH,
-                  child: pw.Container(
-                    width: talonW,
-                    height: totalH - headerH,
-                    color: pdfBlanco,
-                    padding: pw.EdgeInsets.all(3 * PdfPageFormat.mm),
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _filaTalon(
-                          'FECHA',
-                          fecha,
-                          pdfGris,
-                          pdfOscuro,
-                          pdfGrisClaro,
-                        ),
-                        _filaTalon(
-                          'SALIDA',
-                          salida,
-                          pdfGris,
-                          colorSecundario,
-                          pdfGrisClaro,
-                        ),
-                        _filaTalon(
-                          'DESTINO',
-                          destino.toUpperCase(),
-                          pdfGris,
-                          pdfOscuro,
-                          pdfGrisClaro,
-                        ),
-                        _filaTalon(
-                          'ASIENTO',
-                          asiento,
-                          pdfGris,
-                          colorSecundario,
-                          pdfGrisClaro,
-                        ),
-                        _filaTalon(
-                          'TOTAL',
-                          '\$$monto MXN',
-                          pdfGris,
-                          colorPrimario,
-                          pdfGrisClaro,
-                        ),
-                        // Folio badge
-                        pw.Container(
-                          width: double.infinity,
-                          padding: pw.EdgeInsets.symmetric(
-                            vertical: 2 * PdfPageFormat.mm,
-                          ),
-                          decoration: pw.BoxDecoration(
-                            color: colorSecundario,
-                            borderRadius: pw.BorderRadius.circular(4),
-                          ),
-                          child: pw.Center(
-                            child: pw.Text(
-                              '#$folio',
-                              style: pw.TextStyle(
-                                color: pdfBlanco,
-                                fontSize: 10,
-                                fontWeight: pw.FontWeight.bold,
+                                ],
                               ),
                             ),
                           ),
+                        ],
+                      ),
+
+                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.Container(
+                        height: 0.4,
+                        color: pdfGrisClaro,
+                        width: double.infinity,
+                      ),
+                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+
+                      // ── PASAJERO ─────────────────────────────
+                      pw.Text(
+                        'PASAJERO',
+                        style: pw.TextStyle(
+                          color: pdfGris,
+                          fontSize: 5,
+                          letterSpacing: 1.5,
                         ),
-                      ],
+                      ),
+                      pw.SizedBox(height: 0.8 * PdfPageFormat.mm),
+                      pw.Text(
+                        nombre,
+                        style: pw.TextStyle(
+                          color: pdfOscuro,
+                          fontSize: 10,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.Container(
+                        padding: pw.EdgeInsets.symmetric(
+                          horizontal: 2.5 * PdfPageFormat.mm,
+                          vertical: 0.8 * PdfPageFormat.mm,
+                        ),
+                        decoration: pw.BoxDecoration(
+                          color: pdfAzul,
+                          borderRadius: pw.BorderRadius.circular(20),
+                        ),
+                        child: pw.Text(
+                          tipoAsientoDesc.toUpperCase(),
+                          style: pw.TextStyle(
+                            color: pdfBlanco,
+                            fontSize: 5.5,
+                            letterSpacing: 0.8,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+
+                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.Container(
+                        height: 0.4,
+                        color: pdfGrisClaro,
+                        width: double.infinity,
+                      ),
+                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+
+                      // ── ASIENTO · TIPO · PRECIO ──────────────
+                      pw.Row(
+                        children: [
+                          pw.Expanded(
+                            child: _infoBlock(
+                              'No. ASIENTO',
+                              asiento,
+                              pdfGris,
+                              pdfAzul,
+                            ),
+                          ),
+                          pw.SizedBox(width: 3 * PdfPageFormat.mm),
+                          pw.Expanded(
+                            child: _infoBlock('TIPO', tipo, pdfGris, pdfOscuro),
+                          ),
+                          pw.SizedBox(width: 3 * PdfPageFormat.mm),
+                          pw.Expanded(
+                            child: _infoBlock(
+                              'PRECIO',
+                              '\$$precio',
+                              pdfGris,
+                              pdfNaranja,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ══ MUESCAS separadoras ═══════════════════════════
+              pw.Positioned(
+                left: 0,
+                top: talonY - 0.3,
+                child: pw.Container(width: W, height: 0.6, color: pdfGrisClaro),
+              ),
+              pw.Positioned(
+                left: -4 * PdfPageFormat.mm,
+                top: talonY - 4 * PdfPageFormat.mm,
+                child: pw.Container(
+                  width: 8 * PdfPageFormat.mm,
+                  height: 8 * PdfPageFormat.mm,
+                  decoration: pw.BoxDecoration(
+                    color: pdfFondo,
+                    shape: pw.BoxShape.circle,
+                  ),
+                ),
+              ),
+              pw.Positioned(
+                left: W - 4 * PdfPageFormat.mm,
+                top: talonY - 4 * PdfPageFormat.mm,
+                child: pw.Container(
+                  width: 8 * PdfPageFormat.mm,
+                  height: 8 * PdfPageFormat.mm,
+                  decoration: pw.BoxDecoration(
+                    color: pdfFondo,
+                    shape: pw.BoxShape.circle,
+                  ),
+                ),
+              ),
+
+              // ══ TALÓN NARANJA con QR ══════════════════════════
+              pw.Positioned(
+                left: 0,
+                top: talonY,
+                child: pw.Container(
+                  width: W,
+                  height: talonH,
+                  color: pdfNaranja,
+                  padding: pw.EdgeInsets.fromLTRB(
+                    pad,
+                    3 * PdfPageFormat.mm,
+                    pad,
+                    2 * PdfPageFormat.mm,
+                  ),
+                  child: pw.Column(
+                    mainAxisAlignment: pw.MainAxisAlignment.center,
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.Container(
+                        padding: const pw.EdgeInsets.all(4),
+                        decoration: pw.BoxDecoration(
+                          color: pdfBlanco,
+                          borderRadius: pw.BorderRadius.circular(6),
+                        ),
+                        child: pw.Image(
+                          qrImage,
+                          width: 35 * PdfPageFormat.mm,
+                          height: 35 * PdfPageFormat.mm,
+                        ),
+                      ),
+                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.Text(
+                        'Escanea para validar el boleto',
+                        style: pw.TextStyle(
+                          color: PdfColor.fromHex('FFFFFFDD'),
+                          fontSize: 6,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.Container(
+                        padding: pw.EdgeInsets.symmetric(
+                          horizontal: 4 * PdfPageFormat.mm,
+                          vertical: 1.2 * PdfPageFormat.mm,
+                        ),
+                        decoration: pw.BoxDecoration(
+                          color: pdfBlanco,
+                          borderRadius: pw.BorderRadius.circular(20),
+                        ),
+                        child: pw.Text(
+                          'FOLIO #$folio',
+                          style: pw.TextStyle(
+                            color: pdfNaranja,
+                            fontSize: 6.5,
+                            fontWeight: pw.FontWeight.bold,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // ══ PIE AZUL ═════════════════════════════════════
+              pw.Positioned(
+                left: 0,
+                top: H - pieH,
+                child: pw.Container(
+                  width: W,
+                  height: pieH,
+                  color: pdfAzul,
+                  child: pw.Center(
+                    child: pw.Text(
+                      'RUTAS BAJA EXPRESS  ·  BUS TICKET',
+                      style: pw.TextStyle(
+                        color: PdfColor.fromHex('FFFFFFBB'),
+                        fontSize: 5,
+                        letterSpacing: 1.5,
+                      ),
                     ),
                   ),
                 ),
-              ],
-            );
-          },
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -619,55 +659,41 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
     return doc.save();
   }
 
-  static pw.Widget _chipBoleto(
-    String label,
-    String value,
-    PdfColor labelColor,
-    PdfColor valueColor,
-    PdfColor bgColor,
-    PdfColor borderColor,
-  ) {
-    return pw.Container(
-      padding: pw.EdgeInsets.symmetric(
-        horizontal: 2.5 * PdfPageFormat.mm,
-        vertical: 1.5 * PdfPageFormat.mm,
-      ),
-      decoration: pw.BoxDecoration(
-        color: bgColor,
-        borderRadius: pw.BorderRadius.circular(4),
-        border: pw.Border.all(color: borderColor, width: 0.5),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text(
-            label,
-            style: pw.TextStyle(
-              color: labelColor,
-              fontSize: 6,
-              letterSpacing: 0.8,
-            ),
-          ),
-          pw.SizedBox(height: 0.5 * PdfPageFormat.mm),
-          pw.Text(
-            value,
-            style: pw.TextStyle(
-              color: valueColor,
-              fontSize: 7.5,
-              fontWeight: pw.FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
+  /// Descripción legible del tipo de pasajero / asiento
+  static String _descAsiento(String tipo) {
+    switch (tipo) {
+      case 'Estudiante':
+        return 'Estudiante (25% desc.)';
+      case 'INAPAM':
+        return 'INAPAM (30% desc.)';
+      case 'Discapacidad':
+        return 'Discapacidad (15% desc.)';
+      default:
+        return 'Adulto — Asiento estándar';
+    }
   }
 
-  static pw.Widget _filaTalon(
+  /// Genera abreviatura de 3 letras a partir del nombre de la ciudad
+  static String _abreviatura(String ciudad) {
+    final words = ciudad.trim().split(' ');
+    if (words.length == 1) {
+      return ciudad.substring(0, ciudad.length.clamp(0, 3)).toUpperCase();
+    }
+    // Usa iniciales de las primeras 3 palabras con más de 2 letras
+    final siglas = words
+        .where((w) => w.length > 2)
+        .take(3)
+        .map((w) => w[0].toUpperCase())
+        .join();
+    return siglas.isEmpty ? ciudad.substring(0, 3).toUpperCase() : siglas;
+  }
+
+  /// Bloque de info estilo boarding pass (label + valor)
+  static pw.Widget _infoBlock(
     String label,
     String value,
     PdfColor labelColor,
     PdfColor valueColor,
-    PdfColor lineColor,
   ) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -676,21 +702,19 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
           label,
           style: pw.TextStyle(
             color: labelColor,
-            fontSize: 6.5,
-            letterSpacing: 1,
+            fontSize: 6,
+            letterSpacing: 1.2,
           ),
         ),
-        pw.SizedBox(height: 0.5 * PdfPageFormat.mm),
+        pw.SizedBox(height: 1 * PdfPageFormat.mm),
         pw.Text(
           value,
           style: pw.TextStyle(
             color: valueColor,
-            fontSize: 9,
+            fontSize: 9.5,
             fontWeight: pw.FontWeight.bold,
           ),
         ),
-        pw.SizedBox(height: 1 * PdfPageFormat.mm),
-        pw.Container(height: 0.3, color: lineColor, width: double.infinity),
       ],
     );
   }
