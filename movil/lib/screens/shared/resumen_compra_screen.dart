@@ -92,7 +92,6 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
         : _hoyStr();
     final metodo = widget.metodoPago == 2 ? 'Tarjeta' : 'Efectivo';
 
-    // ── Colores fijos: AZUL arriba, NARANJA abajo ──────────────────
     final pdfAzul = PdfColor.fromHex('2C7FB1');
     final pdfNaranja = PdfColor.fromHex('E9713A');
     final pdfOscuro = PdfColor.fromHex('1C2D3A');
@@ -100,36 +99,37 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
     final pdfBlanco = PdfColors.white;
     final pdfFondo = PdfColor.fromHex('F4F6F9');
     final pdfGrisClaro = PdfColor.fromHex('E2E8F0');
+    final pdfAzulClaro = PdfColor.fromHex('EBF4FB');
+    final pdfNaranjaClaro = PdfColor.fromHex('FDF0EA');
+    final pdfFondoPagina = PdfColor.fromHex('E8ECF0');
 
-    // Formato ticket real: 80 × 148 mm (tamaño A6 apaisado vertical)
-    // Cuerpo blanco: headerH(18) + contenido(~72) = 90mm, talón: 51mm, pie: 7mm
-    const double W = 80 * PdfPageFormat.mm;
-    const double H = 148 * PdfPageFormat.mm;
-    const double headerH = 18 * PdfPageFormat.mm;
-    const double talonY = 90 * PdfPageFormat.mm;
-    const double pieH = 7 * PdfPageFormat.mm;
-    const double pad = 4 * PdfPageFormat.mm;
-    final double talonH = H - talonY - pieH;
+    final double pageW = PdfPageFormat.a4.width;
+    final double pageH = PdfPageFormat.a4.height;
 
-    final formato = PdfPageFormat(W, H, marginAll: 0);
-    // Nota: W y H son const, pero PdfPageFormat los necesita en puntos (ya lo son vía PdfPageFormat.mm)
+    const double ticketW = 230.0;
+    const double ticketH = 480.0;
+    const double headerH = 52.0;
+    const double talonH = 120.0;
+    const double pieH = 20.0;
+    const double talonY = ticketH - talonH - pieH;
+    const double pad = 12.0;
+
+    final double ticketX = (pageW - ticketW) / 2;
+    final double ticketY = (pageH - ticketH) / 2;
 
     for (final p in widget.pasajeros) {
-      final nombre =
-          '${p['nombre'] ?? ''} ${p['primer_apellido'] ?? ''} ${p['segundo_apellido'] ?? ''}'
-              .trim();
+      final nombre = '${p['nombre'] ?? ''} ${p['primer_apellido'] ?? ''}'
+          .trim();
       final asiento = p['asiento_id']?.toString() ?? '-';
       final tipo = p['tipo']?.toString() ?? 'Adulto';
       final precio =
           (p['precio_unitario'] as double?)?.toStringAsFixed(2) ?? '0.00';
-      final tipoAsientoDesc = _descAsiento(tipo);
+      final tipoDesc = _descAsiento(tipo);
 
       final qrData = jsonEncode({
         'folio': folio,
-        'viaje': widget.pagoId,
         'pasajero': nombre,
         'asiento': asiento,
-        'tipo': tipo,
         'origen': origen,
         'destino': destino,
         'fecha': fechaViaje,
@@ -141,29 +141,50 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
 
       doc.addPage(
         pw.Page(
-          pageFormat: formato,
+          pageFormat: PdfPageFormat.a4,
           margin: pw.EdgeInsets.zero,
           build: (_) => pw.Stack(
             children: [
-              // ══ FONDO ═══════════════════════════════════════
-              pw.Positioned(
-                left: 0,
-                top: 0,
-                child: pw.Container(width: W, height: H, color: pdfFondo),
-              ),
-
-              // ══ HEADER AZUL ══════════════════════════════════
+              // ── FONDO PÁGINA ─────────────────────────────────────
               pw.Positioned(
                 left: 0,
                 top: 0,
                 child: pw.Container(
-                  width: W,
-                  height: headerH,
-                  color: pdfAzul,
-                  padding: pw.EdgeInsets.symmetric(
-                    horizontal: pad,
-                    vertical: 3 * PdfPageFormat.mm,
+                  width: pageW,
+                  height: pageH,
+                  color: pdfFondoPagina,
+                ),
+              ),
+
+              // ── FONDO BLANCO DEL BOLETO ──────────────────────────
+              pw.Positioned(
+                left: ticketX,
+                top: ticketY,
+                child: pw.Container(
+                  width: ticketW,
+                  height: ticketH,
+                  decoration: pw.BoxDecoration(
+                    color: pdfBlanco,
+                    borderRadius: pw.BorderRadius.circular(12),
                   ),
+                ),
+              ),
+
+              // ── HEADER AZUL ──────────────────────────────────────
+              pw.Positioned(
+                left: ticketX,
+                top: ticketY,
+                child: pw.Container(
+                  width: ticketW,
+                  height: headerH,
+                  decoration: pw.BoxDecoration(
+                    color: pdfAzul,
+                    borderRadius: const pw.BorderRadius.only(
+                      topLeft: pw.Radius.circular(12),
+                      topRight: pw.Radius.circular(12),
+                    ),
+                  ),
+                  padding: const pw.EdgeInsets.fromLTRB(14, 10, 14, 10),
                   child: pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     crossAxisAlignment: pw.CrossAxisAlignment.center,
@@ -176,16 +197,16 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                             'RUTAS BAJA',
                             style: pw.TextStyle(
                               color: pdfBlanco,
-                              fontSize: 11,
+                              fontSize: 13,
                               fontWeight: pw.FontWeight.bold,
-                              letterSpacing: 0.8,
+                              letterSpacing: 0.5,
                             ),
                           ),
                           pw.Text(
                             'EXPRESS',
                             style: pw.TextStyle(
                               color: PdfColor.fromHex('FFFFFFCC'),
-                              fontSize: 6.5,
+                              fontSize: 7,
                               letterSpacing: 3,
                             ),
                           ),
@@ -199,16 +220,16 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                             'BOARDING PASS',
                             style: pw.TextStyle(
                               color: PdfColor.fromHex('FFFFFFAA'),
-                              fontSize: 5,
+                              fontSize: 6,
                               letterSpacing: 1.5,
                             ),
                           ),
-                          pw.SizedBox(height: 1 * PdfPageFormat.mm),
+                          pw.SizedBox(height: 2),
                           pw.Text(
                             '#$folio',
                             style: pw.TextStyle(
                               color: pdfBlanco,
-                              fontSize: 12,
+                              fontSize: 14,
                               fontWeight: pw.FontWeight.bold,
                             ),
                           ),
@@ -219,33 +240,28 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                 ),
               ),
 
-              // ══ CUERPO BLANCO ════════════════════════════════
+              // ── CUERPO BLANCO ─────────────────────────────────────
               pw.Positioned(
-                left: 0,
-                top: headerH,
+                left: ticketX,
+                top: ticketY + headerH,
                 child: pw.Container(
-                  width: W,
+                  width: ticketW,
                   height: talonY - headerH,
                   color: pdfBlanco,
-                  padding: pw.EdgeInsets.fromLTRB(
-                    pad,
-                    2.5 * PdfPageFormat.mm,
-                    pad,
-                    0,
-                  ),
+                  padding: const pw.EdgeInsets.fromLTRB(pad, 10, pad, 0),
                   child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      // ── RUTA ────────────────────────────────
+                      // RUTA
                       pw.Container(
                         width: double.infinity,
-                        padding: pw.EdgeInsets.symmetric(
-                          vertical: 2.5 * PdfPageFormat.mm,
-                          horizontal: 2 * PdfPageFormat.mm,
+                        padding: const pw.EdgeInsets.symmetric(
+                          vertical: 8,
+                          horizontal: 8,
                         ),
                         decoration: pw.BoxDecoration(
                           color: pdfFondo,
-                          borderRadius: pw.BorderRadius.circular(6),
+                          borderRadius: pw.BorderRadius.circular(8),
                         ),
                         child: pw.Row(
                           mainAxisAlignment: pw.MainAxisAlignment.center,
@@ -258,42 +274,38 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                                   'ORIGEN',
                                   style: pw.TextStyle(
                                     color: pdfGris,
-                                    fontSize: 5,
+                                    fontSize: 6,
                                     letterSpacing: 1,
                                   ),
                                 ),
-                                pw.SizedBox(height: 0.5 * PdfPageFormat.mm),
+                                pw.SizedBox(height: 2),
                                 pw.Text(
                                   _abreviatura(origen),
                                   style: pw.TextStyle(
                                     color: pdfAzul,
-                                    fontSize: 20,
+                                    fontSize: 22,
                                     fontWeight: pw.FontWeight.bold,
                                   ),
                                 ),
                                 pw.Text(
-                                  origen.length > 9
-                                      ? '${origen.substring(0, 9)}.'
-                                      : origen,
+                                  origen,
                                   style: pw.TextStyle(
                                     color: pdfGris,
-                                    fontSize: 5.5,
+                                    fontSize: 6,
                                   ),
                                 ),
                               ],
                             ),
-                            pw.Padding(
-                              padding: pw.EdgeInsets.symmetric(
-                                horizontal: 4 * PdfPageFormat.mm,
-                              ),
-                              child: pw.Text(
-                                '→',
-                                style: pw.TextStyle(
-                                  color: pdfNaranja,
-                                  fontSize: 14,
-                                ),
+                            pw.SizedBox(width: 16),
+                            pw.Text(
+                              '--->',
+                              style: pw.TextStyle(
+                                color: pdfNaranja,
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold,
                               ),
                             ),
+                            pw.SizedBox(width: 16),
                             pw.Column(
                               crossAxisAlignment: pw.CrossAxisAlignment.center,
                               children: [
@@ -301,26 +313,24 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                                   'DESTINO',
                                   style: pw.TextStyle(
                                     color: pdfGris,
-                                    fontSize: 5,
+                                    fontSize: 6,
                                     letterSpacing: 1,
                                   ),
                                 ),
-                                pw.SizedBox(height: 0.5 * PdfPageFormat.mm),
+                                pw.SizedBox(height: 2),
                                 pw.Text(
                                   _abreviatura(destino),
                                   style: pw.TextStyle(
                                     color: pdfOscuro,
-                                    fontSize: 20,
+                                    fontSize: 22,
                                     fontWeight: pw.FontWeight.bold,
                                   ),
                                 ),
                                 pw.Text(
-                                  destino.length > 9
-                                      ? '${destino.substring(0, 9)}.'
-                                      : destino,
+                                  destino,
                                   style: pw.TextStyle(
                                     color: pdfGris,
-                                    fontSize: 5.5,
+                                    fontSize: 6,
                                   ),
                                 ),
                               ],
@@ -329,23 +339,23 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                         ),
                       ),
 
-                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.SizedBox(height: 8),
 
-                      // ── VIAJE + PAGO ─────────────────────────
+                      // VIAJE + PAGO
                       pw.Row(
                         children: [
                           pw.Expanded(
                             child: _infoBlock(
-                              'NÚMERO DE VIAJE',
+                              'NUMERO DE VIAJE',
                               '#$folio',
                               pdfGris,
                               pdfAzul,
                             ),
                           ),
-                          pw.SizedBox(width: 3 * PdfPageFormat.mm),
+                          pw.SizedBox(width: 10),
                           pw.Expanded(
                             child: _infoBlock(
-                              'MÉTODO DE PAGO',
+                              'METODO DE PAGO',
                               metodo,
                               pdfGris,
                               pdfOscuro,
@@ -354,23 +364,23 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                         ],
                       ),
 
-                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.SizedBox(height: 7),
                       pw.Container(
-                        height: 0.4,
+                        height: 0.5,
                         color: pdfGrisClaro,
                         width: double.infinity,
                       ),
-                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.SizedBox(height: 7),
 
-                      // ── SALIDA / LLEGADA ─────────────────────
+                      // SALIDA / LLEGADA
                       pw.Row(
                         children: [
                           pw.Expanded(
                             child: pw.Container(
-                              padding: pw.EdgeInsets.all(2 * PdfPageFormat.mm),
+                              padding: const pw.EdgeInsets.all(7),
                               decoration: pw.BoxDecoration(
-                                color: PdfColor.fromHex('EBF4FB'),
-                                borderRadius: pw.BorderRadius.circular(5),
+                                color: pdfAzulClaro,
+                                borderRadius: pw.BorderRadius.circular(6),
                               ),
                               child: pw.Column(
                                 crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -379,11 +389,11 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                                     'SALIDA',
                                     style: pw.TextStyle(
                                       color: pdfGris,
-                                      fontSize: 5,
+                                      fontSize: 6,
                                       letterSpacing: 1,
                                     ),
                                   ),
-                                  pw.SizedBox(height: 0.8 * PdfPageFormat.mm),
+                                  pw.SizedBox(height: 3),
                                   pw.Text(
                                     fechaViaje,
                                     style: pw.TextStyle(
@@ -392,12 +402,12 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                                       fontWeight: pw.FontWeight.bold,
                                     ),
                                   ),
-                                  pw.SizedBox(height: 0.4 * PdfPageFormat.mm),
+                                  pw.SizedBox(height: 2),
                                   pw.Text(
                                     salida,
                                     style: pw.TextStyle(
                                       color: pdfAzul,
-                                      fontSize: 10,
+                                      fontSize: 13,
                                       fontWeight: pw.FontWeight.bold,
                                     ),
                                   ),
@@ -405,13 +415,13 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                               ),
                             ),
                           ),
-                          pw.SizedBox(width: 3 * PdfPageFormat.mm),
+                          pw.SizedBox(width: 8),
                           pw.Expanded(
                             child: pw.Container(
-                              padding: pw.EdgeInsets.all(2 * PdfPageFormat.mm),
+                              padding: const pw.EdgeInsets.all(7),
                               decoration: pw.BoxDecoration(
-                                color: PdfColor.fromHex('FDF0EA'),
-                                borderRadius: pw.BorderRadius.circular(5),
+                                color: pdfNaranjaClaro,
+                                borderRadius: pw.BorderRadius.circular(6),
                               ),
                               child: pw.Column(
                                 crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -420,11 +430,11 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                                     'LLEGADA',
                                     style: pw.TextStyle(
                                       color: pdfGris,
-                                      fontSize: 5,
+                                      fontSize: 6,
                                       letterSpacing: 1,
                                     ),
                                   ),
-                                  pw.SizedBox(height: 0.8 * PdfPageFormat.mm),
+                                  pw.SizedBox(height: 3),
                                   pw.Text(
                                     fechaViaje,
                                     style: pw.TextStyle(
@@ -433,12 +443,12 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                                       fontWeight: pw.FontWeight.bold,
                                     ),
                                   ),
-                                  pw.SizedBox(height: 0.4 * PdfPageFormat.mm),
+                                  pw.SizedBox(height: 2),
                                   pw.Text(
                                     llegada,
                                     style: pw.TextStyle(
                                       color: pdfNaranja,
-                                      fontSize: 10,
+                                      fontSize: 13,
                                       fontWeight: pw.FontWeight.bold,
                                     ),
                                   ),
@@ -449,83 +459,128 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                         ],
                       ),
 
-                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.SizedBox(height: 7),
                       pw.Container(
-                        height: 0.4,
+                        height: 0.5,
                         color: pdfGrisClaro,
                         width: double.infinity,
                       ),
-                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.SizedBox(height: 7),
 
-                      // ── PASAJERO ─────────────────────────────
+                      // PASAJERO
                       pw.Text(
                         'PASAJERO',
                         style: pw.TextStyle(
                           color: pdfGris,
-                          fontSize: 5,
+                          fontSize: 6,
                           letterSpacing: 1.5,
                         ),
                       ),
-                      pw.SizedBox(height: 0.8 * PdfPageFormat.mm),
+                      pw.SizedBox(height: 3),
                       pw.Text(
                         nombre,
                         style: pw.TextStyle(
                           color: pdfOscuro,
-                          fontSize: 10,
+                          fontSize: 12,
                           fontWeight: pw.FontWeight.bold,
                         ),
                       ),
-                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
-                      pw.Container(
-                        padding: pw.EdgeInsets.symmetric(
-                          horizontal: 2.5 * PdfPageFormat.mm,
-                          vertical: 0.8 * PdfPageFormat.mm,
-                        ),
-                        decoration: pw.BoxDecoration(
+                      pw.SizedBox(height: 4),
+
+                      // ✅ TIPO en texto azul simple, sin badge
+                      pw.Text(
+                        tipoDesc.toUpperCase(),
+                        style: pw.TextStyle(
                           color: pdfAzul,
-                          borderRadius: pw.BorderRadius.circular(20),
-                        ),
-                        child: pw.Text(
-                          tipoAsientoDesc.toUpperCase(),
-                          style: pw.TextStyle(
-                            color: pdfBlanco,
-                            fontSize: 5.5,
-                            letterSpacing: 0.8,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
+                          fontSize: 7,
+                          fontWeight: pw.FontWeight.bold,
+                          letterSpacing: 0.5,
                         ),
                       ),
 
-                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.SizedBox(height: 8),
                       pw.Container(
-                        height: 0.4,
+                        height: 0.5,
                         color: pdfGrisClaro,
                         width: double.infinity,
                       ),
-                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.SizedBox(height: 8),
 
-                      // ── ASIENTO · TIPO · PRECIO ──────────────
+                      // ASIENTO · TIPO · PRECIO
                       pw.Row(
                         children: [
                           pw.Expanded(
-                            child: _infoBlock(
-                              'No. ASIENTO',
-                              asiento,
-                              pdfGris,
-                              pdfAzul,
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.Text(
+                                  'No. ASIENTO',
+                                  style: pw.TextStyle(
+                                    color: pdfGris,
+                                    fontSize: 6,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                pw.SizedBox(height: 3),
+                                pw.Text(
+                                  asiento,
+                                  style: pw.TextStyle(
+                                    color: pdfAzul,
+                                    fontSize: 11,
+                                    fontWeight: pw.FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          pw.SizedBox(width: 3 * PdfPageFormat.mm),
+                          pw.SizedBox(width: 8),
                           pw.Expanded(
-                            child: _infoBlock('TIPO', tipo, pdfGris, pdfOscuro),
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.Text(
+                                  'TIPO',
+                                  style: pw.TextStyle(
+                                    color: pdfGris,
+                                    fontSize: 6,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                pw.SizedBox(height: 3),
+                                pw.Text(
+                                  tipo,
+                                  style: pw.TextStyle(
+                                    color: pdfOscuro,
+                                    fontSize: 11,
+                                    fontWeight: pw.FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          pw.SizedBox(width: 3 * PdfPageFormat.mm),
+                          pw.SizedBox(width: 8),
                           pw.Expanded(
-                            child: _infoBlock(
-                              'PRECIO',
-                              '\$$precio',
-                              pdfGris,
-                              pdfNaranja,
+                            child: pw.Column(
+                              crossAxisAlignment: pw.CrossAxisAlignment.start,
+                              children: [
+                                pw.Text(
+                                  'PRECIO',
+                                  style: pw.TextStyle(
+                                    color: pdfGris,
+                                    fontSize: 6,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                pw.SizedBox(height: 3),
+                                pw.Text(
+                                  '\$$precio',
+                                  style: pw.TextStyle(
+                                    color: pdfNaranja,
+                                    fontSize: 11,
+                                    fontWeight: pw.FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -535,116 +590,85 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                 ),
               ),
 
-              // ══ MUESCAS separadoras ═══════════════════════════
+              // ── TALÓN BLANCO CON QR ───────────────────────────────
               pw.Positioned(
-                left: 0,
-                top: talonY - 0.3,
-                child: pw.Container(width: W, height: 0.6, color: pdfGrisClaro),
-              ),
-              pw.Positioned(
-                left: -4 * PdfPageFormat.mm,
-                top: talonY - 4 * PdfPageFormat.mm,
+                left: ticketX,
+                top: ticketY + talonY,
                 child: pw.Container(
-                  width: 8 * PdfPageFormat.mm,
-                  height: 8 * PdfPageFormat.mm,
-                  decoration: pw.BoxDecoration(
-                    color: pdfFondo,
-                    shape: pw.BoxShape.circle,
-                  ),
-                ),
-              ),
-              pw.Positioned(
-                left: W - 4 * PdfPageFormat.mm,
-                top: talonY - 4 * PdfPageFormat.mm,
-                child: pw.Container(
-                  width: 8 * PdfPageFormat.mm,
-                  height: 8 * PdfPageFormat.mm,
-                  decoration: pw.BoxDecoration(
-                    color: pdfFondo,
-                    shape: pw.BoxShape.circle,
-                  ),
-                ),
-              ),
-
-              // ══ TALÓN NARANJA con QR ══════════════════════════
-              pw.Positioned(
-                left: 0,
-                top: talonY,
-                child: pw.Container(
-                  width: W,
+                  width: ticketW,
                   height: talonH,
-                  color: pdfNaranja,
-                  padding: pw.EdgeInsets.fromLTRB(
-                    pad,
-                    3 * PdfPageFormat.mm,
-                    pad,
-                    2 * PdfPageFormat.mm,
-                  ),
+                  color: pdfBlanco,
+                  padding: const pw.EdgeInsets.fromLTRB(12, 12, 12, 8),
                   child: pw.Column(
                     mainAxisAlignment: pw.MainAxisAlignment.center,
                     crossAxisAlignment: pw.CrossAxisAlignment.center,
                     children: [
                       pw.Container(
-                        padding: const pw.EdgeInsets.all(4),
+                        padding: const pw.EdgeInsets.all(5),
                         decoration: pw.BoxDecoration(
                           color: pdfBlanco,
-                          borderRadius: pw.BorderRadius.circular(6),
+                          border: pw.Border.all(color: pdfNaranja, width: 2),
+                          borderRadius: pw.BorderRadius.circular(8),
                         ),
-                        child: pw.Image(
-                          qrImage,
-                          width: 35 * PdfPageFormat.mm,
-                          height: 35 * PdfPageFormat.mm,
-                        ),
+                        child: pw.Image(qrImage, width: 75, height: 75),
                       ),
-                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
+                      pw.SizedBox(height: 5),
                       pw.Text(
                         'Escanea para validar el boleto',
-                        style: pw.TextStyle(
-                          color: PdfColor.fromHex('FFFFFFDD'),
-                          fontSize: 6,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                      pw.SizedBox(height: 1.5 * PdfPageFormat.mm),
-                      pw.Container(
-                        padding: pw.EdgeInsets.symmetric(
-                          horizontal: 4 * PdfPageFormat.mm,
-                          vertical: 1.2 * PdfPageFormat.mm,
-                        ),
-                        decoration: pw.BoxDecoration(
-                          color: pdfBlanco,
-                          borderRadius: pw.BorderRadius.circular(20),
-                        ),
-                        child: pw.Text(
-                          'FOLIO #$folio',
-                          style: pw.TextStyle(
-                            color: pdfNaranja,
-                            fontSize: 6.5,
-                            fontWeight: pw.FontWeight.bold,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
+                        style: pw.TextStyle(color: pdfGris, fontSize: 7),
                       ),
                     ],
                   ),
                 ),
               ),
 
-              // ══ PIE AZUL ═════════════════════════════════════
+              // ── MUESCAS SEPARADORAS (después del talón para quedar encima) ──
               pw.Positioned(
-                left: 0,
-                top: H - pieH,
+                left: ticketX - 10,
+                top: ticketY + talonY - 10,
                 child: pw.Container(
-                  width: W,
+                  width: 20,
+                  height: 20,
+                  decoration: pw.BoxDecoration(
+                    color: pdfFondoPagina,
+                    shape: pw.BoxShape.circle,
+                  ),
+                ),
+              ),
+              pw.Positioned(
+                left: ticketX + ticketW - 10,
+                top: ticketY + talonY - 10,
+                child: pw.Container(
+                  width: 20,
+                  height: 20,
+                  decoration: pw.BoxDecoration(
+                    color: pdfFondoPagina,
+                    shape: pw.BoxShape.circle,
+                  ),
+                ),
+              ),
+
+              // ── PIE AZUL ─────────────────────────────────────────
+              pw.Positioned(
+                left: ticketX,
+                top: ticketY + talonY + talonH,
+                child: pw.Container(
+                  width: ticketW,
                   height: pieH,
-                  color: pdfAzul,
+                  decoration: pw.BoxDecoration(
+                    color: pdfAzul,
+                    borderRadius: const pw.BorderRadius.only(
+                      bottomLeft: pw.Radius.circular(12),
+                      bottomRight: pw.Radius.circular(12),
+                    ),
+                  ),
                   child: pw.Center(
                     child: pw.Text(
-                      'RUTAS BAJA EXPRESS  ·  BUS TICKET',
+                      'RUTAS BAJA EXPRESS  .  BUS TICKET',
                       style: pw.TextStyle(
                         color: PdfColor.fromHex('FFFFFFBB'),
-                        fontSize: 5,
-                        letterSpacing: 1.5,
+                        fontSize: 6,
+                        letterSpacing: 1.2,
                       ),
                     ),
                   ),
@@ -659,27 +683,24 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
     return doc.save();
   }
 
-  /// Descripción legible del tipo de pasajero / asiento
   static String _descAsiento(String tipo) {
     switch (tipo) {
       case 'Estudiante':
-        return 'Estudiante (25% desc.)';
+        return 'Estudiante 25% desc.';
       case 'INAPAM':
-        return 'INAPAM (30% desc.)';
+        return 'INAPAM 30% desc.';
       case 'Discapacidad':
-        return 'Discapacidad (15% desc.)';
+        return 'Discapacidad 15% desc.';
       default:
-        return 'Adulto — Asiento estándar';
+        return 'Adulto';
     }
   }
 
-  /// Genera abreviatura de 3 letras a partir del nombre de la ciudad
   static String _abreviatura(String ciudad) {
     final words = ciudad.trim().split(' ');
     if (words.length == 1) {
       return ciudad.substring(0, ciudad.length.clamp(0, 3)).toUpperCase();
     }
-    // Usa iniciales de las primeras 3 palabras con más de 2 letras
     final siglas = words
         .where((w) => w.length > 2)
         .take(3)
@@ -688,7 +709,6 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
     return siglas.isEmpty ? ciudad.substring(0, 3).toUpperCase() : siglas;
   }
 
-  /// Bloque de info estilo boarding pass (label + valor)
   static pw.Widget _infoBlock(
     String label,
     String value,
@@ -706,7 +726,7 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
             letterSpacing: 1.2,
           ),
         ),
-        pw.SizedBox(height: 1 * PdfPageFormat.mm),
+        pw.SizedBox(height: 3),
         pw.Text(
           value,
           style: pw.TextStyle(
