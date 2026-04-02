@@ -157,15 +157,28 @@ def crud_leer(request, tabla):
         return JsonResponse({'error': 'Tabla no permitida'}, status=403)
     from django.db import connection
     with connection.cursor() as cur:
-        cur.execute(f"SELECT * FROM `{tabla}` LIMIT 500")
+
+        if tabla == 'viaje':
+            cur.execute("""
+                SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
+                       v.ruta, v.estado,
+                       ev.nombre AS estado_nombre,
+                       v.autobus, v.conductor
+                FROM viaje v
+                JOIN edo_viaje ev ON ev.numero = v.estado
+                LIMIT 500
+            """)
+        else:
+            cur.execute(f"SELECT * FROM `{tabla}` LIMIT 500")
+
         cols = [d[0] for d in cur.description]
         rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+
     for row in rows:
         for k, v in row.items():
             if hasattr(v, 'isoformat'):
                 row[k] = v.isoformat()
     return JsonResponse({'cols': cols, 'rows': rows})
-
 @admin_requerido
 def crud_esquema(request, tabla):
     if tabla not in TABLAS_PERMITIDAS:
@@ -225,17 +238,60 @@ def crud_actualizar(request, tabla):
     data     = json.loads(request.body)
     pk_name  = data.pop('__pk_name__')
     pk_value = data.pop('__pk_value__')
-    setters  = [f"`{k}` = %s" for k in data]
-    vals     = list(data.values()) + [pk_value]
-    sql = f"UPDATE `{tabla}` SET {', '.join(setters)} WHERE `{pk_name}` = %s"
+
     try:
+        from django.db import connection
+        with connection.cursor() as cur:
+
+            # ── RF-WEB-24: Solo editar viaje si está Programado ───────
+            if tabla == 'viaje':
+                cur.execute("""
+                    SELECT LOWER(ev.nombre) FROM viaje v
+                    JOIN edo_viaje ev ON ev.numero = v.estado
+                    WHERE v.numero = %s
+                """, [pk_value])
+                row = cur.fetchone()
+                if not row:
+                    return JsonResponse({'ok': False, 'error': 'Viaje no encontrado'})
+
+                estado_actual = row[0]
+
+                if estado_actual not in ('programado',):
+                    return JsonResponse({
+                        'ok': False,
+                        'error': f'No se puede editar un viaje en estado "{estado_actual.capitalize()}". Solo se permiten cambios en viajes disponibles.'
+                    })
+
+                # ── RF-WEB-25: Validar transición de estado ───────────
+                if 'estado' in data:
+                    cur.execute(
+                        "SELECT LOWER(nombre) FROM edo_viaje WHERE numero = %s", [data['estado']]
+                    )
+                    nuevo_estado = cur.fetchone()
+                    if nuevo_estado:
+                        nuevo_estado = nuevo_estado[0]
+                        transiciones_validas = {
+                            'programado': ['programado', 'en curso', 'cancelado'],
+                            'en curso':   ['en curso', 'completado', 'finalizado'],
+                        }
+                        permitidos = transiciones_validas.get(estado_actual, [])
+                        if nuevo_estado not in permitidos:
+                            return JsonResponse({
+                                'ok': False,
+                                'error': f'Transición no permitida: "{estado_actual.capitalize()}" → "{nuevo_estado.capitalize()}".'
+                            })
+
+        setters = [f"`{k}` = %s" for k in data]
+        vals    = list(data.values()) + [pk_value]
+        sql = f"UPDATE `{tabla}` SET {', '.join(setters)} WHERE `{pk_name}` = %s"
+
         from django.db import connection
         with connection.cursor() as cur:
             cur.execute(sql, vals)
         return JsonResponse({'ok': True})
+
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
-
 @require_POST
 @admin_requerido
 def crud_eliminar(request, tabla):
@@ -247,11 +303,22 @@ def crud_eliminar(request, tabla):
     try:
         from django.db import connection
         with connection.cursor() as cur:
+
+            # ── Validar que no se elimine una ruta con viajes ─────────
+            if tabla == 'ruta':
+                cur.execute(
+                    "SELECT COUNT(*) FROM viaje WHERE ruta = %s", [pk_value]
+                )
+                if cur.fetchone()[0] > 0:
+                    return JsonResponse({
+                        'ok': False,
+                        'error': 'No se puede eliminar la ruta porque tiene viajes registrados.'
+                    })
+
             cur.execute(f"DELETE FROM `{tabla}` WHERE `{pk_name}` = %s", [pk_value])
         return JsonResponse({'ok': True})
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
-
 @admin_requerido
 def salidas_json(request):
     from django.db import connection
@@ -361,26 +428,79 @@ def agregar_viaje(request):
     autobus   = data.get('autobus')
     conductor = data.get('conductor')
     estado    = data.get('estado')
+
     if not all([salida, llegada, ruta, autobus, conductor, estado]):
         return JsonResponse({'ok': False, 'error': 'Todos los campos son obligatorios'})
+
     try:
         from django.db import connection
         with connection.cursor() as cur:
+
+            # ── Validar conflicto de CONDUCTOR ────────────────────────
+            cur.execute("""
+                SELECT numero FROM viaje
+                WHERE conductor = %s
+                  AND estado NOT IN (
+                      SELECT numero FROM edo_viaje
+                      WHERE LOWER(nombre) IN ('cancelado', 'completado', 'finalizado', 'terminado')
+                  )
+                  AND fecHoraSalida < %s
+                  AND fecHoraEntrada > %s
+            """, [conductor, llegada, salida])
+
+            conflicto_conductor = cur.fetchone()
+            if conflicto_conductor:
+                cur.execute("""
+                    SELECT CONCAT(conNombre, ' ', conPrimerApell) FROM conductor WHERE registro = %s
+                """, [conductor])
+                nombre = cur.fetchone()
+                nombre_str = nombre[0] if nombre else f'ID {conductor}'
+                return JsonResponse({
+                    'ok': False,
+                    'error': f'El conductor {nombre_str} ya tiene asignado el viaje #{conflicto_conductor[0]} en ese horario.'
+                })
+
+            # ── Validar conflicto de AUTOBÚS ──────────────────────────
+            cur.execute("""
+                SELECT numero FROM viaje
+                WHERE autobus = %s
+                  AND estado NOT IN (
+                      SELECT numero FROM edo_viaje
+                      WHERE LOWER(nombre) IN ('cancelado', 'completado', 'finalizado', 'terminado')
+                  )
+                  AND fecHoraSalida < %s
+                  AND fecHoraEntrada > %s
+            """, [autobus, llegada, salida])
+
+            conflicto_autobus = cur.fetchone()
+            if conflicto_autobus:
+                cur.execute("SELECT placas FROM autobus WHERE numero = %s", [autobus])
+                placas = cur.fetchone()
+                placas_str = placas[0] if placas else f'#{autobus}'
+                return JsonResponse({
+                    'ok': False,
+                    'error': f'El autobús {placas_str} ya está asignado al viaje #{conflicto_autobus[0]} en ese horario.'
+                })
+
+            # ── Sin conflictos: insertar el viaje ─────────────────────
             cur.execute("""
                 INSERT INTO viaje (fecHoraSalida, fecHoraEntrada, ruta, estado, autobus, conductor)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, [salida, llegada, ruta, estado, autobus, conductor])
+
             trip_id = cur.lastrowid
+
             cur.execute("SELECT numero FROM asiento WHERE autobus = %s", [autobus])
             for (asiento_num,) in cur.fetchall():
                 cur.execute(
                     "INSERT INTO viaje_asiento (asiento, viaje, ocupado) VALUES (%s, %s, FALSE)",
                     [asiento_num, trip_id]
                 )
+
         return JsonResponse({'ok': True, 'viaje_id': trip_id})
+
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
-
 @admin_requerido
 def kpi_generales(request):
     desde = request.GET.get('desde')
