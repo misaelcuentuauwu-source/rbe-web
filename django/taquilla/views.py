@@ -429,6 +429,35 @@ def kpi_generales(request):
             WHERE DATE(v.fecHoraSalida) BETWEEN %s AND %s
             GROUP BY ci.clave ORDER BY total DESC LIMIT 5
         """, [desde, hasta]),
+        # ── Métricas económicas ───────────────────────────────────
+        'eco_resumen': qall("""
+            SELECT
+                COALESCE(SUM(p.monto), 0)                          AS total_recaudado,
+                COUNT(DISTINCT p.numero)                            AS num_transacciones,
+                COUNT(t.codigo)                                     AS num_boletos,
+                COALESCE(AVG(t.precio), 0)                         AS promedio_boleto,
+                COALESCE(SUM(CASE WHEN p.tipo=1 THEN p.monto ELSE 0 END), 0) AS total_efectivo,
+                COALESCE(SUM(CASE WHEN p.tipo=2 THEN p.monto ELSE 0 END), 0) AS total_tarjeta,
+                COUNT(CASE WHEN p.tipo=1 THEN 1 END)               AS txn_efectivo,
+                COUNT(CASE WHEN p.tipo=2 THEN 1 END)               AS txn_tarjeta
+            FROM pago p
+            LEFT JOIN ticket t ON t.pago = p.numero
+            LEFT JOIN viaje v  ON v.numero = t.viaje
+            WHERE DATE(p.fechapago) BETWEEN %s AND %s
+        """, [desde, hasta]),
+        'eco_taquilleros': qall("""
+            SELECT
+                CONCAT(taq.taqNombre,' ',taq.taqPrimerApell) AS nombre,
+                COUNT(DISTINCT p.numero)  AS transacciones,
+                COUNT(t.codigo)           AS boletos,
+                COALESCE(SUM(p.monto), 0) AS total
+            FROM pago p
+            JOIN taquillero taq ON taq.registro = p.vendedor
+            LEFT JOIN ticket t ON t.pago = p.numero
+            WHERE DATE(p.fechapago) BETWEEN %s AND %s
+            GROUP BY taq.registro
+            ORDER BY total DESC LIMIT 5
+        """, [desde, hasta]),
     })
 
 @admin_requerido

@@ -5,6 +5,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../config.dart';
 import 'resumen_compra_screen.dart';
+// Imports a agregar
+import 'dart:convert';
+import '../../utils/pdf_boleto.dart';
 
 class PagoScreen extends StatefulWidget {
   final int viajeId;
@@ -12,6 +15,8 @@ class PagoScreen extends StatefulWidget {
   final String origenNombre;
   final String destinoNombre;
   final String horaSalida;
+  final String horaLlegada;
+  final String fechaViaje;
   final double montoTotal;
   final int vendedorId;
   final String tipoUsuario;
@@ -24,6 +29,8 @@ class PagoScreen extends StatefulWidget {
     required this.origenNombre,
     required this.destinoNombre,
     required this.horaSalida,
+    this.horaLlegada = '',
+    this.fechaViaje = '',
     required this.montoTotal,
     required this.vendedorId,
     this.tipoUsuario = 'invitado',
@@ -91,6 +98,29 @@ class _PagoScreenState extends State<PagoScreen> {
         (p) => p['esContacto'] == true,
         orElse: () => {},
       );
+      final correo = contacto['correo'] ?? '';
+
+      // Generar PDF antes de enviar al backend
+      String pdfBase64 = '';
+      if (correo.isNotEmpty) {
+        try {
+          final pdfBytes = await PdfBoleto.generar(
+            pagoId: 0, // se reemplaza con el folio real abajo
+            origenNombre: widget.origenNombre,
+            destinoNombre: widget.destinoNombre,
+            horaSalida: widget.horaSalida,
+            horaLlegada: widget.horaLlegada,
+            fechaViaje: widget.fechaViaje,
+            montoTotal: widget.montoTotal,
+            pasajeros: widget.pasajeros,
+            metodoPago: metodoPago,
+          );
+          pdfBase64 = base64Encode(pdfBytes);
+        } catch (e) {
+          debugPrint('Error generando PDF para correo: $e');
+        }
+      }
+
       final response = await http
           .post(
             Uri.parse('${Config.baseUrl}/api/comprar/'),
@@ -101,46 +131,33 @@ class _PagoScreenState extends State<PagoScreen> {
               'monto_total': widget.montoTotal,
               'pasajeros': widget.pasajeros,
               'vendedor_id': widget.vendedorId,
-              'correo_contacto': contacto['correo'] ?? '',
+              'correo_contacto': correo,
+              'pdf_base64': pdfBase64,
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
-
-        // ── Enviar boleto por correo ──────────────────────────────
-        final correo = contacto['correo'] ?? '';
-        if (correo.isNotEmpty) {
-          try {
-            await http
-                .post(
-                  Uri.parse(
-                    '${Config.baseUrl}/api/boleto/${data['pago_id']}/enviar_correo/',
-                  ),
-                  headers: {'Content-Type': 'application/json'},
-                  body: jsonEncode({'correo': correo}),
-                )
-                .timeout(const Duration(seconds: 15));
-          } catch (_) {
-            // Si falla el correo no bloqueamos el flujo
-          }
-        }
-
+        // ── SIN segunda llamada a enviar_correo ──────────────
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            AppRoutes.slideLeft(ResumenCompraScreen(
-              pagoId: data['pago_id'],
-              origenNombre: widget.origenNombre,
-              destinoNombre: widget.destinoNombre,
-              horaSalida: widget.horaSalida,
-              montoTotal: widget.montoTotal,
-              pasajeros: widget.pasajeros,
-              metodoPago: metodoPago,
-              tipoUsuario: widget.tipoUsuario,
-              datosUsuario: widget.datosUsuario,
-            )),
+            AppRoutes.slideLeft(
+              ResumenCompraScreen(
+                pagoId: data['pago_id'],
+                origenNombre: widget.origenNombre,
+                destinoNombre: widget.destinoNombre,
+                horaSalida: widget.horaSalida,
+                horaLlegada: widget.horaLlegada,
+                fechaViaje: widget.fechaViaje,
+                montoTotal: widget.montoTotal,
+                pasajeros: widget.pasajeros,
+                metodoPago: metodoPago,
+                tipoUsuario: widget.tipoUsuario,
+                datosUsuario: widget.datosUsuario,
+              ),
+            ),
           );
         }
       } else {

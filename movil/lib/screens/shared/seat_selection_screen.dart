@@ -12,6 +12,8 @@ class SeatSelectionScreen extends StatefulWidget {
   final String origenNombre;
   final String destinoNombre;
   final String horaSalida;
+  final String horaLlegada;
+  final String fechaViaje;
   final double precioPorPasajero;
   final int vendedorId;
   final String tipoUsuario;
@@ -24,6 +26,8 @@ class SeatSelectionScreen extends StatefulWidget {
     required this.origenNombre,
     required this.destinoNombre,
     required this.horaSalida,
+    this.horaLlegada = '',
+    this.fechaViaje = '',
     required this.precioPorPasajero,
     required this.vendedorId,
     this.tipoUsuario = 'invitado',
@@ -582,6 +586,8 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
           origenNombre: widget.origenNombre,
           destinoNombre: widget.destinoNombre,
           horaSalida: widget.horaSalida,
+          horaLlegada: widget.horaLlegada,
+          fechaViaje: widget.fechaViaje,
           montoTotal: montoTotal,
           vendedorId: widget.vendedorId,
           tipoUsuario: widget.tipoUsuario,
