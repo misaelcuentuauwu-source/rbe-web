@@ -17,13 +17,29 @@ let kgCharts          = {};
 let pasajerosActuales  = [];
 let pasajerosViajeInfo = {};
 let salidasData        = [];
-let rutasDuracion      = {};
+let rutasDuracion      = {};   // FIX: declarado correctamente con let desde el principio
 let _fotoFile          = null;
 
 // ── Helpers ────────────────────────────
 const csrfHeaders = () => ({ 'Content-Type':'application/json', 'X-CSRFToken': CSRF });
 const fmt   = dt => dt ? dt.replace('T',' ').substring(0,16) : '—';
 const today = ()  => new Date().toISOString().split('T')[0];
+
+// FIX: helper para formatear fecha local sin conversión UTC
+function toLocalDatetimeString(date) {
+  const pad = n => String(n).padStart(2,'0');
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// FIX: parsear string datetime-local como hora LOCAL (no UTC)
+function parseDatetimeLocal(str) {
+  if (!str) return null;
+  const [datePart, timePart] = str.split('T');
+  if (!datePart || !timePart) return null;
+  const [y, mo, d]  = datePart.split('-').map(Number);
+  const [h, mi]     = timePart.split(':').map(Number);
+  return new Date(y, mo - 1, d, h, mi);
+}
 
 function toast(msg, tipo='ok') {
   const t = document.getElementById('toast');
@@ -462,11 +478,12 @@ function poblarFiltrosSalidas() {
 function aplicarFiltrosSalidas() {
   const fechaSel  = document.getElementById('sal-fecha').value;
   const origenSel = document.getElementById('sal-origen').value.trim().toLowerCase();
+  // FIX: usar siempre destino_ciudad (era inconsistente: a veces dest_city, a veces destino_ciudad)
   const destSel   = document.getElementById('sal-destino').value.trim().toLowerCase();
   const precision = document.getElementById('sal-precision').checked;
   let filtered    = salidasData;
   if (origenSel) filtered = filtered.filter(r=>(r.origen_ciudad||'').toLowerCase()===origenSel);
-  if (destSel)   filtered = filtered.filter(r=>(r.dest_city||r.destino_ciudad||'').toLowerCase()===destSel);
+  if (destSel)   filtered = filtered.filter(r=>(r.destino_ciudad||'').toLowerCase()===destSel);
   if (fechaSel) {
     if (precision) {
       filtered = filtered.filter(r=>r.fecHoraSalida && r.fecHoraSalida.substring(0,10)===fechaSel);
@@ -538,18 +555,25 @@ function verDetalleSalida(r) {
   abrirModal('modal-det-salida');
 }
 
+// ════ MODAL AGREGAR VIAJE ══════════════
+
 async function abrirModalViaje() {
   const d = await fetch('/api/viaje/opciones/').then(r=>r.json());
+
+  // FIX: limpiar y reconstruir rutasDuracion correctamente
   rutasDuracion = {};
   d.rutas.forEach(r => { rutasDuracion[String(r.value)] = r.duracion || ''; });
+
   fillSelect('mv-ruta',      d.rutas,      'Seleccionar...');
   fillSelect('mv-autobus',   d.autobuses,  'Seleccionar...');
   fillSelect('mv-conductor', d.conductores,'Seleccionar...');
   fillSelect('mv-estado',    d.estados,    'Seleccionar...');
+
+  // FIX: usar toLocalDatetimeString para que la hora del input sea hora local
   const now = new Date();
   now.setMinutes(Math.ceil(now.getMinutes()/15)*15, 0, 0);
-  document.getElementById('mv-salida').value         = now.toISOString().slice(0,16);
-  document.getElementById('mv-llegada').value        = '';
+  document.getElementById('mv-salida').value          = toLocalDatetimeString(now);
+  document.getElementById('mv-llegada').value         = '';
   document.getElementById('mv-llegada-display').value = 'Selecciona ruta para calcular…';
   calcularLlegadaAuto();
   abrirModal('modal-viaje');
@@ -560,22 +584,58 @@ function calcularLlegadaAuto() {
   const salidaStr = document.getElementById('mv-salida').value;
   const displayEl = document.getElementById('mv-llegada-display');
   const hiddenEl  = document.getElementById('mv-llegada');
-  if (!rutaId || !salidaStr) { displayEl.value='Selecciona ruta y hora de salida…'; hiddenEl.value=''; return; }
+
+  if (!rutaId || !salidaStr) {
+    displayEl.value = 'Selecciona ruta y hora de salida…';
+    hiddenEl.value  = '';
+    return;
+  }
+
   const minutos = parseDuracionAMinutos(rutasDuracion[String(rutaId)] || '');
-  if (!minutos) { displayEl.value='Duración de ruta no disponible'; hiddenEl.value=''; return; }
-  const salida  = new Date(salidaStr);
-  if (isNaN(salida.getTime())) { displayEl.value='Fecha de salida inválida'; hiddenEl.value=''; return; }
-  const llegada = new Date(salida.getTime() + minutos*60000);
-  hiddenEl.value  = llegada.toISOString().slice(0,16);
-  const opts      = {weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'};
+  if (!minutos) {
+    displayEl.value = 'Duración de ruta no disponible';
+    hiddenEl.value  = '';
+    return;
+  }
+
+  // FIX: parsear como hora local (no UTC) para que el cálculo sea correcto
+  const salida = parseDatetimeLocal(salidaStr);
+  if (!salida || isNaN(salida.getTime())) {
+    displayEl.value = 'Fecha de salida inválida';
+    hiddenEl.value  = '';
+    return;
+  }
+
+  const llegada = new Date(salida.getTime() + minutos * 60000);
+
+  // FIX: guardar en hora local, no en UTC
+  hiddenEl.value = toLocalDatetimeString(llegada);
+
+  const opts = { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' };
   displayEl.value = llegada.toLocaleDateString('es-MX', opts) +
-    '  (+' + (minutos>=60 ? Math.floor(minutos/60)+'h '+(minutos%60?minutos%60+'min':'') : minutos+'min') + ')';
+    '  (+' + (minutos >= 60
+      ? Math.floor(minutos/60) + 'h ' + (minutos % 60 ? minutos % 60 + 'min' : '')
+      : minutos + 'min') + ')';
 }
 
 function parseDuracionAMinutos(dur) {
   if (!dur) return 0;
-  dur = String(dur).trim();
-  if (dur.includes(':')) { const [h,m] = dur.split(':').map(Number); return (h*60)+(m||0); }
+  dur = String(dur).trim().toLowerCase();
+
+  // Formato HH:MM  →  "2:30", "0:45"
+  if (/^\d+:\d+$/.test(dur)) {
+    const [h, m] = dur.split(':').map(Number);
+    return (h * 60) + (m || 0);
+  }
+
+  // Formato Xh Ym  →  "2h50m", "0h45m", "3h", "45m", "1h15m"
+  const hMatch  = dur.match(/(\d+)\s*h/);
+  const mMatch  = dur.match(/(\d+)\s*m/);
+  const horas   = hMatch ? parseInt(hMatch[1]) : 0;
+  const minutos = mMatch ? parseInt(mMatch[1]) : 0;
+  if (hMatch || mMatch) return (horas * 60) + minutos;
+
+  // Fallback: número solo → minutos directos
   const n = parseInt(dur);
   return isNaN(n) ? 0 : n;
 }
@@ -854,13 +914,34 @@ function verFotoGrande(url) {
 async function abrirInsertar() {
   const tabla = tablaActual.nombre;
   if (!tabla) { toast('Selecciona una tabla','err'); return; }
-  const d = await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
-  tablaActual.esquema = d;
-  tablaActual.modo    = 'insertar';
-  document.getElementById('crud-modal-title').textContent  = `Insertar en ${tabla}`;
-  document.getElementById('crud-submit-btn').textContent   = 'Insertar';
-  renderCrudForm(d, null);
-  abrirModal('modal-crud');
+
+  try {
+    const esq   = await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
+    const datos = await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
+    const pkCol = esq.columnas.find(c => c.Key === 'PRI')?.Field;
+
+    let nextId = '';
+    if (pkCol && datos.rows?.length) {
+      const max = Math.max(...datos.rows.map(r => parseInt(r[pkCol]) || 0));
+      nextId = max + 1;
+    } else {
+      nextId = 1;
+    }
+
+    tablaActual.esquema = esq;
+    tablaActual.modo    = 'insertar';
+    tablaActual.nextId  = nextId;
+
+    document.getElementById('crud-modal-title').textContent  = `Insertar en ${tabla}`;
+    document.getElementById('crud-submit-btn').textContent   = 'Insertar';
+
+    renderCrudForm(esq, null);
+    abrirModal('modal-crud');
+
+  } catch (e) {
+    toast('Error al preparar formulario','err');
+    console.error(e);
+  }
 }
 
 async function abrirEditar(tabla, pk, pkv) {
@@ -880,24 +961,103 @@ async function abrirEditar(tabla, pk, pkv) {
 function renderCrudForm(esq, vals) {
   const c = document.getElementById('crud-form-fields');
   c.innerHTML = '';
+
   esq.columnas.forEach(col => {
-    const name = col.Field, val = vals ? (vals[name]??'') : '';
-    const isAI = (col.Extra||'').toLowerCase().includes('auto_increment');
-    const isPK = col.Key==='PRI';
-    const div  = document.createElement('div');
-    div.className = 'form-field';
-    if (esq.fk_map[name]) {
-      const opts = esq.opciones[name]||[];
-      div.innerHTML = `<label>${name}</label>
-        <select data-field="${name}" ${isPK?'disabled':''}>
-          <option value="">— seleccionar —</option>
-          ${opts.map(o=>`<option value="${o.value}" ${String(o.value)===String(val)?'selected':''}>${o.label}</option>`).join('')}
-        </select>`;
-    } else {
-      const ro = isPK && tablaActual.modo==='editar';
-      div.innerHTML = `<label>${name}${isAI?' (auto)':''}</label>
-        <input data-field="${name}" type="text" value="${val}" placeholder="${col.Type}" ${ro||isAI?'readonly':''}/>`;
+    const name = col.Field;
+    let val = vals ? (vals[name] ?? '') : '';
+    const isPK = col.Key === 'PRI';
+
+    if (!vals && isPK && tablaActual.nextId) {
+      val = tablaActual.nextId;
     }
+
+    const isEditing = tablaActual.modo === 'editar';
+    const div = document.createElement('div');
+    div.className = 'form-field';
+
+    // ── FOREIGN KEYS ───────────────────
+    if (esq.fk_map[name]) {
+      const opts = esq.opciones[name] || [];
+      div.innerHTML = `
+        <label>${name}</label>
+        <select data-field="${name}" ${isPK && isEditing ? 'disabled' : ''}>
+          <option value="">— seleccionar —</option>
+          ${opts.map(o => `
+            <option value="${o.value}" ${String(o.value) === String(val) ? 'selected' : ''}>
+              ${o.label}
+            </option>`).join('')}
+        </select>
+      `;
+    }
+    // ── INPUT CON TIPO ESTRICTO POR COLUMNA ───────────────────
+    else {
+      const readOnly = isPK && isEditing;
+      const colType  = col.Type.toLowerCase();
+
+      let inputType  = 'text';
+      let extraAttrs = '';
+      let placeholder = '';
+
+      if (colType === 'date') {
+        inputType   = 'date';
+        placeholder = 'YYYY-MM-DD';
+      } else if (/^(datetime|timestamp)(\(\d+\))?$/.test(colType)) {
+        inputType   = 'datetime-local';
+        placeholder = 'YYYY-MM-DD HH:MM';
+      } else if (/^time(\(\d+\))?$/.test(colType)) {
+        inputType   = 'time';
+        placeholder = 'HH:MM';
+      } else if (/^(tinyint|smallint|mediumint|bigint|int)(\(\d+\))?$/.test(colType) || /^bool(ean)?$/.test(colType)) {
+        inputType  = 'number';
+        const isBool = /^(bool(ean)?|tinyint\(1\))$/.test(colType);
+        if (isBool) {
+          extraAttrs  = 'step="1" min="0" max="1"';
+          placeholder = '0 o 1';
+        } else {
+          extraAttrs  = 'step="1"';
+          placeholder = 'Solo números enteros';
+        }
+      } else if (/^(decimal|numeric|float|double|real)(\(\d+,\d+\))?$/.test(colType)) {
+        inputType   = 'number';
+        extraAttrs  = 'step="any"';
+        placeholder = 'Número decimal';
+      } else if (colType === 'year' || colType === 'year(4)') {
+        inputType   = 'number';
+        extraAttrs  = 'step="1" min="1900" max="2100"';
+        placeholder = 'YYYY';
+      } else {
+        inputType = 'text';
+        const lenMatch = colType.match(/\((\d+)\)/);
+        if (lenMatch) {
+          extraAttrs  = `maxlength="${lenMatch[1]}"`;
+          placeholder = `Máx. ${lenMatch[1]} caracteres`;
+        } else {
+          placeholder = col.Type;
+        }
+      }
+
+      // ── Formatear valor existente para inputs de fecha ──
+      if (val) {
+        if (inputType === 'datetime-local') {
+          val = String(val).replace(' ', 'T').substring(0, 16);
+        } else if (inputType === 'date') {
+          val = String(val).substring(0, 10);
+        }
+      }
+
+      div.innerHTML = `
+        <label>${name}</label>
+        <input
+          data-field="${name}"
+          type="${inputType}"
+          value="${val}"
+          placeholder="${placeholder}"
+          ${extraAttrs}
+          ${readOnly ? 'readonly' : ''}
+        />
+      `;
+    }
+
     c.appendChild(div);
   });
 }

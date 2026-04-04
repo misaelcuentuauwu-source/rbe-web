@@ -168,6 +168,22 @@ def crud_leer(request, tabla):
                 JOIN edo_viaje ev ON ev.numero = v.estado
                 LIMIT 500
             """)
+        elif tabla == 'ruta':
+            cur.execute("""
+                SELECT r.codigo,
+                       r.duracion,
+                       CONCAT(corig.nombre, ' → ', cdest.nombre) AS ruta,
+                       CONCAT(tor.nombre, ' (', corig.nombre, ')') AS origen,
+                       CONCAT(tdes.nombre, ' (', cdest.nombre, ')') AS destino,
+                       r.precio
+                FROM ruta r
+                JOIN terminal tor  ON r.origen  = tor.numero
+                JOIN terminal tdes ON r.destino  = tdes.numero
+                JOIN ciudad corig  ON tor.ciudad = corig.clave
+                JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                ORDER BY r.codigo
+                LIMIT 500
+            """)
         else:
             cur.execute(f"SELECT * FROM `{tabla}` LIMIT 500")
 
@@ -203,6 +219,22 @@ def crud_esquema(request, tabla):
             for col, fk in fk_map.items():
                 rt = fk['ref_table']
                 rc = fk['ref_col']
+
+                # Caso especial: ruta → mostrar origen → destino
+                if rt == 'ruta':
+                    cur2.execute("""
+                        SELECT r.codigo,
+                               CONCAT('#', r.codigo, ' — ', corig.nombre, ' → ', cdest.nombre, ' (', r.duracion, ')')
+                        FROM ruta r
+                        JOIN terminal tor  ON r.origen  = tor.numero
+                        JOIN terminal tdes ON r.destino = tdes.numero
+                        JOIN ciudad corig  ON tor.ciudad = corig.clave
+                        JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                        ORDER BY r.codigo
+                    """)
+                    opciones[col] = [{'value': r[0], 'label': r[1]} for r in cur2.fetchall()]
+                    continue
+
                 cur2.execute(f"SHOW COLUMNS FROM `{rt}`")
                 rt_cols = [r[0] for r in cur2.fetchall()]
                 display = next(
@@ -212,7 +244,6 @@ def crud_esquema(request, tabla):
                 cur2.execute(f"SELECT `{rc}`, `{display}` FROM `{rt}` LIMIT 1000")
                 opciones[col] = [{'value': r[0], 'label': str(r[1])} for r in cur2.fetchall()]
     return JsonResponse({'columnas': columnas, 'fk_map': fk_map, 'opciones': opciones})
-
 @require_POST
 @admin_requerido
 def crud_insertar(request, tabla):
