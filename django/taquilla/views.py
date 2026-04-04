@@ -3,7 +3,7 @@ from django.http import JsonResponse
 from django.contrib import messages
 from django.utils import timezone
 from django.db import transaction
-from django.core.mail import send_mail
+from django.core.mail import send_mail, EmailMultiAlternatives
 from django.views.decorators.http import require_POST
 from .models import Taquillero, Terminal, Viaje, Pasajero, Pago, Ticket, TipoPago, TipoPasajero, ViajeAsiento, Asiento, CuentaPasajero
 from datetime import date, datetime, timedelta
@@ -753,7 +753,6 @@ def kpi_generales(request):
             WHERE DATE(v.fecHoraSalida) BETWEEN %s AND %s
             GROUP BY ci.clave ORDER BY total DESC LIMIT 5
         """, [desde, hasta]),
-        # ── Métricas económicas ───────────────────────────────────
         'eco_resumen': qall("""
             SELECT
                 COALESCE(SUM(p.monto), 0)                          AS total_recaudado,
@@ -902,67 +901,43 @@ def kpi_filtros_opciones(request):
 @api_view(['GET'])
 def api_viajes(request):
     origen   = request.GET.get('origen')
-    destino  = request.GET.get('destino')   # puede ser 'todas' o None
+    destino  = request.GET.get('destino')
     fecha    = request.GET.get('fecha')
     cercanos = request.GET.get('cercanos') == 'true'
-
     viajes = Viaje.objects.filter(estado=1)
-
     if origen:
         viajes = viajes.filter(ruta__origen__numero=origen)
-
-    # Si destino es 'todas' o vacío, no filtramos por destino
     if destino and destino != 'todas':
         viajes = viajes.filter(ruta__destino__numero=destino)
-
     if fecha:
         fecha_dt  = datetime.strptime(fecha, '%Y-%m-%d')
         fecha_fin = fecha_dt + timedelta(days=1)
-        viajes_fecha = viajes.filter(
-            fechorasalida__gte=fecha_dt,
-            fechorasalida__lt=fecha_fin
-        )
 
-        # ── Lógica de viajes cercanos ──────────────────────────
+        # Si buscan para hoy, filtrar desde ahora + 1 hora
+        hoy = datetime.now().date()
+        if fecha_dt.date() == hoy:
+            desde = datetime.now() + timedelta(hours=1)
+        else:
+            desde = fecha_dt
+
+        viajes_fecha = viajes.filter(fechorasalida__gte=desde, fechorasalida__lt=fecha_fin)
         if viajes_fecha.exists():
-            # Hay viajes en la fecha exacta → respuesta normal
             serializer = ViajeListSerializer(viajes_fecha, many=True)
             return Response(serializer.data)
-
         elif cercanos:
-            # No hay en la fecha exacta → buscar el día más cercano futuro
-            viaje_cercano = viajes.filter(
-                fechorasalida__gte=fecha_dt
-            ).order_by('fechorasalida').first()
-
+            # También aplicar el filtro de 1 hora para viajes cercanos
+            viaje_cercano = viajes.filter(fechorasalida__gte=desde).order_by('fechorasalida').first()
             if viaje_cercano:
-                # Traer todos los viajes de ese mismo día
-                fecha_real    = viaje_cercano.fechorasalida.date()
+                fecha_real     = viaje_cercano.fechorasalida.date()
                 fecha_real_fin = datetime.combine(fecha_real, datetime.max.time())
                 fecha_real_ini = datetime.combine(fecha_real, datetime.min.time())
-                viajes_cercanos = viajes.filter(
-                    fechorasalida__gte=fecha_real_ini,
-                    fechorasalida__lte=fecha_real_fin
-                )
+                viajes_cercanos = viajes.filter(fechorasalida__gte=fecha_real_ini, fechorasalida__lte=fecha_real_fin)
                 serializer = ViajeListSerializer(viajes_cercanos, many=True)
-                return Response({
-                    'viajes':     serializer.data,
-                    'fecha_real': str(fecha_real),
-                    'exacta':     False,
-                })
+                return Response({'viajes': serializer.data, 'fecha_real': str(fecha_real), 'exacta': False})
             else:
-                # No hay ningún viaje futuro
-                return Response({
-                    'viajes':     [],
-                    'fecha_real': None,
-                    'exacta':     False,
-                })
+                return Response({'viajes': [], 'fecha_real': None, 'exacta': False})
         else:
-            # Sin cercanos, devolver lista vacía normal
-            serializer = ViajeListSerializer([], many=True)
-            return Response(serializer.data)
-
-    # Sin fecha → devolver todos los que coincidan con origen/destino
+            return Response(ViajeListSerializer([], many=True).data)
     serializer = ViajeListSerializer(viajes, many=True)
     return Response(serializer.data)
 
@@ -971,7 +946,6 @@ def api_viaje_detalle(request, id):
     from django.db import connection
     try:
         with connection.cursor() as cur:
-            # Datos del viaje
             cur.execute("""
                 SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
                        r.precio, r.duracion,
@@ -990,7 +964,6 @@ def api_viaje_detalle(request, id):
             row = cur.fetchone()
             if not row:
                 return Response({'error': 'Viaje no encontrado'}, status=404)
-
             viaje_data = {
                 'numero': row[0],
                 'fechorasalida': str(row[1]),
@@ -1002,42 +975,27 @@ def api_viaje_detalle(request, id):
                     'destino': {'ciudad': {'nombre': row[8]}},
                 }
             }
-
-            # Asientos con estado ocupado REAL desde viaje_asiento
             cur.execute("""
                 SELECT a.numero, ta.codigo AS tipo_codigo,
-                       ta.descripcion AS tipo_desc,
-                       va.ocupado
+                       ta.descripcion AS tipo_desc, va.ocupado
                 FROM viaje_asiento va
                 JOIN asiento a       ON va.asiento = a.numero
                 JOIN tipo_asiento ta ON a.tipo = ta.codigo
                 WHERE va.viaje = %s
                 ORDER BY a.numero
             """, [id])
-
             asientos = []
             for r in cur.fetchall():
                 asientos.append({
                     'ocupado': 1 if r[3] else 0,
-                    'asiento': {
-                        'numero': r[0],
-                        'tipo': {
-                            'codigo':      r[1],
-                            'descripcion': r[2],
-                        }
-                    }
+                    'asiento': {'numero': r[0], 'tipo': {'codigo': r[1], 'descripcion': r[2]}}
                 })
-
             viaje_data['asientos'] = asientos
-            # También devolver cuántos disponibles (útil para resultados_screen)
-            viaje_data['asientos_disponibles'] = sum(
-                1 for a in asientos if a['ocupado'] == 0
-            )
-
+            viaje_data['asientos_disponibles'] = sum(1 for a in asientos if a['ocupado'] == 0)
         return Response(viaje_data)
-
     except Exception as e:
         return Response({'error': str(e)}, status=500)
+
 @api_view(['GET'])
 def api_terminales(request):
     terminales = Terminal.objects.all()
@@ -1066,22 +1024,12 @@ def autobus_detalle(request, bus_id):
                 FROM asiento a
                 JOIN tipo_asiento ta ON a.tipo = ta.codigo
                 WHERE a.autobus = %s
-                GROUP BY a.tipo
-                ORDER BY cantidad DESC
+                GROUP BY a.tipo ORDER BY cantidad DESC
             """, [bus_id])
-            tipos = [
-                {'descripcion': r[0], 'codigo': r[1], 'cantidad': r[2]}
-                for r in cur.fetchall()
-            ]
-        return JsonResponse({
-            'numero':       numero,
-            'placas':       placas,
-            'marca':        marca,
-            'modelo':       modelo,
-            'anio':         anio,
-            'num_asientos': num_asientos,
-            'tipos_asiento': tipos,
-        })
+            tipos = [{'descripcion': r[0], 'codigo': r[1], 'cantidad': r[2]} for r in cur.fetchall()]
+        return JsonResponse({'numero': numero, 'placas': placas, 'marca': marca,
+                             'modelo': modelo, 'anio': anio, 'num_asientos': num_asientos,
+                             'tipos_asiento': tipos})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -1091,8 +1039,7 @@ def viaje_pasajeros(request, viaje_id):
     try:
         with connection.cursor() as cur:
             cur.execute("""
-                SELECT corig.nombre, cdest.nombre,
-                       v.fecHoraSalida, v.autobus
+                SELECT corig.nombre, cdest.nombre, v.fecHoraSalida, v.autobus
                 FROM viaje v
                 JOIN ruta r        ON v.ruta      = r.codigo
                 JOIN terminal tor  ON r.origen     = tor.numero
@@ -1121,15 +1068,9 @@ def viaje_pasajeros(request, viaje_id):
             cols = [d[0] for d in cur.description]
             pasajeros = [dict(zip(cols, r)) for r in cur.fetchall()]
         salida_str = salida.isoformat() if hasattr(salida, 'isoformat') else str(salida)
-        return JsonResponse({
-            'viaje': {
-                'origen':  origen,
-                'destino': destino,
-                'salida':  salida_str,
-                'autobus': autobus,
-            },
-            'pasajeros': pasajeros,
-        })
+        return JsonResponse({'viaje': {'origen': origen, 'destino': destino,
+                                       'salida': salida_str, 'autobus': autobus},
+                             'pasajeros': pasajeros})
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
@@ -1160,15 +1101,165 @@ def api_login(request):
         return Response({'error': 'Credenciales incorrectas'}, status=401)
 
 
+def _html_correo(pago, viaje, tickets):
+    fecha_viaje  = viaje.fechorasalida.strftime('%d/%m/%Y')
+    hora_salida  = viaje.fechorasalida.strftime('%H:%M')
+    hora_llegada = viaje.fechoraentrada.strftime('%H:%M')
+
+    filas = ''
+    for t in tickets:
+        filas += f"""
+        <tr>
+            <td style="padding:6px 12px;border-bottom:1px solid #eeeeee;font-size:13px;">{t.pasajero.panombre} {t.pasajero.paprimerapell}</td>
+            <td style="padding:6px 12px;border-bottom:1px solid #eeeeee;font-size:13px;text-align:center;">{t.asiento.numero}</td>
+            <td style="padding:6px 12px;border-bottom:1px solid #eeeeee;font-size:13px;text-align:center;">{t.tipopasajero.descripcion}</td>
+            <td style="padding:6px 12px;border-bottom:1px solid #eeeeee;font-size:13px;text-align:right;">${float(t.precio):.2f} MXN</td>
+        </tr>
+        """
+
+    return f"""<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f9f9f9;font-family:Arial,sans-serif;color:#222222;">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td align="center" style="padding:30px 10px;">
+      <table width="540" cellpadding="0" cellspacing="0"
+             style="background:#ffffff;border:1px solid #dddddd;border-radius:4px;">
+
+        <!-- ENCABEZADO -->
+        <tr>
+          <td style="padding:24px 32px;border-bottom:2px solid #222222;">
+            <p style="margin:0;font-size:11px;letter-spacing:2px;color:#666666;">RUTAS BAJA EXPRESS</p>
+            <h2 style="margin:6px 0 0;font-size:20px;color:#222222;">Confirmacion de Compra</h2>
+          </td>
+        </tr>
+
+        <!-- FOLIO -->
+        <tr>
+          <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td>
+                  <p style="margin:0;font-size:11px;color:#888888;">NUMERO DE FOLIO</p>
+                  <p style="margin:4px 0 0;font-size:22px;font-weight:bold;">#{pago.numero}</p>
+                </td>
+                <td align="right">
+                  <p style="margin:0;font-size:11px;color:#888888;">FECHA DE COMPRA</p>
+                  <p style="margin:4px 0 0;font-size:14px;">{pago.fechapago.strftime('%d/%m/%Y %H:%M')}</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- RUTA -->
+        <tr>
+          <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+            <p style="margin:0 0 10px;font-size:11px;color:#888888;letter-spacing:1px;">RUTA</p>
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td>
+                  <p style="margin:0;font-size:11px;color:#888888;">ORIGEN</p>
+                  <p style="margin:4px 0 0;font-size:16px;font-weight:bold;">{viaje.ruta.origen.ciudad.nombre}</p>
+                </td>
+                <td align="center" style="font-size:18px;color:#888888;">→</td>
+                <td align="right">
+                  <p style="margin:0;font-size:11px;color:#888888;">DESTINO</p>
+                  <p style="margin:4px 0 0;font-size:16px;font-weight:bold;">{viaje.ruta.destino.ciudad.nombre}</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- FECHA Y HORA -->
+        <tr>
+          <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+            <p style="margin:0 0 10px;font-size:11px;color:#888888;letter-spacing:1px;">FECHA Y HORA</p>
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td width="48%">
+                  <p style="margin:0;font-size:11px;color:#888888;">SALIDA</p>
+                  <p style="margin:4px 0 0;font-size:14px;font-weight:bold;">{fecha_viaje} &nbsp; {hora_salida}</p>
+                </td>
+                <td width="4%"></td>
+                <td width="48%">
+                  <p style="margin:0;font-size:11px;color:#888888;">LLEGADA ESTIMADA</p>
+                  <p style="margin:4px 0 0;font-size:14px;font-weight:bold;">{fecha_viaje} &nbsp; {hora_llegada}</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- PASAJEROS -->
+        <tr>
+          <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+            <p style="margin:0 0 10px;font-size:11px;color:#888888;letter-spacing:1px;">PASAJEROS</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #eeeeee;">
+              <tr style="background:#f5f5f5;">
+                <th style="padding:7px 12px;text-align:left;font-size:11px;color:#888888;font-weight:600;">NOMBRE</th>
+                <th style="padding:7px 12px;text-align:center;font-size:11px;color:#888888;font-weight:600;">ASIENTO</th>
+                <th style="padding:7px 12px;text-align:center;font-size:11px;color:#888888;font-weight:600;">TIPO</th>
+                <th style="padding:7px 12px;text-align:right;font-size:11px;color:#888888;font-weight:600;">PRECIO</th>
+              </tr>
+              {filas}
+            </table>
+          </td>
+        </tr>
+
+        <!-- TOTAL -->
+        <tr>
+          <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td>
+                  <p style="margin:0;font-size:11px;color:#888888;">METODO DE PAGO</p>
+                  <p style="margin:4px 0 0;font-size:14px;font-weight:bold;">{pago.tipo.nombre}</p>
+                </td>
+                <td align="right">
+                  <p style="margin:0;font-size:11px;color:#888888;">TOTAL PAGADO</p>
+                  <p style="margin:4px 0 0;font-size:20px;font-weight:bold;">${float(pago.monto):.2f} MXN</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- AVISO -->
+        <tr>
+          <td style="padding:20px 32px;border-bottom:1px solid #eeeeee;">
+            <p style="margin:0;font-size:13px;color:#444444;">
+              Presentate en la terminal <strong>30 minutos antes</strong> de la salida con este folio.
+              Tu boleto en PDF se adjunta a este correo.
+            </p>
+          </td>
+        </tr>
+
+        <!-- PIE -->
+        <tr>
+          <td style="padding:16px 32px;">
+            <p style="margin:0;font-size:11px;color:#aaaaaa;text-align:center;letter-spacing:1px;">
+              RUTAS BAJA EXPRESS · BUS TICKET
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
+
+
 @api_view(['POST'])
 def api_comprar(request):
     try:
-        data = request.data
-        viaje_id = data.get('viaje_id')
-        tipo_pago_id = data.get('tipo_pago')
-        pasajeros = data.get('pasajeros')
-        monto_total = data.get('monto_total')
-        vendedor_id = data.get('vendedor_id')
+        data            = request.data
+        viaje_id        = data.get('viaje_id')
+        tipo_pago_id    = data.get('tipo_pago')
+        pasajeros       = data.get('pasajeros')
+        monto_total     = data.get('monto_total')
+        vendedor_id     = data.get('vendedor_id')
         correo_contacto = data.get('correo_contacto', '')
 
         with transaction.atomic():
@@ -1191,42 +1282,34 @@ def api_comprar(request):
             es_primer_pasajero = True
             for p in pasajeros:
                 ano_nacimiento = date.today().year - p['edad']
-
                 if es_primer_pasajero and vendedor is None and vendedor_id:
                     try:
                         pasajero = Pasajero.objects.get(num=vendedor_id)
                     except Pasajero.DoesNotExist:
                         pasajero = Pasajero.objects.create(
-                            panombre=p['nombre'],
-                            paprimerapell=p['primer_apellido'],
+                            panombre=p['nombre'], paprimerapell=p['primer_apellido'],
                             pasegundoapell=p.get('segundo_apellido', None),
                             fechanacimiento=date(ano_nacimiento, 1, 1),
                         )
                 else:
                     pasajero = Pasajero.objects.create(
-                        panombre=p['nombre'],
-                        paprimerapell=p['primer_apellido'],
+                        panombre=p['nombre'], paprimerapell=p['primer_apellido'],
                         pasegundoapell=p.get('segundo_apellido', None),
                         fechanacimiento=date(ano_nacimiento, 1, 1),
                     )
-
                 es_primer_pasajero = False
 
-                tipo_map = {'Adulto': 1, 'Estudiante': 4, 'INAPAM': 3, 'Discapacidad': 5}
+                tipo_map         = {'Adulto': 1, 'Estudiante': 4, 'INAPAM': 3, 'Discapacidad': 5}
                 tipo_pasajero_id = tipo_map.get(p['tipo'], 1)
-                tipo_pasajero = TipoPasajero.objects.get(num=tipo_pasajero_id)
-                precio_base = viaje.ruta.precio
-                descuento = tipo_pasajero.descuento
-                precio_final = float(precio_base) * (1 - descuento / 100)
-                asiento = Asiento.objects.get(numero=p['asiento_id'])
+                tipo_pasajero    = TipoPasajero.objects.get(num=tipo_pasajero_id)
+                precio_base      = viaje.ruta.precio
+                descuento        = tipo_pasajero.descuento
+                precio_final     = float(precio_base) * (1 - descuento / 100)
+                asiento          = Asiento.objects.get(numero=p['asiento_id'])
                 ticket = Ticket.objects.create(
-                    precio=precio_final,
-                    fechaemision=timezone.now(),
-                    asiento=asiento,
-                    viaje=viaje,
-                    pasajero=pasajero,
-                    tipopasajero=tipo_pasajero,
-                    pago=pago
+                    precio=precio_final, fechaemision=timezone.now(),
+                    asiento=asiento, viaje=viaje, pasajero=pasajero,
+                    tipopasajero=tipo_pasajero, pago=pago
                 )
                 tickets_creados.append(ticket)
                 from django.db import connection
@@ -1235,59 +1318,6 @@ def api_comprar(request):
                         "UPDATE viaje_asiento SET ocupado = 1 WHERE asiento = %s AND viaje = %s",
                         [asiento.numero, viaje.numero]
                     )
-
-        if correo_contacto:
-            try:
-                fecha_viaje = viaje.fechorasalida.strftime('%d/%m/%Y')
-                hora_salida = viaje.fechorasalida.strftime('%H:%M')
-                hora_llegada = viaje.fechoraentrada.strftime('%H:%M')
-                lista_pasajeros = ''
-                for t in tickets_creados:
-                    lista_pasajeros += (
-                        f"  • {t.pasajero.panombre} {t.pasajero.paprimerapell}"
-                        f" | Asiento {t.asiento.numero}"
-                        f" | {t.tipopasajero.descripcion}"
-                        f" | ${float(t.precio):.2f} MXN\n"
-                    )
-                mensaje = f"""
-Hola, gracias por viajar con Rutas Baja Express 🚌
-
-Tu compra ha sido confirmada exitosamente.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  FOLIO DE COMPRA: #{pago.numero}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🗺  RUTA
-  {viaje.ruta.origen.ciudad.nombre} → {viaje.ruta.destino.ciudad.nombre}
-
-📅  FECHA Y HORA
-  {fecha_viaje}  |  Salida: {hora_salida}  →  Llegada: {hora_llegada}
-
-👥  PASAJEROS
-{lista_pasajeros}
-💳  MÉTODO DE PAGO
-  {pago.tipo.nombre}
-
-💰  TOTAL PAGADO
-  ${float(pago.monto):.2f} MXN
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Preséntate en la terminal 30 minutos antes de la salida con este folio.
-
-¡Buen viaje! 🌟
-Rutas Baja Express
-"""
-                send_mail(
-                    subject=f'✅ Confirmación de compra - Folio #{pago.numero} | Rutas Baja Express',
-                    message=mensaje,
-                    from_email=None,
-                    recipient_list=[correo_contacto],
-                    fail_silently=True,
-                )
-            except Exception as e:
-                print(f'Error enviando correo: {e}')
 
         return Response({'success': True, 'pago_id': pago.numero}, status=201)
 
@@ -1343,11 +1373,11 @@ def api_buscar_boleto(request, folio):
 @api_view(['POST'])
 def api_cliente_google_login(request):
     try:
-        data = request.data
+        data         = request.data
         firebase_uid = data.get('firebase_uid')
-        correo = data.get('correo')
-        nombre = data.get('nombre', '')
-        foto = data.get('foto', '')
+        correo       = data.get('correo')
+        nombre       = data.get('nombre', '')
+        foto         = data.get('foto', '')
 
         cuenta = CuentaPasajero.objects.filter(firebase_uid=firebase_uid).first()
         if not cuenta:
@@ -1359,20 +1389,15 @@ def api_cliente_google_login(request):
                 cuenta.save()
             pasajero = cuenta.pasajero_num
         else:
-            partes = nombre.strip().split(' ')
-            panombre = partes[0] if len(partes) > 0 else 'Usuario'
+            partes        = nombre.strip().split(' ')
+            panombre      = partes[0] if len(partes) > 0 else 'Usuario'
             paprimerapell = partes[1] if len(partes) > 1 else 'RBE'
             pasajero = Pasajero.objects.create(
-                panombre=panombre,
-                paprimerapell=paprimerapell,
-                fechanacimiento='2000-01-01',
+                panombre=panombre, paprimerapell=paprimerapell, fechanacimiento='2000-01-01',
             )
             cuenta = CuentaPasajero.objects.create(
-                pasajero_num=pasajero,
-                correo=correo,
-                firebase_uid=firebase_uid,
-                proveedor='google',
-                foto=foto,
+                pasajero_num=pasajero, correo=correo,
+                firebase_uid=firebase_uid, proveedor='google', foto=foto,
             )
 
         return Response({
@@ -1384,7 +1409,6 @@ def api_cliente_google_login(request):
             'foto': cuenta.foto or '',
             'proveedor': cuenta.proveedor,
         })
-
     except Exception as e:
         return Response({'error': str(e)}, status=400)
 
@@ -1392,9 +1416,7 @@ def api_cliente_google_login(request):
 @api_view(['GET'])
 def api_historial_cliente(request, cliente_id):
     try:
-        pagos = Pago.objects.filter(
-            ticket__pasajero__num=cliente_id
-        ).distinct().order_by('-fechapago')
+        pagos = Pago.objects.filter(ticket__pasajero__num=cliente_id).distinct().order_by('-fechapago')
         resultado = []
         for pago in pagos:
             tickets = Ticket.objects.filter(pago=pago)
@@ -1443,41 +1465,29 @@ def api_historial_taquillero(request, vendedor_id):
         return Response(resultado)
     except Exception as e:
         return Response({'error': str(e)}, status=400)
-    
+
 @api_view(['POST'])
 def api_cliente_registro(request):
     try:
-        data = request.data
+        data         = request.data
         firebase_uid = data.get('firebase_uid', '')
-        correo = data.get('correo', '')
-        nombre = data.get('nombre', '')
-        apellido = data.get('apellido', '')
-        contrasena = data.get('contrasena', '')
+        correo       = data.get('correo', '')
+        nombre       = data.get('nombre', '')
+        apellido     = data.get('apellido', '')
 
         if not correo or not nombre or not apellido:
             return Response({'error': 'Faltan campos obligatorios'}, status=400)
 
-        # Verificar si el correo ya existe en CuentaPasajero
-        # (cubre tanto registro manual como registro previo con Google/Facebook)
         if CuentaPasajero.objects.filter(correo=correo).exists():
             return Response({'error': 'Este correo ya está registrado'}, status=400)
 
-        # Crear el pasajero
         pasajero = Pasajero.objects.create(
-            panombre=nombre,
-            paprimerapell=apellido,
-            fechanacimiento='2000-01-01',
+            panombre=nombre, paprimerapell=apellido, fechanacimiento='2000-01-01',
         )
-
-        # Crear la cuenta
         cuenta = CuentaPasajero.objects.create(
-            pasajero_num=pasajero,
-            correo=correo,
-            firebase_uid=firebase_uid,
-            proveedor='email',
-            foto='',
+            pasajero_num=pasajero, correo=correo,
+            firebase_uid=firebase_uid, proveedor='email', foto='',
         )
-
         return Response({
             'tipo': 'cliente',
             'pasajero_num': pasajero.num,
@@ -1487,7 +1497,6 @@ def api_cliente_registro(request):
             'foto': '',
             'proveedor': 'email',
         }, status=201)
-
     except Exception as e:
         return Response({'error': str(e)}, status=400)
 
@@ -1495,7 +1504,7 @@ def api_cliente_registro(request):
 def api_cliente_login_email(request):
     try:
         firebase_uid = request.data.get('firebase_uid')
-        correo = request.data.get('correo')
+        correo       = request.data.get('correo')
 
         cuenta = None
         if firebase_uid:
@@ -1506,7 +1515,6 @@ def api_cliente_login_email(request):
         if not cuenta:
             return Response({'error': 'Usuario no encontrado'}, status=404)
 
-        # Actualizar firebase_uid si se registró antes sin él
         if firebase_uid and not cuenta.firebase_uid:
             cuenta.firebase_uid = firebase_uid
             cuenta.save()
@@ -1520,28 +1528,21 @@ def api_cliente_login_email(request):
             'foto': cuenta.foto or '',
             'proveedor': cuenta.proveedor,
         })
-
     except Exception as e:
         return Response({'error': str(e)}, status=400)
-    
+
 @api_view(['GET'])
 def api_verificar_pasajero(request):
-    correo = request.GET.get('correo', '').strip().lower()
+    correo   = request.GET.get('correo', '').strip().lower()
     viaje_id = request.GET.get('viaje_id', '')
-
     if not correo or not viaje_id:
         return Response({'error': 'Faltan parámetros'}, status=400)
-
     try:
-        # Buscar si hay alguna CuentaPasajero con ese correo
-        # que tenga un ticket en ese viaje
         duplicado = Ticket.objects.filter(
             viaje__numero=viaje_id,
             pasajero__cuentapasajero__correo__iexact=correo
         ).exists()
-
         return Response({'duplicado': duplicado})
-
     except Exception as e:
         return Response({'error': str(e)}, status=400)
 
@@ -1557,17 +1558,16 @@ def api_subir_foto_taquillero(request, taquillero_id):
     if 'foto' not in request.FILES:
         return Response({'error': 'No se envió ninguna foto'}, status=400)
 
-    archivo = request.FILES['foto']
-    carpeta = os.path.join(settings.MEDIA_ROOT, 'fotos_taquilleros')
+    archivo   = request.FILES['foto']
+    carpeta   = os.path.join(settings.MEDIA_ROOT, 'fotos_taquilleros')
     os.makedirs(carpeta, exist_ok=True)
 
-    # Borrar foto anterior si existe
     if taquillero.foto:
         ruta_anterior = os.path.join(settings.MEDIA_ROOT, taquillero.foto)
         if os.path.exists(ruta_anterior):
             os.remove(ruta_anterior)
 
-    nombre = f'taquillero_{taquillero_id}_{archivo.name}'
+    nombre        = f'taquillero_{taquillero_id}_{archivo.name}'
     ruta_relativa = f'fotos_taquilleros/{nombre}'
     ruta_completa = os.path.join(settings.MEDIA_ROOT, ruta_relativa)
 
@@ -1602,7 +1602,7 @@ def api_subir_foto_pasajero(request, pasajero_num):
         if os.path.exists(ruta_anterior):
             os.remove(ruta_anterior)
 
-    nombre = f'pasajero_{pasajero_num}_{archivo.name}'
+    nombre        = f'pasajero_{pasajero_num}_{archivo.name}'
     ruta_relativa = f'fotos_pasajeros/{nombre}'
     ruta_completa = os.path.join(settings.MEDIA_ROOT, ruta_relativa)
 
@@ -1617,38 +1617,52 @@ def api_subir_foto_pasajero(request, pasajero_num):
     return Response({'foto_url': foto_url})
 
 
-# ── Enviar boleto por correo ──────────────────────────────
+# ── Enviar boleto por correo (deshabilitado — se envía en api_comprar) ───
 @api_view(['POST'])
 def api_enviar_boleto_correo(request, pago_id):
     try:
-        data = json.loads(request.body)
+        data           = json.loads(request.body)
         correo_destino = data.get('correo', '')
+        pdf_base64     = data.get('pdf_base64', '')
+
         if not correo_destino:
             return Response({'error': 'Correo requerido'}, status=400)
 
         pago = Pago.objects.get(numero=pago_id)
         tickets = Ticket.objects.filter(pago=pago).select_related(
-            'pasajero', 'asiento', 'viaje__ruta__origen', 'viaje__ruta__destino', 'tipopasajero'
+            'pasajero', 'asiento',
+            'viaje__ruta__origen__ciudad',
+            'viaje__ruta__destino__ciudad',
+            'tipopasajero'
+        )
+        primer_ticket = tickets.first()
+        if not primer_ticket:
+            return Response({'error': 'No se encontraron tickets'}, status=404)
+
+        viaje       = primer_ticket.viaje
+        html        = _html_correo(pago, viaje, tickets)
+        texto_plano = (
+            f"Confirmación de compra - Folio #{pago_id}\n"
+            f"Ruta: {viaje.ruta.origen.ciudad.nombre} → {viaje.ruta.destino.ciudad.nombre}\n"
+            f"Salida: {viaje.fechorasalida.strftime('%d/%m/%Y %H:%M')}\n"
+            f"Total: ${float(pago.monto):.2f} MXN"
         )
 
-        lineas = [f'Folio de compra: #{pago_id}', '']
-        for t in tickets:
-            v = t.viaje
-            lineas.append(f'Pasajero: {t.pasajero.panombre} {t.pasajero.paprimerapell}')
-            lineas.append(f'Asiento: {t.asiento.numero}')
-            lineas.append(f'Ruta: {v.ruta.origen.nombre} → {v.ruta.destino.nombre}')
-            lineas.append(f'Salida: {v.fechorasalida.strftime("%d/%m/%Y %H:%M")}')
-            lineas.append(f'Precio: ${t.precio}')
-            lineas.append('')
-
-        send_mail(
-            subject=f'Tu boleto Rutas Baja Express - Folio #{pago_id}',
-            message='\n'.join(lineas),
+        email = EmailMultiAlternatives(
+            subject=f'Confirmación de compra - Folio #{pago_id} | Rutas Baja Express',
+            body=texto_plano,
             from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[correo_destino],
-            fail_silently=False,
+            to=[correo_destino],
         )
-        return Response({'ok': True, 'mensaje': f'Correo enviado a {correo_destino}'})
+        email.attach_alternative(html, "text/html")
+
+        if pdf_base64:
+            import base64
+            pdf_bytes = base64.b64decode(pdf_base64)
+            email.attach(f'Boleto_Folio_{pago_id}.pdf', pdf_bytes, 'application/pdf')
+
+        email.send(fail_silently=False)
+        return Response({'ok': True})
 
     except Pago.DoesNotExist:
         return Response({'error': 'Pago no encontrado'}, status=404)
