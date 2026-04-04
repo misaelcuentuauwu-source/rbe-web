@@ -148,7 +148,8 @@ class PdfBoleto {
     for (final p in pasajeros) {
       final nombre = '${p['nombre'] ?? ''} ${p['primer_apellido'] ?? ''}'
           .trim();
-      final asiento = p['asiento_id']?.toString() ?? '-';
+      final asiento =
+          (p['asiento_etiqueta'] ?? p['asiento_id'])?.toString() ?? '-';
       final tipo = p['tipo']?.toString() ?? 'Adulto';
       final precio =
           (p['precio_unitario'] as double?)?.toStringAsFixed(2) ?? '0.00';

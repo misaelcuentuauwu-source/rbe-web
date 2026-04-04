@@ -1,19 +1,14 @@
 import '../../utils/transitions.dart';
 import 'package:flutter/material.dart';
-import 'dart:convert';
-import 'dart:typed_data';
-import 'dart:ui' as ui;
-import 'package:printing/printing.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:qr_flutter/qr_flutter.dart';
-import 'package:http/http.dart' as http;
+import 'dart:convert'; // se usa en _buildExito para el correo
+import 'package:printing/printing.dart'; // se usa en _imprimirBoleto
 import '../taquillero/home_screen.dart';
 import '../cliente/home_screen.dart';
 import '../invitado/home_screen.dart';
 import '../../main.dart';
 import '../../config.dart';
 import '../../utils/pdf_boleto.dart';
+import 'dart:typed_data';
 
 class ResumenCompraScreen extends StatefulWidget {
   final int pagoId;
@@ -63,56 +58,6 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
 
   bool _imprimiendo = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _enviarPdfPorCorreo();
-  }
-
-  Future<void> _enviarPdfPorCorreo() async {
-    final contacto = widget.pasajeros.firstWhere(
-      (p) => p['esContacto'] == true,
-      orElse: () => {},
-    );
-    final correo = contacto['correo']?.toString() ?? '';
-    if (correo.isEmpty) return;
-
-    try {
-      final pdfBytes = await _generarPdf();
-      final pdfBase64 = base64Encode(pdfBytes);
-
-      await http
-          .post(
-            Uri.parse(
-              '${Config.baseUrl}/api/boleto/${widget.pagoId}/adjuntar_pdf/',
-            ),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'correo': correo, 'pdf_base64': pdfBase64}),
-          )
-          .timeout(const Duration(seconds: 30));
-    } catch (e) {
-      debugPrint('Error enviando PDF: $e');
-    }
-  }
-
-  Future<Uint8List> _generarQrBytes(String data) async {
-    final qrPainter = QrPainter(
-      data: data,
-      version: QrVersions.auto,
-      errorCorrectionLevel: QrErrorCorrectLevel.M,
-      color: const ui.Color(0xFF1C2D3A),
-      emptyColor: const ui.Color(0xFFFFFFFF),
-    );
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    const size = 300.0;
-    qrPainter.paint(canvas, const Size(size, size));
-    final picture = recorder.endRecording();
-    final image = await picture.toImage(size.toInt(), size.toInt());
-    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-    return byteData!.buffer.asUint8List();
-  }
-
   Future<Uint8List> _generarPdf() async {
     return PdfBoleto.generar(
       pagoId: widget.pagoId,
@@ -124,62 +69,6 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
       montoTotal: widget.montoTotal,
       pasajeros: widget.pasajeros,
       metodoPago: widget.metodoPago,
-    );
-  }
-
-  static String _descAsiento(String tipo) {
-    switch (tipo) {
-      case 'Estudiante':
-        return 'Estudiante 25% desc.';
-      case 'INAPAM':
-        return 'INAPAM 30% desc.';
-      case 'Discapacidad':
-        return 'Discapacidad 15% desc.';
-      default:
-        return 'Adulto';
-    }
-  }
-
-  static String _abreviatura(String ciudad) {
-    final words = ciudad.trim().split(' ');
-    if (words.length == 1) {
-      return ciudad.substring(0, ciudad.length.clamp(0, 3)).toUpperCase();
-    }
-    final siglas = words
-        .where((w) => w.length > 2)
-        .take(3)
-        .map((w) => w[0].toUpperCase())
-        .join();
-    return siglas.isEmpty ? ciudad.substring(0, 3).toUpperCase() : siglas;
-  }
-
-  static pw.Widget _infoBlock(
-    String label,
-    String value,
-    PdfColor labelColor,
-    PdfColor valueColor,
-  ) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Text(
-          label,
-          style: pw.TextStyle(
-            color: labelColor,
-            fontSize: 6,
-            letterSpacing: 1.2,
-          ),
-        ),
-        pw.SizedBox(height: 3),
-        pw.Text(
-          value,
-          style: pw.TextStyle(
-            color: valueColor,
-            fontSize: 9.5,
-            fontWeight: pw.FontWeight.bold,
-          ),
-        ),
-      ],
     );
   }
 
@@ -207,26 +96,6 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
     } finally {
       if (mounted) setState(() => _imprimiendo = false);
     }
-  }
-
-  String _hoyStr() {
-    final now = DateTime.now();
-    const meses = [
-      '',
-      'Ene',
-      'Feb',
-      'Mar',
-      'Abr',
-      'May',
-      'Jun',
-      'Jul',
-      'Ago',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dic',
-    ];
-    return '${now.day} ${meses[now.month]} ${now.year}';
   }
 
   @override
@@ -618,7 +487,7 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '$tipo · Asiento ${p['asiento_id']}',
+                          '$tipo · Asiento ${p['asiento_etiqueta'] ?? p['asiento_id']}',
                           style: TextStyle(
                             fontSize: 12,
                             color: textoSecundario,

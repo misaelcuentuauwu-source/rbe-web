@@ -40,69 +40,41 @@ class SeatSelectionScreen extends StatefulWidget {
 
 class _SeatSelectionScreenState extends State<SeatSelectionScreen>
     with TickerProviderStateMixin {
-  // ─── Colores ───────────────────────────────────────────────────────────────
   static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
   static const morado = Color(0xFF7B2FBE);
   static const grisOc = Color(0xFFB0B8C1);
   static const fondoApp = Color(0xFFF0F4F8);
 
-  // ─── Estado ────────────────────────────────────────────────────────────────
   List<dynamic> asientos = [];
   List<int> seleccionados = [];
   bool cargando = true;
 
-  // ─── Animaciones ───────────────────────────────────────────────────────────
-  late AnimationController _busEntradaCtrl;
-  late Animation<Offset> _busSlide;
-  late Animation<double> _busFade;
-
-  late AnimationController _asientosCtrl;
-  late Animation<double> _asientosFade;
-  late Animation<double> _asientosScale;
+  late AnimationController _entradaCtrl;
+  late Animation<double> _fadeAnim;
+  late Animation<double> _scaleAnim;
 
   @override
   void initState() {
     super.initState();
-
-    // Autobús: entra desde la derecha
-    _busEntradaCtrl = AnimationController(
+    _entradaCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 750),
+      duration: const Duration(milliseconds: 600),
     );
-    _busSlide = Tween<Offset>(begin: const Offset(1.2, 0), end: Offset.zero)
-        .animate(
-          CurvedAnimation(parent: _busEntradaCtrl, curve: Curves.easeOutCubic),
-        );
-    _busFade = CurvedAnimation(
-      parent: _busEntradaCtrl,
-      curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
-    );
-
-    // Asientos: aparecen después del autobús
-    _asientosCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 500),
-    );
-    _asientosFade = CurvedAnimation(
-      parent: _asientosCtrl,
-      curve: Curves.easeOut,
-    );
-    _asientosScale = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _asientosCtrl, curve: Curves.easeOutBack),
-    );
-
+    _fadeAnim = CurvedAnimation(parent: _entradaCtrl, curve: Curves.easeOut);
+    _scaleAnim = Tween<double>(
+      begin: 0.94,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _entradaCtrl, curve: Curves.easeOutBack));
     cargarAsientos();
   }
 
   @override
   void dispose() {
-    _busEntradaCtrl.dispose();
-    _asientosCtrl.dispose();
+    _entradaCtrl.dispose();
     super.dispose();
   }
 
-  // ─── Carga de datos ────────────────────────────────────────────────────────
   Future<void> cargarAsientos() async {
     try {
       final response = await http
@@ -111,21 +83,11 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final lista = List<dynamic>.from(data['asientos']);
-        lista.sort((a, b) {
-          final at = a['asiento']['tipo']['codigo'];
-          final bt = b['asiento']['tipo']['codigo'];
-          if (at == 'DIS' && bt != 'DIS') return -1;
-          if (at != 'DIS' && bt == 'DIS') return 1;
-          return 0;
-        });
         setState(() {
           asientos = lista;
           cargando = false;
         });
-        // Secuencia de animación
-        await _busEntradaCtrl.forward();
-        await Future.delayed(const Duration(milliseconds: 120));
-        _asientosCtrl.forward();
+        _entradaCtrl.forward();
       } else {
         setState(() => cargando = false);
       }
@@ -135,7 +97,6 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
     }
   }
 
-  // ─── Lógica de asientos ────────────────────────────────────────────────────
   Color _colorAsiento(Map asiento) {
     final num = asiento['asiento']['numero'];
     final ocupado = asiento['ocupado'] == 1;
@@ -174,7 +135,28 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
     });
   }
 
-  // ─── Build principal ───────────────────────────────────────────────────────
+  String _etiquetaDeAsiento(int numeroAsiento) {
+    const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    final disAsientos = asientos
+        .where((a) => a['asiento']['tipo']['codigo'] == 'DIS')
+        .toList();
+    final normAsientos = asientos
+        .where((a) => a['asiento']['tipo']['codigo'] != 'DIS')
+        .toList();
+    for (int i = 0; i < disAsientos.length; i++) {
+      if (disAsientos[i]['asiento']['numero'] == numeroAsiento)
+        return 'D${i + 1}';
+    }
+    for (int i = 0; i < normAsientos.length; i++) {
+      if (normAsientos[i]['asiento']['numero'] == numeroAsiento) {
+        final filaIndex = i ~/ 4;
+        final colIndex = i % 4;
+        return '${letras[filaIndex % letras.length]}${colIndex + 1}';
+      }
+    }
+    return '$numeroAsiento';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -205,9 +187,8 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
     );
   }
 
-  Widget _buildLoader() {
-    return const Center(child: CircularProgressIndicator(color: azul));
-  }
+  Widget _buildLoader() =>
+      const Center(child: CircularProgressIndicator(color: azul));
 
   Widget _buildBody() {
     return LayoutBuilder(
@@ -220,28 +201,22 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
     );
   }
 
-  // ─── Portrait ──────────────────────────────────────────────────────────────
   Widget _buildPortrait(BoxConstraints constraints) {
     return Column(
       children: [
-        Expanded(
-          child: _buildBusArea(constraints: constraints, isLandscape: false),
-        ),
+        Expanded(child: _buildScrollArea(constraints, isLandscape: false)),
         _buildLeyendaBar(),
         _buildBotonConfirmar(),
       ],
     );
   }
 
-  // ─── Landscape ─────────────────────────────────────────────────────────────
   Widget _buildLandscape(BoxConstraints constraints) {
     return Row(
       children: [
-        Expanded(
-          child: _buildBusArea(constraints: constraints, isLandscape: true),
-        ),
+        Expanded(child: _buildScrollArea(constraints, isLandscape: true)),
         Container(
-          width: 172,
+          width: 160,
           color: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 14),
           child: Column(
@@ -258,119 +233,355 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
     );
   }
 
-  // ─── Área del autobús ──────────────────────────────────────────────────────
-  Widget _buildBusArea({
-    required BoxConstraints constraints,
+  Widget _buildScrollArea(
+    BoxConstraints constraints, {
     required bool isLandscape,
   }) {
     return LayoutBuilder(
       builder: (ctx, inner) {
         return SingleChildScrollView(
           scrollDirection: isLandscape ? Axis.horizontal : Axis.vertical,
-          padding: const EdgeInsets.all(12),
-          child: Center(child: _buildBusAnimado(inner, isLandscape)),
+          padding: const EdgeInsets.all(16),
+          child: FadeTransition(
+            opacity: _fadeAnim,
+            child: ScaleTransition(
+              scale: _scaleAnim,
+              child: isLandscape ? _buildBusH(inner) : _buildBusV(inner),
+            ),
+          ),
         );
       },
     );
   }
 
-  Widget _buildBusAnimado(BoxConstraints constraints, bool isLandscape) {
-    double busWidth;
+  // ═══════════════════════════════════════════════════════
+  // BUS VERTICAL (portrait)
+  // ═══════════════════════════════════════════════════════
+  Widget _buildBusV(BoxConstraints constraints) {
+    final busW = constraints.maxWidth.clamp(260.0, 400.0);
 
-    if (isLandscape) {
-      // En landscape el bus está rotado 90°:
-      // su "ancho" (busWidth) se convierte en la altura visible del área.
-      // Calculamos cuánto alto disponemos y lo usamos como busWidth.
-      final availH = constraints.maxHeight - 24;
-      busWidth = availH.clamp(200.0, 340.0);
-    } else {
-      final availW = constraints.maxWidth - 24;
-      busWidth = availW.clamp(240.0, 480.0);
-    }
+    final disA = asientos
+        .where((a) => a['asiento']['tipo']['codigo'] == 'DIS')
+        .toList();
+    final normA = asientos
+        .where((a) => a['asiento']['tipo']['codigo'] != 'DIS')
+        .toList();
 
-    final numFilas = (asientos.length / 4).ceil();
-    final cabinHeight = busWidth * 0.22;
-    final seatSize = ((busWidth * 0.68) / 4.86).clamp(26.0, 52.0);
-    final seatsHeight = numFilas * (seatSize + 8.0) + 24;
-    final busHeight = cabinHeight + seatsHeight + busWidth * 0.16;
+    final sW = ((busW * 0.70) / (4 + 3 * 0.16 + 0.55)).clamp(34.0, 56.0);
+    final sH = sW * 1.15;
+    final gap = sW * 0.16;
+    final pasillo = sW * 0.55;
+    final cabH = sH * 2.4;
 
-    final totalSeatsW = seatSize * 4 + seatSize * 0.15 * 3 + seatSize * 0.5;
-    final hPad = (busWidth - totalSeatsW) / 2;
+    final totalSeatsW = sW * 4 + gap * 3 + pasillo;
+    final hPad = (busW - totalSeatsW) / 2;
 
-    Widget busCuerpo = CustomPaint(
-      painter: BusPainter(
-        busWidth: busWidth,
-        busHeight: busHeight,
-        cabinHeight: cabinHeight,
-      ),
+    final numFilas = (normA.length / 4).ceil();
+    final busH = cabH + (sH + gap) + numFilas * (sH + gap) + sH * 0.5;
+
+    return CustomPaint(
+      painter: _BusPainterV(busW: busW, busH: busH, cabH: cabH),
       child: SizedBox(
-        width: busWidth,
-        height: busHeight,
-        child: Padding(
-          padding: EdgeInsets.only(
-            top: cabinHeight + seatSize * 0.12,
-            left: hPad,
-            right: hPad,
-            bottom: 12,
-          ),
-          child: FadeTransition(
-            opacity: _asientosFade,
-            child: ScaleTransition(
-              scale: _asientosScale,
-              child: _buildAsientos(seatSize),
+        width: busW,
+        height: busH,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Cabina con conductor y volante
+            // Cabina con conductor y volante
+            // Cabina tipo autobús real (chofer izquierda + entrada derecha)
+            SizedBox(
+              height: cabH,
+              width: busW,
+              child: Stack(
+                children: [
+                  // Asiento del conductor (más a la izquierda)
+                  Positioned(
+                    left: busW * 0.06,
+                    bottom: cabH * 0.10,
+                    child: CustomPaint(
+                      painter: _SeatPainter(
+                        color: const Color(0xFF8B96A0),
+                        selected: false,
+                        ocupado: true,
+                      ),
+                      child: SizedBox(width: sW * 0.85, height: sW * 0.95),
+                    ),
+                  ),
+
+                  // Volante
+                  Positioned(
+                    left: busW * 0.16,
+                    bottom: cabH * 0.18,
+                    child: CustomPaint(
+                      painter: _VolantePainter(),
+                      child: SizedBox(width: sW * 0.55, height: sW * 0.55),
+                    ),
+                  ),
+
+                  // Pared divisoria entre cabina y pasajeros
+                  Positioned(
+                    right: busW * 0.22,
+                    bottom: 0,
+                    top: cabH * 0.35,
+                    child: Container(width: 3, color: const Color(0xFF8B96A0)),
+                  ),
+
+                  // Espacio de entrada (puerta/escaleras)
+                  Positioned(
+                    right: busW * 0.05,
+                    bottom: cabH * 0.05,
+                    child: Container(
+                      width: sW * 1.0,
+                      height: sH * 1.4,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                  ),
+
+                  // Barandal de entrada
+                  Positioned(
+                    right: busW * 0.18,
+                    bottom: cabH * 0.05,
+                    child: Container(
+                      width: 3,
+                      height: sH * 1.4,
+                      color: const Color(0xFF8B96A0),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+
+            // Fila DIS
+            Padding(
+              padding: EdgeInsets.only(left: hPad, right: hPad, bottom: gap),
+              child: _buildFilaDIS(disA, sW, sH, gap, pasillo),
+            ),
+
+            // Filas normales
+            ...List.generate(numFilas, (fi) {
+              const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+              final start = fi * 4;
+              final end = min(start + 4, normA.length);
+              final fila = normA.sublist(start, end);
+              while (fila.length < 4) fila.add(null);
+              return Padding(
+                padding: EdgeInsets.only(left: hPad, right: hPad, bottom: gap),
+                child: _buildFilaNormal(
+                  fila,
+                  letras[fi % 26],
+                  sW,
+                  sH,
+                  gap,
+                  pasillo,
+                ),
+              );
+            }),
+
+            SizedBox(height: sH * 0.35),
+          ],
         ),
       ),
     );
+  }
 
-    if (isLandscape) {
-      // Rotamos el bus 90°: su ancho (busWidth) queda como alto visible,
-      // su largo (busHeight) se extiende horizontalmente — el scroll lo cubre.
-      busCuerpo = RotatedBox(quarterTurns: 1, child: busCuerpo);
-    }
+  // ═══════════════════════════════════════════════════════
+  // BUS HORIZONTAL (landscape)
+  // ═══════════════════════════════════════════════════════
+  Widget _buildBusH(BoxConstraints constraints) {
+    final busH = constraints.maxHeight.clamp(200.0, 320.0);
 
-    return FadeTransition(
-      opacity: _busFade,
-      child: SlideTransition(position: _busSlide, child: busCuerpo),
+    final disA = asientos
+        .where((a) => a['asiento']['tipo']['codigo'] == 'DIS')
+        .toList();
+    final normA = asientos
+        .where((a) => a['asiento']['tipo']['codigo'] != 'DIS')
+        .toList();
+
+    final sH = ((busH * 0.70) / (4 + 3 * 0.16 + 0.55)).clamp(30.0, 50.0);
+    final sW = sH * 1.05;
+    final gap = sH * 0.16;
+    final pasillo = sH * 0.55;
+    final cabW = sW * 2.4;
+
+    final totalSeatsH = sH * 4 + gap * 3 + pasillo;
+    final vPad = (busH - totalSeatsH) / 2;
+
+    final numFilas = (normA.length / 4).ceil();
+    final busW = cabW + (sW + gap) + numFilas * (sW + gap) + sW * 0.5;
+
+    return CustomPaint(
+      painter: _BusPainterH(busW: busW, busH: busH, cabW: cabW),
+      child: SizedBox(
+        width: busW,
+        height: busH,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Cabina
+            SizedBox(
+              width: cabW,
+              height: busH,
+              child: Stack(
+                children: [
+                  Positioned(
+                    bottom: busH * 0.12,
+                    left: cabW * 0.10,
+                    child: CustomPaint(
+                      painter: _SeatPainter(
+                        color: const Color(0xFF8B96A0),
+                        selected: false,
+                        ocupado: true,
+                      ),
+                      child: SizedBox(width: sH * 0.88, height: sH * 0.98),
+                    ),
+                  ),
+                  Positioned(
+                    bottom: busH * 0.18,
+                    left: cabW * 0.40,
+                    child: CustomPaint(
+                      painter: _VolantePainter(),
+                      child: SizedBox(width: sH * 0.52, height: sH * 0.52),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Columna DIS
+            Padding(
+              padding: EdgeInsets.only(top: vPad, bottom: vPad, right: gap),
+              child: _buildColumnaDIS(disA, sW, sH, gap, pasillo),
+            ),
+
+            // Columnas normales
+            ...List.generate(numFilas, (fi) {
+              const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+              final start = fi * 4;
+              final end = min(start + 4, normA.length);
+              final fila = normA.sublist(start, end);
+              while (fila.length < 4) fila.add(null);
+              return Padding(
+                padding: EdgeInsets.only(top: vPad, bottom: vPad, right: gap),
+                child: _buildColumnaNormal(
+                  fila,
+                  letras[fi % 26],
+                  sW,
+                  sH,
+                  gap,
+                  pasillo,
+                ),
+              );
+            }),
+
+            SizedBox(width: sW * 0.3),
+          ],
+        ),
+      ),
     );
   }
 
-  // ─── Grid de asientos ──────────────────────────────────────────────────────
-  Widget _buildAsientos(double seatSize) {
-    List<List<dynamic>> filas = [];
-    for (int i = 0; i < asientos.length; i += 4) {
-      final end = min(i + 4, asientos.length);
-      final fila = List<dynamic>.from(asientos.sublist(i, end));
-      while (fila.length < 4) fila.add(null);
-      filas.add(fila);
-    }
+  // ─── Filas y columnas ──────────────────────────────────────────────────────
+  Widget _buildFilaDIS(
+    List dis,
+    double sW,
+    double sH,
+    double gap,
+    double pasillo,
+  ) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        dis.isNotEmpty
+            ? _seat(dis[0], sW, sH, 'D1')
+            : SizedBox(width: sW, height: sH),
+        SizedBox(width: gap),
+        SizedBox(width: sW, height: sH),
+        SizedBox(width: pasillo),
+        SizedBox(width: sW, height: sH),
+        SizedBox(width: gap),
+        dis.length > 1
+            ? _seat(dis[1], sW, sH, 'D2')
+            : SizedBox(width: sW, height: sH),
+      ],
+    );
+  }
 
+  Widget _buildFilaNormal(
+    List fila,
+    String letra,
+    double sW,
+    double sH,
+    double gap,
+    double pas,
+  ) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _seat(fila[0], sW, sH, fila[0] != null ? '${letra}1' : ''),
+        SizedBox(width: gap),
+        _seat(fila[1], sW, sH, fila[1] != null ? '${letra}2' : ''),
+        SizedBox(width: pas),
+        _seat(fila[2], sW, sH, fila[2] != null ? '${letra}3' : ''),
+        SizedBox(width: gap),
+        _seat(fila[3], sW, sH, fila[3] != null ? '${letra}4' : ''),
+      ],
+    );
+  }
+
+  Widget _buildColumnaDIS(
+    List dis,
+    double sW,
+    double sH,
+    double gap,
+    double pasillo,
+  ) {
     return Column(
       mainAxisSize: MainAxisSize.min,
-      children: filas.map((fila) {
-        return Padding(
-          padding: EdgeInsets.symmetric(vertical: seatSize * 0.06),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildAsiento(fila[0], seatSize),
-              SizedBox(width: seatSize * 0.15),
-              _buildAsiento(fila[1], seatSize),
-              SizedBox(width: seatSize * 0.5), // pasillo
-              _buildAsiento(fila[2], seatSize),
-              SizedBox(width: seatSize * 0.15),
-              _buildAsiento(fila[3], seatSize),
-            ],
-          ),
-        );
-      }).toList(),
+      children: [
+        dis.isNotEmpty
+            ? _seat(dis[0], sW, sH, 'D1')
+            : SizedBox(width: sW, height: sH),
+        SizedBox(height: gap),
+        SizedBox(width: sW, height: sH),
+        SizedBox(height: pasillo),
+        SizedBox(width: sW, height: sH),
+        SizedBox(height: gap),
+        dis.length > 1
+            ? _seat(dis[1], sW, sH, 'D2')
+            : SizedBox(width: sW, height: sH),
+      ],
     );
   }
 
-  Widget _buildAsiento(dynamic asiento, double size) {
-    if (asiento == null) return SizedBox(width: size, height: size);
+  Widget _buildColumnaNormal(
+    List fila,
+    String letra,
+    double sW,
+    double sH,
+    double gap,
+    double pas,
+  ) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _seat(fila[0], sW, sH, fila[0] != null ? '${letra}1' : ''),
+        SizedBox(height: gap),
+        _seat(fila[1], sW, sH, fila[1] != null ? '${letra}2' : ''),
+        SizedBox(height: pas),
+        _seat(fila[2], sW, sH, fila[2] != null ? '${letra}3' : ''),
+        SizedBox(height: gap),
+        _seat(fila[3], sW, sH, fila[3] != null ? '${letra}4' : ''),
+      ],
+    );
+  }
 
+  Widget _seat(dynamic asiento, double w, double h, String etiqueta) {
+    if (asiento == null) return SizedBox(width: w, height: h);
     final color = _colorAsiento(asiento);
     final ocupado = _isOcupado(asiento);
     final numero = asiento['asiento']['numero'];
@@ -378,49 +589,29 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
 
     return GestureDetector(
       onTap: () => _toggleAsiento(asiento),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOut,
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(size * 0.20),
-          border: selected
-              ? Border.all(color: Colors.white.withOpacity(0.6), width: 2)
-              : null,
-          boxShadow: ocupado
-              ? null
-              : [
-                  BoxShadow(
-                    color: color.withOpacity(selected ? 0.55 : 0.30),
-                    blurRadius: selected ? 8 : 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.event_seat_rounded,
-              color: ocupado
-                  ? Colors.white54
-                  : selected
-                  ? Colors.white
-                  : Colors.white.withOpacity(0.92),
-              size: size * 0.42,
-            ),
-            Text(
-              '$numero',
-              style: TextStyle(
-                color: ocupado ? Colors.white54 : Colors.white,
-                fontSize: size * 0.20,
-                fontWeight: FontWeight.bold,
-                height: 1.1,
+      child: SizedBox(
+        width: w,
+        height: h,
+        child: CustomPaint(
+          painter: _SeatPainter(
+            color: color,
+            selected: selected,
+            ocupado: ocupado,
+          ),
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.only(top: h * 0.20),
+              child: Text(
+                etiqueta,
+                style: TextStyle(
+                  color: ocupado ? Colors.white54 : Colors.white,
+                  fontSize: min(w, h) * 0.21,
+                  fontWeight: FontWeight.bold,
+                  height: 1.0,
+                ),
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -443,10 +634,10 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _leyendaChip(azul, 'Disponible'),
-          _leyendaChip(grisOc, 'Ocupado'),
-          _leyendaChip(naranja, 'Seleccionado'),
-          _leyendaChip(morado, 'Discapacidad'),
+          _chip(azul, 'Disponible'),
+          _chip(grisOc, 'Ocupado'),
+          _chip(naranja, 'Seleccionado'),
+          _chip(morado, 'Discapacidad'),
         ],
       ),
     );
@@ -465,18 +656,18 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
           ),
         ),
         const SizedBox(height: 12),
-        _leyendaChip(azul, 'Disponible'),
+        _chip(azul, 'Disponible'),
         const SizedBox(height: 8),
-        _leyendaChip(grisOc, 'Ocupado'),
+        _chip(grisOc, 'Ocupado'),
         const SizedBox(height: 8),
-        _leyendaChip(naranja, 'Seleccionado'),
+        _chip(naranja, 'Seleccionado'),
         const SizedBox(height: 8),
-        _leyendaChip(morado, 'Discapacidad'),
+        _chip(morado, 'Discapacidad'),
       ],
     );
   }
 
-  Widget _leyendaChip(Color color, String label) {
+  Widget _chip(Color color, String label) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -505,7 +696,6 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
   Widget _buildBotonConfirmar() {
     final total = widget.pasajeros.length;
     final listos = seleccionados.length == total;
-
     String texto;
     if (seleccionados.isEmpty) {
       texto = 'Selecciona $total asiento${total > 1 ? "s" : ""}';
@@ -559,7 +749,6 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
     );
   }
 
-  // ─── Navegar a pago ────────────────────────────────────────────────────────
   void _confirmar() {
     const descuentos = {
       'Adulto': 0,
@@ -567,11 +756,11 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
       'INAPAM': 30,
       'Discapacidad': 15,
     };
-
     double montoTotal = 0;
     final pasajerosConAsiento = widget.pasajeros.asMap().entries.map((e) {
       final p = Map<String, dynamic>.from(e.value);
       p['asiento_id'] = seleccionados[e.key];
+      p['asiento_etiqueta'] = _etiquetaDeAsiento(seleccionados[e.key]);
       final desc = descuentos[p['tipo']] ?? 0;
       montoTotal += widget.precioPorPasajero * (1 - desc / 100);
       return p;
@@ -599,17 +788,14 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// BusPainter — versión limpia y bien proporcionada
+// Painter del bus VERTICAL — vista top-down, frente arriba
 // ═══════════════════════════════════════════════════════════════════════════════
-class BusPainter extends CustomPainter {
-  final double busWidth;
-  final double busHeight;
-  final double cabinHeight;
-
-  const BusPainter({
-    required this.busWidth,
-    required this.busHeight,
-    required this.cabinHeight,
+class _BusPainterV extends CustomPainter {
+  final double busW, busH, cabH;
+  const _BusPainterV({
+    required this.busW,
+    required this.busH,
+    required this.cabH,
   });
 
   @override
@@ -617,211 +803,439 @@ class BusPainter extends CustomPainter {
     final w = size.width;
     final h = size.height;
 
-    // ── Colores base ──────────────────────────────────────────────────────────
-    final pCuerpo = Paint()..color = const Color(0xFFD8DDE4);
-    final pInterior = Paint()..color = const Color(0xFFF5F7FA);
-    final pCabina = Paint()..color = const Color(0xFFC2C8D0);
-    final pBorde = Paint()
-      ..color = const Color(0xFF8B96A0)
+    final pBody = Paint()..color = const Color(0xFFD8DDE4);
+    final pInner = Paint()..color = const Color(0xFFF5F7FA);
+    final pStroke = Paint()
+      ..color = const Color(0xFF5A6270)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.010;
-    final pRueda = Paint()..color = const Color(0xFF2E2E2E);
-    final pRuedaRim = Paint()
-      ..color = const Color(0xFF777777)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.014;
-    final pVolante = Paint()..color = const Color(0xFF888E94);
-    final pSpoke = Paint()
-      ..color = const Color(0xFF9EA5AB)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.024
-      ..strokeCap = StrokeCap.round;
+      ..strokeWidth = 2.5;
+    final pWheel = Paint()..color = const Color(0xFF1E1E1E);
+    final pMirror = Paint()..color = const Color(0xFF444B52);
 
-    // ── Cuerpo principal ──────────────────────────────────────────────────────
-    final bodyR = w * 0.07;
-    final body = RRect.fromRectAndCorners(
-      Rect.fromLTRB(w * 0.06, w * 0.03, w * 0.94, h * 0.97),
-      topLeft: Radius.circular(bodyR * 2.8),
-      topRight: Radius.circular(bodyR * 2.8),
-      bottomLeft: Radius.circular(bodyR * 0.8),
-      bottomRight: Radius.circular(bodyR * 0.8),
-    );
-    canvas.drawRRect(body, pCuerpo);
-    canvas.drawRRect(body, pBorde);
+    // Carrocería — frente muy redondeado (arriba), trasera menos (abajo)
+    final r = w * 0.17;
+    final rB = w * 0.05;
+    final bodyPath = Path()
+      ..moveTo(w * 0.09 + r, h * 0.01)
+      ..lineTo(w * 0.91 - r, h * 0.01)
+      ..quadraticBezierTo(w * 0.91, h * 0.01, w * 0.91, h * 0.01 + r)
+      ..lineTo(w * 0.91, h * 0.99 - rB)
+      ..quadraticBezierTo(w * 0.91, h * 0.99, w * 0.91 - rB, h * 0.99)
+      ..lineTo(w * 0.09 + rB, h * 0.99)
+      ..quadraticBezierTo(w * 0.09, h * 0.99, w * 0.09, h * 0.99 - rB)
+      ..lineTo(w * 0.09, h * 0.01 + r)
+      ..quadraticBezierTo(w * 0.09, h * 0.01, w * 0.09 + r, h * 0.01)
+      ..close();
+    canvas.drawPath(bodyPath, pBody);
+    canvas.drawPath(bodyPath, pStroke);
 
-    // ── Interior (zona asientos) ──────────────────────────────────────────────
+    // Interior zona asientos
     canvas.drawRRect(
       RRect.fromRectAndCorners(
-        Rect.fromLTRB(w * 0.11, cabinHeight - 2, w * 0.89, h * 0.94),
+        Rect.fromLTRB(w * 0.14, cabH * 0.97, w * 0.86, h * 0.975),
         bottomLeft: const Radius.circular(4),
         bottomRight: const Radius.circular(4),
       ),
-      pInterior,
+      pInner,
     );
 
-    // ── Cabina ────────────────────────────────────────────────────────────────
-    canvas.drawRRect(
-      RRect.fromRectAndCorners(
-        Rect.fromLTRB(w * 0.11, w * 0.06, w * 0.89, cabinHeight),
-        topLeft: Radius.circular(bodyR * 2.2),
-        topRight: Radius.circular(bodyR * 2.2),
-      ),
-      pCabina,
+    // Parabrisas — grande, redondeado arriba, ocupa casi todo el ancho
+    final wr = w * 0.15;
+    final wT = h * 0.016;
+    final wB = cabH * 0.75;
+    final windPath = Path()
+      ..moveTo(w * 0.13 + wr, wT)
+      ..lineTo(w * 0.87 - wr, wT)
+      ..quadraticBezierTo(w * 0.87, wT, w * 0.87, wT + wr)
+      ..lineTo(w * 0.87, wB)
+      ..lineTo(w * 0.13, wB)
+      ..lineTo(w * 0.13, wT + wr)
+      ..quadraticBezierTo(w * 0.13, wT, w * 0.13 + wr, wT)
+      ..close();
+    canvas.drawPath(
+      windPath,
+      Paint()..color = const Color(0xFFADD8E6).withOpacity(0.55),
+    );
+    canvas.drawPath(windPath, pStroke);
+
+    // Marco interior del parabrisas
+    final wi = w * 0.022;
+    final wri = wr * 0.65;
+    final windInner = Path()
+      ..moveTo(w * 0.13 + wi + wri, wT + wi)
+      ..lineTo(w * 0.87 - wi - wri, wT + wi)
+      ..quadraticBezierTo(w * 0.87 - wi, wT + wi, w * 0.87 - wi, wT + wi + wri)
+      ..lineTo(w * 0.87 - wi, wB - wi)
+      ..lineTo(w * 0.13 + wi, wB - wi)
+      ..lineTo(w * 0.13 + wi, wT + wi + wri)
+      ..quadraticBezierTo(w * 0.13 + wi, wT + wi, w * 0.13 + wi + wri, wT + wi)
+      ..close();
+    canvas.drawPath(
+      windInner,
+      Paint()
+        ..color = const Color(0xFF5A6270)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3,
     );
 
-    // Línea divisoria cabina / pasajeros
+    // Línea divisoria cabina/pasajeros
     canvas.drawLine(
-      Offset(w * 0.11, cabinHeight),
-      Offset(w * 0.89, cabinHeight),
+      Offset(w * 0.13, cabH),
+      Offset(w * 0.78, cabH),
       Paint()
         ..color = const Color(0xFF8B96A0)
-        ..strokeWidth = w * 0.006,
+        ..strokeWidth = 1.5,
     );
 
-    // ── Parabrisas (dos ventanas tipo bus) ────────────────────────────────────
-    final winTop = w * 0.085;
-    final winBot = cabinHeight * 0.82;
-    final winPaint = Paint()..color = const Color(0xFFADD8E6).withOpacity(0.55);
-    final winBorder = Paint()
-      ..color = const Color(0xFF7A8A95)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.008;
-
-    // Ventana izq
-    final winLRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(w * 0.13, winTop, w * 0.28, winBot - winTop),
-      Radius.circular(w * 0.03),
-    );
-    canvas.drawRRect(winLRect, winPaint);
-    canvas.drawRRect(winLRect, winBorder);
-
-    // Ventana der
-    final winRRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(w * 0.59, winTop, w * 0.28, winBot - winTop),
-      Radius.circular(w * 0.03),
-    );
-    canvas.drawRRect(winRRect, winPaint);
-    canvas.drawRRect(winRRect, winBorder);
-
-    // ── Volante ───────────────────────────────────────────────────────────────
-    final steerX = w * 0.75;
-    final steerY = (w * 0.06 + cabinHeight) / 2 + cabinHeight * 0.04;
-    final steerR = min(cabinHeight * 0.30, w * 0.10);
-
-    canvas.drawCircle(Offset(steerX, steerY), steerR, pVolante);
-    canvas.drawCircle(
-      Offset(steerX, steerY),
-      steerR * 0.65,
-      Paint()..color = const Color(0xFF1C1C1C),
-    );
-    canvas.drawCircle(
-      Offset(steerX, steerY),
-      steerR,
-      Paint()
-        ..color = const Color(0xFF6A7077)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = w * 0.013,
-    );
-
-    for (int i = 0; i < 3; i++) {
-      final angle = (i * 120 - 90) * pi / 180;
-      canvas.drawLine(
-        Offset(steerX, steerY),
-        Offset(
-          steerX + steerR * 0.60 * cos(angle),
-          steerY + steerR * 0.60 * sin(angle),
+    // Ruedas delanteras
+    final wW = w * 0.085;
+    final wH = cabH * 0.20;
+    final wY = cabH * 0.65;
+    for (final x in [w * 0.025, w * 0.89]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, wY, wW, wH),
+          const Radius.circular(3),
         ),
-        pSpoke,
+        pWheel,
       );
     }
-    canvas.drawCircle(
-      Offset(steerX, steerY),
-      steerR * 0.14,
-      Paint()..color = const Color(0xFF6A7077),
-    );
 
-    // ── Ruedas delanteras ─────────────────────────────────────────────────────
-    final wheelW = w * 0.09;
-    final wheelH = cabinHeight * 0.52;
-    final frontWheelY = cabinHeight * 0.68;
-
-    for (final x in [w * 0.03, w * 0.88]) {
-      final wr = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, frontWheelY, wheelW, wheelH),
-        Radius.circular(w * 0.025),
+    // Ruedas traseras
+    final rY = h * 0.82;
+    final rH = wH * 1.2;
+    final rW = wW * 1.1;
+    for (final x in [w * 0.025, w * 0.89 - (rW - wW)]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, rY, rW, rH),
+          const Radius.circular(3),
+        ),
+        pWheel,
       );
-      canvas.drawRRect(wr, pRueda);
-      // Rin
-      final cx = x + wheelW / 2;
-      final cy = frontWheelY + wheelH / 2;
-      canvas.drawCircle(Offset(cx, cy), wheelW * 0.35, pRuedaRim);
     }
 
-    // ── Ruedas traseras ───────────────────────────────────────────────────────
-    final rearY = h * 0.82;
-    final rearH = wheelH * 1.12;
-    final rearW = wheelW * 1.08;
-
-    for (final x in [w * 0.03, w * 0.89 - (rearW - wheelW)]) {
-      final rr = RRect.fromRectAndRadius(
-        Rect.fromLTWH(x, rearY, rearW, rearH),
-        Radius.circular(w * 0.025),
+    // Espejos
+    final mW = w * 0.052;
+    final mH = cabH * 0.13;
+    final mY = cabH * 0.20;
+    for (final x in [w * 0.028, w * 0.92]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, mY, mW, mH),
+          const Radius.circular(3),
+        ),
+        pMirror,
       );
-      canvas.drawRRect(rr, pRueda);
-      final cx = x + rearW / 2;
-      final cy = rearY + rearH / 2;
-      canvas.drawCircle(Offset(cx, cy), rearW * 0.32, pRuedaRim);
     }
 
-    // ── Espejos ───────────────────────────────────────────────────────────────
-    final mirrorPaint = Paint()
-      ..color = const Color(0xFF555C63)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = w * 0.020
-      ..strokeCap = StrokeCap.round;
-    final mirrorBox = Paint()..color = const Color(0xFF444B52);
-
-    // Izq
-    canvas.drawLine(
-      Offset(w * 0.12, cabinHeight * 0.30),
-      Offset(w * 0.04, w * 0.04),
-      mirrorPaint,
-    );
+    // Parachoque trasero
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.0, w * 0.02, w * 0.08, w * 0.036),
-        Radius.circular(w * 0.008),
-      ),
-      mirrorBox,
-    );
-
-    // Der
-    canvas.drawLine(
-      Offset(w * 0.88, cabinHeight * 0.30),
-      Offset(w * 0.96, w * 0.04),
-      mirrorPaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.92, w * 0.02, w * 0.08, w * 0.036),
-        Radius.circular(w * 0.008),
-      ),
-      mirrorBox,
-    );
-
-    // ── Parachoque trasero ─────────────────────────────────────────────────────
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.14, h * 0.945, w * 0.72, w * 0.025),
-        Radius.circular(w * 0.008),
+        Rect.fromLTWH(w * 0.16, h * 0.966, w * 0.68, h * 0.02),
+        const Radius.circular(3),
       ),
       Paint()..color = const Color(0xFF8B96A0),
     );
   }
 
   @override
-  bool shouldRepaint(covariant BusPainter old) =>
-      old.busWidth != busWidth ||
-      old.busHeight != busHeight ||
-      old.cabinHeight != cabinHeight;
+  bool shouldRepaint(covariant _BusPainterV old) =>
+      old.busW != busW || old.busH != busH || old.cabH != cabH;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Painter del bus HORIZONTAL — vista top-down, frente izquierda
+// ═══════════════════════════════════════════════════════════════════════════════
+class _BusPainterH extends CustomPainter {
+  final double busW, busH, cabW;
+  const _BusPainterH({
+    required this.busW,
+    required this.busH,
+    required this.cabW,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final pBody = Paint()..color = const Color(0xFFD8DDE4);
+    final pInner = Paint()..color = const Color(0xFFF5F7FA);
+    final pStroke = Paint()
+      ..color = const Color(0xFF5A6270)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+    final pWheel = Paint()..color = const Color(0xFF1E1E1E);
+    final pMirror = Paint()..color = const Color(0xFF444B52);
+
+    // Carrocería — frente muy redondeado (izquierda), trasera menos (derecha)
+    final r = h * 0.17;
+    final rB = h * 0.05;
+    final bodyPath = Path()
+      ..moveTo(w * 0.01, h * 0.09 + r)
+      ..quadraticBezierTo(w * 0.01, h * 0.09, w * 0.01 + r, h * 0.09)
+      ..lineTo(w * 0.99 - rB, h * 0.09)
+      ..quadraticBezierTo(w * 0.99, h * 0.09, w * 0.99, h * 0.09 + rB)
+      ..lineTo(w * 0.99, h * 0.91 - rB)
+      ..quadraticBezierTo(w * 0.99, h * 0.91, w * 0.99 - rB, h * 0.91)
+      ..lineTo(w * 0.01 + r, h * 0.91)
+      ..quadraticBezierTo(w * 0.01, h * 0.91, w * 0.01, h * 0.91 - r)
+      ..close();
+    canvas.drawPath(bodyPath, pBody);
+    canvas.drawPath(bodyPath, pStroke);
+
+    // Interior
+    canvas.drawRRect(
+      RRect.fromRectAndCorners(
+        Rect.fromLTRB(cabW * 0.97, h * 0.14, w * 0.975, h * 0.86),
+        topRight: const Radius.circular(4),
+        bottomRight: const Radius.circular(4),
+      ),
+      pInner,
+    );
+
+    // Parabrisas
+    final wr = h * 0.15;
+    final wL = w * 0.016;
+    final wR = cabW * 0.75;
+    final windPath = Path()
+      ..moveTo(wL, h * 0.13 + wr)
+      ..quadraticBezierTo(wL, h * 0.13, wL + wr, h * 0.13)
+      ..lineTo(wR, h * 0.13)
+      ..lineTo(wR, h * 0.87)
+      ..lineTo(wL + wr, h * 0.87)
+      ..quadraticBezierTo(wL, h * 0.87, wL, h * 0.87 - wr)
+      ..close();
+    canvas.drawPath(
+      windPath,
+      Paint()..color = const Color(0xFFADD8E6).withOpacity(0.55),
+    );
+    canvas.drawPath(windPath, pStroke);
+
+    // Marco interior
+    final wi = h * 0.022;
+    final wri = wr * 0.65;
+    final windInner = Path()
+      ..moveTo(wL + wi, h * 0.13 + wi + wri)
+      ..quadraticBezierTo(wL + wi, h * 0.13 + wi, wL + wi + wri, h * 0.13 + wi)
+      ..lineTo(wR - wi, h * 0.13 + wi)
+      ..lineTo(wR - wi, h * 0.87 - wi)
+      ..lineTo(wL + wi + wri, h * 0.87 - wi)
+      ..quadraticBezierTo(wL + wi, h * 0.87 - wi, wL + wi, h * 0.87 - wi - wri)
+      ..close();
+    canvas.drawPath(
+      windInner,
+      Paint()
+        ..color = const Color(0xFF5A6270)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3,
+    );
+
+    // Línea divisoria
+    canvas.drawLine(
+      Offset(cabW, h * 0.13),
+      Offset(cabW, h * 0.87),
+      Paint()
+        ..color = const Color(0xFF8B96A0)
+        ..strokeWidth = 1.5,
+    );
+
+    // Ruedas delanteras
+    final wH2 = h * 0.085;
+    final wW2 = cabW * 0.20;
+    final wX = cabW * 0.62;
+    for (final y in [h * 0.025, h * 0.89]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(wX, y, wW2, wH2),
+          const Radius.circular(3),
+        ),
+        pWheel,
+      );
+    }
+
+    // Ruedas traseras
+    final rX = w * 0.83;
+    final rW2 = wW2 * 1.2;
+    final rH2 = wH2 * 1.1;
+    for (final y in [h * 0.025, h * 0.89 - (rH2 - wH2)]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(rX, y, rW2, rH2),
+          const Radius.circular(3),
+        ),
+        pWheel,
+      );
+    }
+
+    // Espejos
+    final mH2 = h * 0.052;
+    final mW2 = cabW * 0.13;
+    final mX = cabW * 0.20;
+    for (final y in [h * 0.028, h * 0.92]) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(mX, y, mW2, mH2),
+          const Radius.circular(3),
+        ),
+        pMirror,
+      );
+    }
+
+    // Parachoque trasero
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.966, h * 0.16, w * 0.02, h * 0.68),
+        const Radius.circular(3),
+      ),
+      Paint()..color = const Color(0xFF8B96A0),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _BusPainterH old) =>
+      old.busW != busW || old.busH != busH || old.cabW != cabW;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// _SeatPainter — Asiento top-down
+// Respaldo redondeado ARRIBA (hacia frente del bus), cuerpo ABAJO
+// ═══════════════════════════════════════════════════════════════════════════════
+class _SeatPainter extends CustomPainter {
+  final Color color;
+  final bool selected;
+  final bool ocupado;
+
+  const _SeatPainter({
+    required this.color,
+    required this.selected,
+    required this.ocupado,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    final paint = Paint()..color = color;
+    final strokePaint = Paint()
+      ..color = selected
+          ? Colors.white.withOpacity(0.65)
+          : Colors.black.withOpacity(0.20)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = selected ? 1.8 : 1.0;
+
+    // Sombra
+    if (!ocupado) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(1.5, 2, w - 3, h - 3),
+          Radius.circular(w * 0.18),
+        ),
+        Paint()
+          ..color = color.withOpacity(selected ? 0.38 : 0.20)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+      );
+    }
+
+    // ── Respaldo (arriba, muy redondeado) — 28% del alto ──
+    final backRect = RRect.fromRectAndCorners(
+      Rect.fromLTWH(w * 0.10, h * 0.01, w * 0.80, h * 0.29),
+      topLeft: Radius.circular(w * 0.38),
+      topRight: Radius.circular(w * 0.38),
+      bottomLeft: Radius.circular(w * 0.04),
+      bottomRight: Radius.circular(w * 0.04),
+    );
+    canvas.drawRRect(backRect, paint);
+    canvas.drawRRect(backRect, strokePaint);
+
+    // Arco decorativo dentro del respaldo
+    canvas.drawArc(
+      Rect.fromLTWH(w * 0.20, h * 0.03, w * 0.60, h * 0.18),
+      pi,
+      pi,
+      false,
+      Paint()
+        ..color = Colors.black.withOpacity(0.10)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.0,
+    );
+
+    // ── Cuerpo (abajo) — del 29% al 95% ──
+    final bodyRect = RRect.fromRectAndCorners(
+      Rect.fromLTWH(w * 0.04, h * 0.28, w * 0.92, h * 0.67),
+      topLeft: Radius.circular(w * 0.07),
+      topRight: Radius.circular(w * 0.07),
+      bottomLeft: Radius.circular(w * 0.22),
+      bottomRight: Radius.circular(w * 0.22),
+    );
+    canvas.drawRRect(bodyRect, paint);
+    canvas.drawRRect(bodyRect, strokePaint);
+
+    // ── Apoyabrazos ──
+    final armPaint = Paint()..color = color.withOpacity(0.72);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, h * 0.33, w * 0.07, h * 0.36),
+        Radius.circular(w * 0.035),
+      ),
+      armPaint,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.93, h * 0.33, w * 0.07, h * 0.36),
+        Radius.circular(w * 0.035),
+      ),
+      armPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SeatPainter old) =>
+      old.color != color || old.selected != selected || old.ocupado != ocupado;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// _VolantePainter
+// ═══════════════════════════════════════════════════════════════════════════════
+class _VolantePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final r = size.width / 2;
+
+    canvas.drawCircle(
+      Offset(cx, cy),
+      r,
+      Paint()..color = const Color(0xFF555C63),
+    );
+    canvas.drawCircle(
+      Offset(cx, cy),
+      r * 0.60,
+      Paint()..color = const Color(0xFF8B96A0),
+    );
+    canvas.drawCircle(
+      Offset(cx, cy),
+      r * 0.18,
+      Paint()..color = const Color(0xFF1C1C1C),
+    );
+
+    final spokePaint = Paint()
+      ..color = const Color(0xFF555C63)
+      ..strokeWidth = r * 0.20
+      ..strokeCap = StrokeCap.round;
+    for (int i = 0; i < 3; i++) {
+      final angle = (i * 120 - 90) * pi / 180;
+      canvas.drawLine(
+        Offset(cx, cy),
+        Offset(cx + r * 0.55 * cos(angle), cy + r * 0.55 * sin(angle)),
+        spokePaint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
 }

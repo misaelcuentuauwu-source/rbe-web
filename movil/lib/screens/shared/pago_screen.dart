@@ -100,27 +100,7 @@ class _PagoScreenState extends State<PagoScreen> {
       );
       final correo = contacto['correo'] ?? '';
 
-      // Generar PDF antes de enviar al backend
-      String pdfBase64 = '';
-      if (correo.isNotEmpty) {
-        try {
-          final pdfBytes = await PdfBoleto.generar(
-            pagoId: 0, // se reemplaza con el folio real abajo
-            origenNombre: widget.origenNombre,
-            destinoNombre: widget.destinoNombre,
-            horaSalida: widget.horaSalida,
-            horaLlegada: widget.horaLlegada,
-            fechaViaje: widget.fechaViaje,
-            montoTotal: widget.montoTotal,
-            pasajeros: widget.pasajeros,
-            metodoPago: metodoPago,
-          );
-          pdfBase64 = base64Encode(pdfBytes);
-        } catch (e) {
-          debugPrint('Error generando PDF para correo: $e');
-        }
-      }
-
+      // 1. Primero hacer el POST sin pdf_base64
       final response = await http
           .post(
             Uri.parse('${Config.baseUrl}/api/comprar/'),
@@ -132,20 +112,53 @@ class _PagoScreenState extends State<PagoScreen> {
               'pasajeros': widget.pasajeros,
               'vendedor_id': widget.vendedorId,
               'correo_contacto': correo,
-              'pdf_base64': pdfBase64,
             }),
           )
           .timeout(const Duration(seconds: 30));
 
       if (response.statusCode == 201) {
         final data = jsonDecode(response.body);
-        // ── SIN segunda llamada a enviar_correo ──────────────
+        final pagoId = data['pago_id'];
+
+        // 2. Ya con el pago_id real, generar el PDF y mandarlo
+        if (correo.isNotEmpty) {
+          try {
+            final pdfBytes = await PdfBoleto.generar(
+              pagoId: pagoId, // ← ahora sí es el número real
+              origenNombre: widget.origenNombre,
+              destinoNombre: widget.destinoNombre,
+              horaSalida: widget.horaSalida,
+              horaLlegada: widget.horaLlegada,
+              fechaViaje: widget.fechaViaje,
+              montoTotal: widget.montoTotal,
+              pasajeros: widget.pasajeros,
+              metodoPago: metodoPago,
+            );
+            final pdfBase64 = base64Encode(pdfBytes);
+
+            // 3. Mandar el PDF al backend para adjuntarlo al correo
+            await http
+                .post(
+                  Uri.parse(
+                    '${Config.baseUrl}/api/boleto/$pagoId/adjuntar_pdf/',
+                  ),
+                  headers: {'Content-Type': 'application/json'},
+                  body: jsonEncode({'correo': correo, 'pdf_base64': pdfBase64}),
+                )
+                .timeout(const Duration(seconds: 30));
+          } catch (e) {
+            debugPrint('Error enviando PDF por correo: $e');
+            // No interrumpimos el flujo si falla el correo
+          }
+        }
+
+        // 4. Navegar a resumen
         if (mounted) {
           Navigator.pushReplacement(
             context,
             AppRoutes.slideLeft(
               ResumenCompraScreen(
-                pagoId: data['pago_id'],
+                pagoId: pagoId,
                 origenNombre: widget.origenNombre,
                 destinoNombre: widget.destinoNombre,
                 horaSalida: widget.horaSalida,
