@@ -19,6 +19,8 @@ let pasajerosViajeInfo = {};
 let salidasData        = [];
 let rutasDuracion      = {};   // FIX: declarado correctamente con let desde el principio
 let _fotoFile          = null;
+let gestionView        = 'tabla';   // 'tabla' | 'cards'
+let gestionLastData    = null;      // cache para re-render sin re-fetch
 
 // ── Helpers ────────────────────────────
 const csrfHeaders = () => ({ 'Content-Type':'application/json', 'X-CSRFToken': CSRF });
@@ -866,6 +868,22 @@ function exportarPasajerosCSV() {
 
 const COLS_IMAGEN = new Set(['foto']);
 
+// Columnas que se omiten en la vista tarjetas por ser poco legibles o redundantes
+const COLS_OCULTAS_CARDS = new Set(['serieVIN', 'serievin', 'firebase_uid', 'clave', 'contrasena']);
+
+function setGestionView(view) {
+  gestionView = view;
+  document.getElementById('gvt-tabla').classList.toggle('active', view === 'tabla');
+  document.getElementById('gvt-cards').classList.toggle('active', view === 'cards');
+  document.getElementById('gestion-tabla-wrap').style.display = view === 'tabla' ? '' : 'none';
+  document.getElementById('gestion-cards-wrap').style.display = view === 'cards' ? '' : 'none';
+  // Re-renderizar con datos cacheados si los hay
+  if (gestionLastData) {
+    if (view === 'tabla') renderGestionTabla(gestionLastData);
+    else                  renderGestionCards(gestionLastData);
+  }
+}
+
 function celdaGestion(col, val) {
   if (COLS_IMAGEN.has(col) && val && val !== '—') {
     const url = val.startsWith('http') ? val : `/media/${val}`;
@@ -880,9 +898,22 @@ function celdaGestion(col, val) {
 async function recargarGestion() {
   const tabla = tablaActual.nombre;
   if (!tabla) return;
+  // Mostrar spinner en la vista activa
   document.getElementById('gestion-tbody').innerHTML = '<tr><td colspan="20"><span class="spinner"></span></td></tr>';
+  document.getElementById('gestion-cards-wrap').innerHTML = '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
+
   const d = await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
   if (d.error) { toast(d.error,'err'); return; }
+
+  gestionLastData = d;
+  document.getElementById('gestion-info').textContent = `${d.rows.length} registro(s)`;
+
+  if (gestionView === 'tabla') renderGestionTabla(d);
+  else                         renderGestionCards(d);
+}
+
+function renderGestionTabla(d) {
+  const tabla = tablaActual.nombre;
   document.getElementById('gestion-thead').innerHTML =
     `<tr>${d.cols.map(c=>`<th>${c}</th>`).join('')}<th>Acciones</th></tr>`;
   if (!d.rows.length) {
@@ -900,7 +931,55 @@ async function recargarGestion() {
         <button class="btn btn-danger btn-sm"  onclick='eliminarReg("${tabla}","${pk}","${row[pk]}")'>Eliminar</button>
       </div></td>
     </tr>`).join('');
-  document.getElementById('gestion-info').textContent = `${d.rows.length} registro(s)`;
+}
+
+function renderGestionCards(d) {
+  const tabla = tablaActual.nombre;
+  const wrap  = document.getElementById('gestion-cards-wrap');
+  if (!d.rows.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>Sin registros</p></div>';
+    return;
+  }
+  const pk = d.cols[0];
+  wrap.innerHTML = `<div class="gestion-cards-grid">${d.rows.map((row, idx) => {
+    const pkVal   = row[pk];
+    const pkLabel = `${pk.charAt(0).toUpperCase() + pk.slice(1)} #${pkVal}`;
+
+    // Foto si existe
+    const fotoCol = d.cols.find(c => COLS_IMAGEN.has(c));
+    const fotoVal = fotoCol ? row[fotoCol] : null;
+    const fotoHtml = fotoVal && fotoVal !== '—'
+      ? `<img class="gc-card-foto" src="${fotoVal.startsWith('http') ? fotoVal : '/media/'+fotoVal}"
+           onerror="this.style.display='none'" onclick="verFotoGrande('${fotoVal.startsWith('http') ? fotoVal : '/media/'+fotoVal}')">`
+      : '';
+
+    // Campos visibles (excluir PK, foto, y cols ocultas)
+    const camposCols = d.cols.filter(c =>
+      c !== pk &&
+      !COLS_IMAGEN.has(c) &&
+      !COLS_OCULTAS_CARDS.has(c)
+    );
+
+    const camposHtml = camposCols.map(c => `
+      <div class="gc-field">
+        <span class="gc-field-key">${c}</span>
+        <span class="gc-field-val">${row[c] ?? '—'}</span>
+      </div>`).join('');
+
+    return `
+      <div class="gc-card" style="animation-delay:${Math.min(idx*.03,.3)}s">
+        <div class="gc-card-header">
+          <span class="gc-card-id">${pkLabel}</span>
+          ${fotoHtml}
+        </div>
+        <div class="gc-card-fields">${camposHtml}</div>
+        <div class="gc-card-actions">
+          <button class="btn btn-gray btn-sm"    onclick='verDetalle(${JSON.stringify(d.cols)},${JSON.stringify(row)})'>Ver</button>
+          <button class="btn btn-naranja btn-sm" onclick='abrirEditar("${tabla}","${pk}","${pkVal}")'>Editar</button>
+          <button class="btn btn-danger btn-sm"  onclick='eliminarReg("${tabla}","${pk}","${pkVal}")'>Eliminar</button>
+        </div>
+      </div>`;
+  }).join('')}</div>`;
 }
 
 function verFotoGrande(url) {

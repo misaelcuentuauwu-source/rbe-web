@@ -32,3 +32,4 @@ y pueden crear su propia api-key para luego ponerla en el archivo .env en
 GROQ_API_KEY=
 
 
+ 
