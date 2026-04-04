@@ -9,6 +9,120 @@
   {% load static %}
   <link rel="stylesheet" href="{% static 'dashboard/panel_admin.css' %}?v=4">
   <style>
+    /* ── Buscador de gestión ── */
+    .gestion-search-wrap {
+      padding: 0 0 12px 0;
+    }
+    .gestion-search-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+      max-width: 420px;
+    }
+    .gestion-search-icon {
+      position: absolute;
+      left: 12px;
+      color: var(--muted, #6b8fa8);
+      pointer-events: none;
+      flex-shrink: 0;
+    }
+    .gestion-search-input {
+      width: 100%;
+      padding: 9px 36px 9px 38px;
+      border: 1.5px solid var(--border, #e2e8f0);
+      border-radius: 10px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 14px;
+      color: var(--text, #1a2b3c);
+      background: #fff;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .gestion-search-input:focus {
+      border-color: var(--azul, #1181c3);
+      box-shadow: 0 0 0 3px rgba(17,129,195,.12);
+    }
+    .gestion-search-input::placeholder { color: var(--muted, #6b8fa8); }
+    .gestion-search-clear {
+      position: absolute;
+      right: 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--muted, #6b8fa8);
+      padding: 2px 4px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+    .gestion-search-clear:hover { color: var(--text, #1a2b3c); background: var(--border, #e2e8f0); }
+
+    /* Highlight de coincidencia */
+    .search-hl {
+      background: #fff3b0;
+      border-radius: 2px;
+      font-weight: 700;
+      color: #7a5c00;
+    }
+
+    /* ── Toggle DB / Legible ── */
+    .db-toggle-wrap {
+      display: none;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 12px;
+      background: #fff;
+      border: 1.5px solid var(--border, #e2e8f0);
+      border-radius: 10px;
+      cursor: default;
+      user-select: none;
+    }
+    .db-toggle-label {
+      font-family: 'DM Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .4px;
+      color: var(--muted, #6b8fa8);
+      transition: color .2s;
+      white-space: nowrap;
+    }
+    .db-toggle-label.active { color: var(--azul, #1181c3); }
+
+    .db-toggle-switch { position: relative; display: inline-flex; cursor: pointer; }
+    .db-toggle-switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+    .db-toggle-track {
+      display: flex; align-items: center;
+      width: 40px; height: 22px;
+      background: var(--muted, #6b8fa8);
+      border-radius: 99px;
+      transition: background .25s;
+      position: relative;
+    }
+    .db-toggle-switch input:checked + .db-toggle-track { background: var(--azul, #1181c3); }
+    .db-toggle-thumb {
+      position: absolute;
+      left: 3px;
+      width: 16px; height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 1px 4px rgba(0,0,0,.22);
+      transition: left .22s cubic-bezier(.4,0,.2,1);
+    }
+    .db-toggle-switch input:checked + .db-toggle-track .db-toggle-thumb { left: 21px; }
+
+    /* Badge en el info-bar para modo legible */
+    .modo-badge {
+      display: inline-block;
+      margin-left: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 99px;
+      vertical-align: middle;
+    }
+    .modo-badge.db      { background: #f0f4f8; color: var(--muted, #6b8fa8); }
+    .modo-badge.legible { background: #dbeafe; color: var(--azul, #1181c3); }
+
     /* ── Separador sección económica ── */
     .eco-section-header {
       display: flex; align-items: center; gap: 10px;
@@ -565,6 +679,15 @@
         <div class="gestion-header-btns">
           <button class="btn btn-success" id="btn-insertar" onclick="abrirInsertar()">+ Insertar</button>
           <button class="btn btn-primary" onclick="recargarGestion()">↺ Actualizar</button>
+          <!-- Toggle DB / Legible -->
+          <div class="db-toggle-wrap" id="db-toggle-wrap" title="DB: datos crudos  /  Legible: FKs resueltas">
+            <span class="db-toggle-label" id="db-toggle-lbl-db">DB</span>
+            <label class="db-toggle-switch">
+              <input type="checkbox" id="db-toggle-chk" onchange="onDbToggleChange()">
+              <span class="db-toggle-track"><span class="db-toggle-thumb"></span></span>
+            </label>
+            <span class="db-toggle-label" id="db-toggle-lbl-leg">Legible</span>
+          </div>
           <div class="gestion-view-toggle" id="gestion-view-toggle">
             <button class="gvt-btn active" id="gvt-tabla" onclick="setGestionView('tabla')" title="Vista tabla">
               <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2.5" rx="1" fill="currentColor"/><rect x="1" y="6.5" width="14" height="2.5" rx="1" fill="currentColor" opacity=".6"/><rect x="1" y="11" width="14" height="2.5" rx="1" fill="currentColor" opacity=".3"/></svg>
@@ -575,6 +698,21 @@
               Tarjetas
             </button>
           </div>
+        </div>
+      </div>
+      <!-- Buscador -->
+      <div class="gestion-search-wrap" id="gestion-search-wrap" style="display:none">
+        <div class="gestion-search-box">
+          <svg class="gestion-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input
+            type="text"
+            id="gestion-search"
+            class="gestion-search-input"
+            placeholder="Buscar en cualquier campo…"
+            oninput="filtrarGestion()"
+            autocomplete="off"
+          />
+          <button class="gestion-search-clear" id="gestion-search-clear" onclick="limpiarBusqueda()" title="Limpiar búsqueda" style="display:none">✕</button>
         </div>
       </div>
       <div class="info-bar" id="gestion-info"></div>

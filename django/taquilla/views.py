@@ -152,49 +152,222 @@ TABLAS_PERMITIDAS = [
 ]
 
 @admin_requerido
+def _get_fk_display_map(tabla):
+    """
+    Devuelve un dict  { col_name: { id_value: label_string } }
+    para todas las FKs de `tabla`, resolviendo automáticamente el campo
+    de visualización de la tabla referenciada.
+    Abre su propio cursor para no interferir con el cursor del llamador.
+    """
+    from django.db import connection
+    result = {}
+
+    with connection.cursor() as cur:
+        cur.execute("""
+            SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+              AND REFERENCED_TABLE_NAME IS NOT NULL
+        """, [tabla])
+        fk_rows = cur.fetchall()
+
+    for col, ref_table, ref_col in fk_rows:
+        with connection.cursor() as cur:
+
+            # ── Caso especial: ruta ──────────────────────────────────
+            if ref_table == 'ruta':
+                cur.execute("""
+                    SELECT r.codigo,
+                           CONCAT('#', r.codigo, ' — ', corig.nombre, ' → ', cdest.nombre)
+                    FROM ruta r
+                    JOIN terminal tor  ON r.origen  = tor.numero
+                    JOIN terminal tdes ON r.destino = tdes.numero
+                    JOIN ciudad corig  ON tor.ciudad = corig.clave
+                    JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                """)
+                result[col] = {str(r[0]): r[1] for r in cur.fetchall()}
+                continue
+
+            # ── Caso especial: conductor → nombre completo ───────────
+            if ref_table == 'conductor':
+                cur.execute("""
+                    SELECT registro, CONCAT(conNombre, ' ', conPrimerApell) FROM conductor
+                """)
+                result[col] = {str(r[0]): r[1] for r in cur.fetchall()}
+                continue
+
+            # ── Caso especial: taquillero → nombre completo ──────────
+            if ref_table == 'taquillero':
+                cur.execute("""
+                    SELECT registro, CONCAT(taqNombre, ' ', taqPrimerApell) FROM taquillero
+                """)
+                result[col] = {str(r[0]): r[1] for r in cur.fetchall()}
+                continue
+
+            # ── Caso especial: pasajero → nombre completo ────────────
+            if ref_table == 'pasajero':
+                cur.execute("""
+                    SELECT num, CONCAT(paNombre, ' ', paPrimerApell) FROM pasajero
+                """)
+                result[col] = {str(r[0]): r[1] for r in cur.fetchall()}
+                continue
+
+            # ── Genérico: buscar columna de display ──────────────────
+            cur.execute(f"SHOW COLUMNS FROM `{ref_table}`")
+            rt_cols = [r[0] for r in cur.fetchall()]
+            display = next(
+                (c for c in rt_cols if c.lower() in ('nombre', 'name', 'descripcion', 'titulo', 'nom')),
+                next((c for c in rt_cols if c != ref_col), ref_col)
+            )
+            cur.execute(f"SELECT `{ref_col}`, `{display}` FROM `{ref_table}` LIMIT 2000")
+            result[col] = {str(r[0]): str(r[1]) for r in cur.fetchall()}
+
+    return result
+
+
+@admin_requerido
 def crud_leer(request, tabla):
     if tabla not in TABLAS_PERMITIDAS:
         return JsonResponse({'error': 'Tabla no permitida'}, status=403)
+
+    modo = request.GET.get('modo', 'db')   # 'db' | 'legible'
+
     from django.db import connection
     with connection.cursor() as cur:
 
-        if tabla == 'viaje':
-            cur.execute("""
-                SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
-                       v.ruta, v.estado,
-                       ev.nombre AS estado_nombre,
-                       v.autobus, v.conductor
-                FROM viaje v
-                JOIN edo_viaje ev ON ev.numero = v.estado
-                LIMIT 500
-            """)
-        elif tabla == 'ruta':
-            cur.execute("""
-                SELECT r.codigo,
-                       r.duracion,
-                       CONCAT(corig.nombre, ' → ', cdest.nombre) AS ruta,
-                       CONCAT(tor.nombre, ' (', corig.nombre, ')') AS origen,
-                       CONCAT(tdes.nombre, ' (', cdest.nombre, ')') AS destino,
-                       r.precio
-                FROM ruta r
-                JOIN terminal tor  ON r.origen  = tor.numero
-                JOIN terminal tdes ON r.destino  = tdes.numero
-                JOIN ciudad corig  ON tor.ciudad = corig.clave
-                JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
-                ORDER BY r.codigo
-                LIMIT 500
-            """)
-        else:
+        # ── Modo DB: SELECT * puro (igual al DBMS) ──────────────
+        if modo != 'legible':
             cur.execute(f"SELECT * FROM `{tabla}` LIMIT 500")
+            cols = [d[0] for d in cur.description]
+            rows = [dict(zip(cols, r)) for r in cur.fetchall()]
 
-        cols = [d[0] for d in cur.description]
-        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        # ── Modo Legible: queries con JOINs explícitos por tabla ──
+        else:
+            if tabla == 'modelo':
+                cur.execute("""
+                    SELECT m.numero, m.nombre, m.numasientos, m.ano, m.capacidad,
+                           ma.nombre AS marca
+                    FROM modelo m
+                    JOIN marca ma ON ma.numero = m.marca
+                    LIMIT 500
+                """)
+            elif tabla == 'ruta':
+                cur.execute("""
+                    SELECT r.codigo,
+                           r.duracion,
+                           CONCAT(tor.nombre, ' (', corig.nombre, ')') AS origen,
+                           CONCAT(tdes.nombre, ' (', cdest.nombre, ')') AS destino,
+                           r.precio
+                    FROM ruta r
+                    JOIN terminal tor  ON r.origen  = tor.numero
+                    JOIN terminal tdes ON r.destino = tdes.numero
+                    JOIN ciudad corig  ON tor.ciudad = corig.clave
+                    JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                    ORDER BY r.codigo
+                    LIMIT 500
+                """)
+            elif tabla == 'pago':
+                cur.execute("""
+                    SELECT pg.numero,
+                           pg.fechapago,
+                           pg.monto,
+                           tpg.nombre AS tipo,
+                           CONCAT(t.taqNombre, ' ', t.taqPrimerApell) AS vendedor
+                    FROM pago pg
+                    JOIN tipo_pago tpg ON tpg.numero  = pg.tipo
+                    LEFT JOIN taquillero t ON t.registro = pg.vendedor
+                    LIMIT 500
+                """)
+            elif tabla == 'ticket':
+                cur.execute("""
+                    SELECT tk.codigo,
+                           tk.precio,
+                           tk.fechaEmision,
+                           tk.asiento AS asiento,
+                           CONCAT('#', v.numero, ' — ', corig.nombre, ' → ', cdest.nombre) AS viaje,
+                           CONCAT(p.paNombre, ' ', p.paPrimerApell) AS pasajero,
+                           tp.descripcion AS tipo_pasajero,
+                           CONCAT('$', pg.monto, ' — ', tpg.nombre) AS pago
+                    FROM ticket tk
+                    JOIN viaje v         ON v.numero    = tk.viaje
+                    JOIN ruta r          ON r.codigo    = v.ruta
+                    JOIN terminal tor    ON r.origen    = tor.numero
+                    JOIN terminal tdes   ON r.destino   = tdes.numero
+                    JOIN ciudad corig    ON tor.ciudad  = corig.clave
+                    JOIN ciudad cdest    ON tdes.ciudad = cdest.clave
+                    JOIN pasajero p      ON p.num       = tk.pasajero
+                    JOIN tipo_pasajero tp ON tp.num     = tk.tipopasajero
+                    JOIN pago pg         ON pg.numero   = tk.pago
+                    JOIN tipo_pago tpg   ON tpg.numero  = pg.tipo
+                    LIMIT 500
+                """)
+            elif tabla == 'taquillero':
+                cur.execute("""
+                    SELECT t.registro, t.taqNombre, t.taqPrimerApell, t.taqSegundoApell,
+                           t.fechaContrato, t.usuario,
+                           ter.nombre AS terminal,
+                           CASE t.supervisa WHEN 1 THEN 'Sí' ELSE 'No' END AS supervisa
+                    FROM taquillero t
+                    JOIN terminal ter ON ter.numero = t.terminal
+                    LIMIT 500
+                """)
+            elif tabla == 'viaje_asiento':
+                cur.execute("""
+                    SELECT va.asiento,
+                           CONCAT('#', v.numero, ' — ', corig.nombre, ' → ', cdest.nombre) AS viaje,
+                           CASE va.ocupado WHEN 1 THEN 'Ocupado' ELSE 'Libre' END AS ocupado
+                    FROM viaje_asiento va
+                    JOIN viaje v       ON v.numero   = va.viaje
+                    JOIN ruta r        ON r.codigo   = v.ruta
+                    JOIN terminal tor  ON r.origen   = tor.numero
+                    JOIN terminal tdes ON r.destino  = tdes.numero
+                    JOIN ciudad corig  ON tor.ciudad = corig.clave
+                    JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                    LIMIT 500
+                """)
+            elif tabla == 'asiento':
+                cur.execute("""
+                    SELECT a.numero,
+                           ta.descripcion AS tipo,
+                           CONCAT(b.numero, ' — ', b.placas) AS autobus
+                    FROM asiento a
+                    JOIN tipo_asiento ta ON ta.codigo = a.tipo
+                    JOIN autobus b       ON b.numero  = a.autobus
+                    LIMIT 500
+                """)
+            elif tabla == 'viaje':
+                cur.execute("""
+                    SELECT v.numero,
+                           v.fecHoraSalida,
+                           v.fecHoraEntrada,
+                           CONCAT('#', r.codigo, ' — ', corig.nombre, ' → ', cdest.nombre) AS ruta,
+                           ev.nombre AS estado,
+                           CONCAT(a.numero, ' — ', a.placas) AS autobus,
+                           CONCAT(c.conNombre, ' ', c.conPrimerApell) AS conductor
+                    FROM viaje v
+                    JOIN ruta r        ON r.codigo   = v.ruta
+                    JOIN terminal tor  ON r.origen   = tor.numero
+                    JOIN terminal tdes ON r.destino  = tdes.numero
+                    JOIN ciudad corig  ON tor.ciudad = corig.clave
+                    JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                    JOIN edo_viaje ev  ON ev.numero  = v.estado
+                    LEFT JOIN autobus a   ON a.numero  = v.autobus
+                    LEFT JOIN conductor c ON c.registro = v.conductor
+                    LIMIT 500
+                """)
+            else:
+                # Fallback: mismo que DB hasta agregar más tablas
+                cur.execute(f"SELECT * FROM `{tabla}` LIMIT 500")
+
+            cols = [d[0] for d in cur.description]
+            rows = [dict(zip(cols, r)) for r in cur.fetchall()]
 
     for row in rows:
         for k, v in row.items():
             if hasattr(v, 'isoformat'):
                 row[k] = v.isoformat()
-    return JsonResponse({'cols': cols, 'rows': rows})
+
+    return JsonResponse({'cols': cols, 'rows': rows, 'modo': modo})
 @admin_requerido
 def crud_esquema(request, tabla):
     if tabla not in TABLAS_PERMITIDAS:
