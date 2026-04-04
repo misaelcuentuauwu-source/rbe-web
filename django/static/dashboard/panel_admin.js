@@ -21,6 +21,7 @@ let rutasDuracion      = {};   // FIX: declarado correctamente con let desde el 
 let _fotoFile          = null;
 let gestionView        = 'tabla';   // 'tabla' | 'cards'
 let gestionLastData    = null;      // cache para re-render sin re-fetch
+let gestionModo        = 'db';      // 'db' | 'legible'
 
 // ── Helpers ────────────────────────────
 const csrfHeaders = () => ({ 'Content-Type':'application/json', 'X-CSRFToken': CSRF });
@@ -146,6 +147,8 @@ function showGestion(tabla) {
   document.getElementById('gestion-title').textContent =
     'Gestión — ' + tabla.charAt(0).toUpperCase() + tabla.slice(1);
   tablaActual.nombre = tabla;
+  // Si la nueva tabla no tiene modo legible, forzar DB
+  if (!TABLAS_CON_LEGIBLE.has(tabla)) gestionModo = 'db';
   recargarGestion();
 }
 
@@ -895,24 +898,123 @@ function celdaGestion(col, val) {
   return `<td>${val??'—'}</td>`;
 }
 
+// ════ TOGGLE DB / LEGIBLE ═══════════════
+// Tablas que tienen modo legible implementado en el backend
+const TABLAS_CON_LEGIBLE = new Set([
+  'modelo', 'ruta', 'viaje', 'asiento', 'viaje_asiento',
+  'taquillero', 'ticket', 'pago'
+]);
+
+function onDbToggleChange() {
+  const chk = document.getElementById('db-toggle-chk');
+
+  // Si intenta activar legible en tabla sin soporte → revertir y avisar
+  if (chk.checked && !TABLAS_CON_LEGIBLE.has(tablaActual.nombre)) {
+    chk.checked = false;
+    toast('No es necesario este modo aquí', 'err');
+    return;
+  }
+
+  gestionModo = chk.checked ? 'legible' : 'db';
+
+  // Actualizar estilos de labels
+  document.getElementById('db-toggle-lbl-db').classList.toggle('active', !chk.checked);
+  document.getElementById('db-toggle-lbl-leg').classList.toggle('active', chk.checked);
+
+  // Recargar datos con el nuevo modo
+  recargarGestion();
+}
+
+function _syncDbToggleUI() {
+  const chk = document.getElementById('db-toggle-chk');
+  chk.checked = (gestionModo === 'legible');
+  document.getElementById('db-toggle-lbl-db').classList.toggle('active', gestionModo !== 'legible');
+  document.getElementById('db-toggle-lbl-leg').classList.toggle('active', gestionModo === 'legible');
+  document.getElementById('db-toggle-wrap').style.display = 'flex';
+}
+
 async function recargarGestion() {
   const tabla = tablaActual.nombre;
   if (!tabla) return;
+  // Mostrar buscador y toggle
+  document.getElementById('gestion-search-wrap').style.display = '';
+  _syncDbToggleUI();
+  // Limpiar búsqueda al recargar
+  const inp = document.getElementById('gestion-search');
+  inp.value = '';
+  document.getElementById('gestion-search-clear').style.display = 'none';
   // Mostrar spinner en la vista activa
   document.getElementById('gestion-tbody').innerHTML = '<tr><td colspan="20"><span class="spinner"></span></td></tr>';
   document.getElementById('gestion-cards-wrap').innerHTML = '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
 
-  const d = await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
+  const url = `/api/crud/${tabla}/leer/?modo=${gestionModo}`;
+  const d = await fetch(url).then(r=>r.json());
   if (d.error) { toast(d.error,'err'); return; }
 
   gestionLastData = d;
-  document.getElementById('gestion-info').textContent = `${d.rows.length} registro(s)`;
+
+  // Badge de modo en el info-bar
+  const badge = `<span class="modo-badge ${gestionModo}">${gestionModo === 'legible' ? '🔤 Legible' : '🗄 DB'}</span>`;
+  document.getElementById('gestion-info').innerHTML = `${d.rows.length} registro(s)${badge}`;
 
   if (gestionView === 'tabla') renderGestionTabla(d);
   else                         renderGestionCards(d);
 }
 
-function renderGestionTabla(d) {
+// ════ BUSCADOR DE GESTIÓN ════════════════
+function _infoBadge() {
+  return `<span class="modo-badge ${gestionModo}">${gestionModo === 'legible' ? '🔤 Legible' : '🗄 DB'}</span>`;
+}
+
+function filtrarGestion() {
+  const q = document.getElementById('gestion-search').value.trim().toLowerCase();
+  document.getElementById('gestion-search-clear').style.display = q ? '' : 'none';
+
+  if (!gestionLastData) return;
+
+  if (!q) {
+    // Sin búsqueda: mostrar todo sin highlights
+    if (gestionView === 'tabla') renderGestionTabla(gestionLastData);
+    else                         renderGestionCards(gestionLastData);
+    document.getElementById('gestion-info').innerHTML = `${gestionLastData.rows.length} registro(s)${_infoBadge()}`;
+    return;
+  }
+
+  // Filtrar filas que tengan al menos una celda que contenga el término
+  const filtradas = gestionLastData.rows.filter(row =>
+    Object.values(row).some(v => v !== null && String(v).toLowerCase().includes(q))
+  );
+
+  const datFiltrada = { cols: gestionLastData.cols, rows: filtradas };
+  const total = gestionLastData.rows.length;
+  document.getElementById('gestion-info').innerHTML =
+    `${filtradas.length} resultado(s) de ${total} registro(s)${_infoBadge()}`;
+
+  if (gestionView === 'tabla') renderGestionTabla(datFiltrada, q);
+  else                         renderGestionCards(datFiltrada, q);
+}
+
+function limpiarBusqueda() {
+  document.getElementById('gestion-search').value = '';
+  document.getElementById('gestion-search-clear').style.display = 'none';
+  filtrarGestion();
+}
+
+// Resalta el término buscado dentro de un texto
+function highlightMatch(text, q) {
+  if (!q || !text) return text ?? '—';
+  const str = String(text);
+  if (!q) return str;
+  const idx = str.toLowerCase().indexOf(q.toLowerCase());
+  if (idx === -1) return str;
+  return (
+    str.substring(0, idx) +
+    `<span class="search-hl">${str.substring(idx, idx + q.length)}</span>` +
+    str.substring(idx + q.length)
+  );
+}
+
+function renderGestionTabla(d, q = '') {
   const tabla = tablaActual.nombre;
   document.getElementById('gestion-thead').innerHTML =
     `<tr>${d.cols.map(c=>`<th>${c}</th>`).join('')}<th>Acciones</th></tr>`;
@@ -924,7 +1026,16 @@ function renderGestionTabla(d) {
   const pk = d.cols[0];
   document.getElementById('gestion-tbody').innerHTML = d.rows.map(row=>`
     <tr>
-      ${d.cols.map(c=>celdaGestion(c, row[c])).join('')}
+      ${d.cols.map(c=>{
+        if (COLS_IMAGEN.has(c) && row[c] && row[c] !== '—') {
+          const url = String(row[c]).startsWith('http') ? row[c] : `/media/${row[c]}`;
+          return `<td><img src="${url}" alt="foto"
+            style="width:44px;height:44px;object-fit:cover;border-radius:50%;border:2px solid var(--border);cursor:pointer;vertical-align:middle;"
+            onerror="this.style.display='none'"
+            onclick="verFotoGrande('${url}')"></td>`;
+        }
+        return `<td>${highlightMatch(row[c], q)}</td>`;
+      }).join('')}
       <td style="white-space:nowrap"><div style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="btn btn-gray btn-sm"    onclick='verDetalle(${JSON.stringify(d.cols)},${JSON.stringify(row)})'>Ver</button>
         <button class="btn btn-naranja btn-sm" onclick='abrirEditar("${tabla}","${pk}","${row[pk]}")'>Editar</button>
@@ -933,7 +1044,7 @@ function renderGestionTabla(d) {
     </tr>`).join('');
 }
 
-function renderGestionCards(d) {
+function renderGestionCards(d, q = '') {
   const tabla = tablaActual.nombre;
   const wrap  = document.getElementById('gestion-cards-wrap');
   if (!d.rows.length) {
@@ -963,7 +1074,7 @@ function renderGestionCards(d) {
     const camposHtml = camposCols.map(c => `
       <div class="gc-field">
         <span class="gc-field-key">${c}</span>
-        <span class="gc-field-val">${row[c] ?? '—'}</span>
+        <span class="gc-field-val">${highlightMatch(row[c], q)}</span>
       </div>`).join('');
 
     return `
