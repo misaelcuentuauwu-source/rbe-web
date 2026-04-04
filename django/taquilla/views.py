@@ -152,20 +152,222 @@ TABLAS_PERMITIDAS = [
 ]
 
 @admin_requerido
+def _get_fk_display_map(tabla):
+    """
+    Devuelve un dict  { col_name: { id_value: label_string } }
+    para todas las FKs de `tabla`, resolviendo automáticamente el campo
+    de visualización de la tabla referenciada.
+    Abre su propio cursor para no interferir con el cursor del llamador.
+    """
+    from django.db import connection
+    result = {}
+
+    with connection.cursor() as cur:
+        cur.execute("""
+            SELECT COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_COLUMN_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+              AND REFERENCED_TABLE_NAME IS NOT NULL
+        """, [tabla])
+        fk_rows = cur.fetchall()
+
+    for col, ref_table, ref_col in fk_rows:
+        with connection.cursor() as cur:
+
+            # ── Caso especial: ruta ──────────────────────────────────
+            if ref_table == 'ruta':
+                cur.execute("""
+                    SELECT r.codigo,
+                           CONCAT('#', r.codigo, ' — ', corig.nombre, ' → ', cdest.nombre)
+                    FROM ruta r
+                    JOIN terminal tor  ON r.origen  = tor.numero
+                    JOIN terminal tdes ON r.destino = tdes.numero
+                    JOIN ciudad corig  ON tor.ciudad = corig.clave
+                    JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                """)
+                result[col] = {str(r[0]): r[1] for r in cur.fetchall()}
+                continue
+
+            # ── Caso especial: conductor → nombre completo ───────────
+            if ref_table == 'conductor':
+                cur.execute("""
+                    SELECT registro, CONCAT(conNombre, ' ', conPrimerApell) FROM conductor
+                """)
+                result[col] = {str(r[0]): r[1] for r in cur.fetchall()}
+                continue
+
+            # ── Caso especial: taquillero → nombre completo ──────────
+            if ref_table == 'taquillero':
+                cur.execute("""
+                    SELECT registro, CONCAT(taqNombre, ' ', taqPrimerApell) FROM taquillero
+                """)
+                result[col] = {str(r[0]): r[1] for r in cur.fetchall()}
+                continue
+
+            # ── Caso especial: pasajero → nombre completo ────────────
+            if ref_table == 'pasajero':
+                cur.execute("""
+                    SELECT num, CONCAT(paNombre, ' ', paPrimerApell) FROM pasajero
+                """)
+                result[col] = {str(r[0]): r[1] for r in cur.fetchall()}
+                continue
+
+            # ── Genérico: buscar columna de display ──────────────────
+            cur.execute(f"SHOW COLUMNS FROM `{ref_table}`")
+            rt_cols = [r[0] for r in cur.fetchall()]
+            display = next(
+                (c for c in rt_cols if c.lower() in ('nombre', 'name', 'descripcion', 'titulo', 'nom')),
+                next((c for c in rt_cols if c != ref_col), ref_col)
+            )
+            cur.execute(f"SELECT `{ref_col}`, `{display}` FROM `{ref_table}` LIMIT 2000")
+            result[col] = {str(r[0]): str(r[1]) for r in cur.fetchall()}
+
+    return result
+
+
+@admin_requerido
 def crud_leer(request, tabla):
     if tabla not in TABLAS_PERMITIDAS:
         return JsonResponse({'error': 'Tabla no permitida'}, status=403)
+
+    modo = request.GET.get('modo', 'db')   # 'db' | 'legible'
+
     from django.db import connection
     with connection.cursor() as cur:
-        cur.execute(f"SELECT * FROM `{tabla}` LIMIT 500")
-        cols = [d[0] for d in cur.description]
-        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+        # ── Modo DB: SELECT * puro (igual al DBMS) ──────────────
+        if modo != 'legible':
+            cur.execute(f"SELECT * FROM `{tabla}` LIMIT 500")
+            cols = [d[0] for d in cur.description]
+            rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+        # ── Modo Legible: queries con JOINs explícitos por tabla ──
+        else:
+            if tabla == 'modelo':
+                cur.execute("""
+                    SELECT m.numero, m.nombre, m.numasientos, m.ano, m.capacidad,
+                           ma.nombre AS marca
+                    FROM modelo m
+                    JOIN marca ma ON ma.numero = m.marca
+                    LIMIT 500
+                """)
+            elif tabla == 'ruta':
+                cur.execute("""
+                    SELECT r.codigo,
+                           r.duracion,
+                           CONCAT(tor.nombre, ' (', corig.nombre, ')') AS origen,
+                           CONCAT(tdes.nombre, ' (', cdest.nombre, ')') AS destino,
+                           r.precio
+                    FROM ruta r
+                    JOIN terminal tor  ON r.origen  = tor.numero
+                    JOIN terminal tdes ON r.destino = tdes.numero
+                    JOIN ciudad corig  ON tor.ciudad = corig.clave
+                    JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                    ORDER BY r.codigo
+                    LIMIT 500
+                """)
+            elif tabla == 'pago':
+                cur.execute("""
+                    SELECT pg.numero,
+                           pg.fechapago,
+                           pg.monto,
+                           tpg.nombre AS tipo,
+                           CONCAT(t.taqNombre, ' ', t.taqPrimerApell) AS vendedor
+                    FROM pago pg
+                    JOIN tipo_pago tpg ON tpg.numero  = pg.tipo
+                    LEFT JOIN taquillero t ON t.registro = pg.vendedor
+                    LIMIT 500
+                """)
+            elif tabla == 'ticket':
+                cur.execute("""
+                    SELECT tk.codigo,
+                           tk.precio,
+                           tk.fechaEmision,
+                           tk.asiento AS asiento,
+                           CONCAT('#', v.numero, ' — ', corig.nombre, ' → ', cdest.nombre) AS viaje,
+                           CONCAT(p.paNombre, ' ', p.paPrimerApell) AS pasajero,
+                           tp.descripcion AS tipo_pasajero,
+                           CONCAT('$', pg.monto, ' — ', tpg.nombre) AS pago
+                    FROM ticket tk
+                    JOIN viaje v         ON v.numero    = tk.viaje
+                    JOIN ruta r          ON r.codigo    = v.ruta
+                    JOIN terminal tor    ON r.origen    = tor.numero
+                    JOIN terminal tdes   ON r.destino   = tdes.numero
+                    JOIN ciudad corig    ON tor.ciudad  = corig.clave
+                    JOIN ciudad cdest    ON tdes.ciudad = cdest.clave
+                    JOIN pasajero p      ON p.num       = tk.pasajero
+                    JOIN tipo_pasajero tp ON tp.num     = tk.tipopasajero
+                    JOIN pago pg         ON pg.numero   = tk.pago
+                    JOIN tipo_pago tpg   ON tpg.numero  = pg.tipo
+                    LIMIT 500
+                """)
+            elif tabla == 'taquillero':
+                cur.execute("""
+                    SELECT t.registro, t.taqNombre, t.taqPrimerApell, t.taqSegundoApell,
+                           t.fechaContrato, t.usuario,
+                           ter.nombre AS terminal,
+                           CASE t.supervisa WHEN 1 THEN 'Sí' ELSE 'No' END AS supervisa
+                    FROM taquillero t
+                    JOIN terminal ter ON ter.numero = t.terminal
+                    LIMIT 500
+                """)
+            elif tabla == 'viaje_asiento':
+                cur.execute("""
+                    SELECT va.asiento,
+                           CONCAT('#', v.numero, ' — ', corig.nombre, ' → ', cdest.nombre) AS viaje,
+                           CASE va.ocupado WHEN 1 THEN 'Ocupado' ELSE 'Libre' END AS ocupado
+                    FROM viaje_asiento va
+                    JOIN viaje v       ON v.numero   = va.viaje
+                    JOIN ruta r        ON r.codigo   = v.ruta
+                    JOIN terminal tor  ON r.origen   = tor.numero
+                    JOIN terminal tdes ON r.destino  = tdes.numero
+                    JOIN ciudad corig  ON tor.ciudad = corig.clave
+                    JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                    LIMIT 500
+                """)
+            elif tabla == 'asiento':
+                cur.execute("""
+                    SELECT a.numero,
+                           ta.descripcion AS tipo,
+                           CONCAT(b.numero, ' — ', b.placas) AS autobus
+                    FROM asiento a
+                    JOIN tipo_asiento ta ON ta.codigo = a.tipo
+                    JOIN autobus b       ON b.numero  = a.autobus
+                    LIMIT 500
+                """)
+            elif tabla == 'viaje':
+                cur.execute("""
+                    SELECT v.numero,
+                           v.fecHoraSalida,
+                           v.fecHoraEntrada,
+                           CONCAT('#', r.codigo, ' — ', corig.nombre, ' → ', cdest.nombre) AS ruta,
+                           ev.nombre AS estado,
+                           CONCAT(a.numero, ' — ', a.placas) AS autobus,
+                           CONCAT(c.conNombre, ' ', c.conPrimerApell) AS conductor
+                    FROM viaje v
+                    JOIN ruta r        ON r.codigo   = v.ruta
+                    JOIN terminal tor  ON r.origen   = tor.numero
+                    JOIN terminal tdes ON r.destino  = tdes.numero
+                    JOIN ciudad corig  ON tor.ciudad = corig.clave
+                    JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                    JOIN edo_viaje ev  ON ev.numero  = v.estado
+                    LEFT JOIN autobus a   ON a.numero  = v.autobus
+                    LEFT JOIN conductor c ON c.registro = v.conductor
+                    LIMIT 500
+                """)
+            else:
+                # Fallback: mismo que DB hasta agregar más tablas
+                cur.execute(f"SELECT * FROM `{tabla}` LIMIT 500")
+
+            cols = [d[0] for d in cur.description]
+            rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+
     for row in rows:
         for k, v in row.items():
             if hasattr(v, 'isoformat'):
                 row[k] = v.isoformat()
-    return JsonResponse({'cols': cols, 'rows': rows})
 
+    return JsonResponse({'cols': cols, 'rows': rows, 'modo': modo})
 @admin_requerido
 def crud_esquema(request, tabla):
     if tabla not in TABLAS_PERMITIDAS:
@@ -190,6 +392,22 @@ def crud_esquema(request, tabla):
             for col, fk in fk_map.items():
                 rt = fk['ref_table']
                 rc = fk['ref_col']
+
+                # Caso especial: ruta → mostrar origen → destino
+                if rt == 'ruta':
+                    cur2.execute("""
+                        SELECT r.codigo,
+                               CONCAT('#', r.codigo, ' — ', corig.nombre, ' → ', cdest.nombre, ' (', r.duracion, ')')
+                        FROM ruta r
+                        JOIN terminal tor  ON r.origen  = tor.numero
+                        JOIN terminal tdes ON r.destino = tdes.numero
+                        JOIN ciudad corig  ON tor.ciudad = corig.clave
+                        JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                        ORDER BY r.codigo
+                    """)
+                    opciones[col] = [{'value': r[0], 'label': r[1]} for r in cur2.fetchall()]
+                    continue
+
                 cur2.execute(f"SHOW COLUMNS FROM `{rt}`")
                 rt_cols = [r[0] for r in cur2.fetchall()]
                 display = next(
@@ -199,7 +417,6 @@ def crud_esquema(request, tabla):
                 cur2.execute(f"SELECT `{rc}`, `{display}` FROM `{rt}` LIMIT 1000")
                 opciones[col] = [{'value': r[0], 'label': str(r[1])} for r in cur2.fetchall()]
     return JsonResponse({'columnas': columnas, 'fk_map': fk_map, 'opciones': opciones})
-
 @require_POST
 @admin_requerido
 def crud_insertar(request, tabla):
@@ -225,17 +442,60 @@ def crud_actualizar(request, tabla):
     data     = json.loads(request.body)
     pk_name  = data.pop('__pk_name__')
     pk_value = data.pop('__pk_value__')
-    setters  = [f"`{k}` = %s" for k in data]
-    vals     = list(data.values()) + [pk_value]
-    sql = f"UPDATE `{tabla}` SET {', '.join(setters)} WHERE `{pk_name}` = %s"
+
     try:
+        from django.db import connection
+        with connection.cursor() as cur:
+
+            # ── RF-WEB-24: Solo editar viaje si está Programado ───────
+            if tabla == 'viaje':
+                cur.execute("""
+                    SELECT LOWER(ev.nombre) FROM viaje v
+                    JOIN edo_viaje ev ON ev.numero = v.estado
+                    WHERE v.numero = %s
+                """, [pk_value])
+                row = cur.fetchone()
+                if not row:
+                    return JsonResponse({'ok': False, 'error': 'Viaje no encontrado'})
+
+                estado_actual = row[0]
+
+                if estado_actual not in ('programado',):
+                    return JsonResponse({
+                        'ok': False,
+                        'error': f'No se puede editar un viaje en estado "{estado_actual.capitalize()}". Solo se permiten cambios en viajes disponibles.'
+                    })
+
+                # ── RF-WEB-25: Validar transición de estado ───────────
+                if 'estado' in data:
+                    cur.execute(
+                        "SELECT LOWER(nombre) FROM edo_viaje WHERE numero = %s", [data['estado']]
+                    )
+                    nuevo_estado = cur.fetchone()
+                    if nuevo_estado:
+                        nuevo_estado = nuevo_estado[0]
+                        transiciones_validas = {
+                            'programado': ['programado', 'en curso', 'cancelado'],
+                            'en curso':   ['en curso', 'completado', 'finalizado'],
+                        }
+                        permitidos = transiciones_validas.get(estado_actual, [])
+                        if nuevo_estado not in permitidos:
+                            return JsonResponse({
+                                'ok': False,
+                                'error': f'Transición no permitida: "{estado_actual.capitalize()}" → "{nuevo_estado.capitalize()}".'
+                            })
+
+        setters = [f"`{k}` = %s" for k in data]
+        vals    = list(data.values()) + [pk_value]
+        sql = f"UPDATE `{tabla}` SET {', '.join(setters)} WHERE `{pk_name}` = %s"
+
         from django.db import connection
         with connection.cursor() as cur:
             cur.execute(sql, vals)
         return JsonResponse({'ok': True})
+
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
-
 @require_POST
 @admin_requerido
 def crud_eliminar(request, tabla):
@@ -247,11 +507,22 @@ def crud_eliminar(request, tabla):
     try:
         from django.db import connection
         with connection.cursor() as cur:
+
+            # ── Validar que no se elimine una ruta con viajes ─────────
+            if tabla == 'ruta':
+                cur.execute(
+                    "SELECT COUNT(*) FROM viaje WHERE ruta = %s", [pk_value]
+                )
+                if cur.fetchone()[0] > 0:
+                    return JsonResponse({
+                        'ok': False,
+                        'error': 'No se puede eliminar la ruta porque tiene viajes registrados.'
+                    })
+
             cur.execute(f"DELETE FROM `{tabla}` WHERE `{pk_name}` = %s", [pk_value])
         return JsonResponse({'ok': True})
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
-
 @admin_requerido
 def salidas_json(request):
     from django.db import connection
@@ -361,26 +632,79 @@ def agregar_viaje(request):
     autobus   = data.get('autobus')
     conductor = data.get('conductor')
     estado    = data.get('estado')
+
     if not all([salida, llegada, ruta, autobus, conductor, estado]):
         return JsonResponse({'ok': False, 'error': 'Todos los campos son obligatorios'})
+
     try:
         from django.db import connection
         with connection.cursor() as cur:
+
+            # ── Validar conflicto de CONDUCTOR ────────────────────────
+            cur.execute("""
+                SELECT numero FROM viaje
+                WHERE conductor = %s
+                  AND estado NOT IN (
+                      SELECT numero FROM edo_viaje
+                      WHERE LOWER(nombre) IN ('cancelado', 'completado', 'finalizado', 'terminado')
+                  )
+                  AND fecHoraSalida < %s
+                  AND fecHoraEntrada > %s
+            """, [conductor, llegada, salida])
+
+            conflicto_conductor = cur.fetchone()
+            if conflicto_conductor:
+                cur.execute("""
+                    SELECT CONCAT(conNombre, ' ', conPrimerApell) FROM conductor WHERE registro = %s
+                """, [conductor])
+                nombre = cur.fetchone()
+                nombre_str = nombre[0] if nombre else f'ID {conductor}'
+                return JsonResponse({
+                    'ok': False,
+                    'error': f'El conductor {nombre_str} ya tiene asignado el viaje #{conflicto_conductor[0]} en ese horario.'
+                })
+
+            # ── Validar conflicto de AUTOBÚS ──────────────────────────
+            cur.execute("""
+                SELECT numero FROM viaje
+                WHERE autobus = %s
+                  AND estado NOT IN (
+                      SELECT numero FROM edo_viaje
+                      WHERE LOWER(nombre) IN ('cancelado', 'completado', 'finalizado', 'terminado')
+                  )
+                  AND fecHoraSalida < %s
+                  AND fecHoraEntrada > %s
+            """, [autobus, llegada, salida])
+
+            conflicto_autobus = cur.fetchone()
+            if conflicto_autobus:
+                cur.execute("SELECT placas FROM autobus WHERE numero = %s", [autobus])
+                placas = cur.fetchone()
+                placas_str = placas[0] if placas else f'#{autobus}'
+                return JsonResponse({
+                    'ok': False,
+                    'error': f'El autobús {placas_str} ya está asignado al viaje #{conflicto_autobus[0]} en ese horario.'
+                })
+
+            # ── Sin conflictos: insertar el viaje ─────────────────────
             cur.execute("""
                 INSERT INTO viaje (fecHoraSalida, fecHoraEntrada, ruta, estado, autobus, conductor)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, [salida, llegada, ruta, estado, autobus, conductor])
+
             trip_id = cur.lastrowid
+
             cur.execute("SELECT numero FROM asiento WHERE autobus = %s", [autobus])
             for (asiento_num,) in cur.fetchall():
                 cur.execute(
                     "INSERT INTO viaje_asiento (asiento, viaje, ocupado) VALUES (%s, %s, FALSE)",
                     [asiento_num, trip_id]
                 )
+
         return JsonResponse({'ok': True, 'viaje_id': trip_id})
+
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
-
 @admin_requerido
 def kpi_generales(request):
     desde = request.GET.get('desde')

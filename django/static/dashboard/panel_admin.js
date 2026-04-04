@@ -17,13 +17,32 @@ let kgCharts          = {};
 let pasajerosActuales  = [];
 let pasajerosViajeInfo = {};
 let salidasData        = [];
-let rutasDuracion      = {};
+let rutasDuracion      = {};   // FIX: declarado correctamente con let desde el principio
 let _fotoFile          = null;
+let gestionView        = 'tabla';   // 'tabla' | 'cards'
+let gestionLastData    = null;      // cache para re-render sin re-fetch
+let gestionModo        = 'db';      // 'db' | 'legible'
 
 // ── Helpers ────────────────────────────
 const csrfHeaders = () => ({ 'Content-Type':'application/json', 'X-CSRFToken': CSRF });
 const fmt   = dt => dt ? dt.replace('T',' ').substring(0,16) : '—';
 const today = ()  => new Date().toISOString().split('T')[0];
+
+// FIX: helper para formatear fecha local sin conversión UTC
+function toLocalDatetimeString(date) {
+  const pad = n => String(n).padStart(2,'0');
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+// FIX: parsear string datetime-local como hora LOCAL (no UTC)
+function parseDatetimeLocal(str) {
+  if (!str) return null;
+  const [datePart, timePart] = str.split('T');
+  if (!datePart || !timePart) return null;
+  const [y, mo, d]  = datePart.split('-').map(Number);
+  const [h, mi]     = timePart.split(':').map(Number);
+  return new Date(y, mo - 1, d, h, mi);
+}
 
 function toast(msg, tipo='ok') {
   const t = document.getElementById('toast');
@@ -128,6 +147,8 @@ function showGestion(tabla) {
   document.getElementById('gestion-title').textContent =
     'Gestión — ' + tabla.charAt(0).toUpperCase() + tabla.slice(1);
   tablaActual.nombre = tabla;
+  // Si la nueva tabla no tiene modo legible, forzar DB
+  if (!TABLAS_CON_LEGIBLE.has(tabla)) gestionModo = 'db';
   recargarGestion();
 }
 
@@ -462,11 +483,12 @@ function poblarFiltrosSalidas() {
 function aplicarFiltrosSalidas() {
   const fechaSel  = document.getElementById('sal-fecha').value;
   const origenSel = document.getElementById('sal-origen').value.trim().toLowerCase();
+  // FIX: usar siempre destino_ciudad (era inconsistente: a veces dest_city, a veces destino_ciudad)
   const destSel   = document.getElementById('sal-destino').value.trim().toLowerCase();
   const precision = document.getElementById('sal-precision').checked;
   let filtered    = salidasData;
   if (origenSel) filtered = filtered.filter(r=>(r.origen_ciudad||'').toLowerCase()===origenSel);
-  if (destSel)   filtered = filtered.filter(r=>(r.dest_city||r.destino_ciudad||'').toLowerCase()===destSel);
+  if (destSel)   filtered = filtered.filter(r=>(r.destino_ciudad||'').toLowerCase()===destSel);
   if (fechaSel) {
     if (precision) {
       filtered = filtered.filter(r=>r.fecHoraSalida && r.fecHoraSalida.substring(0,10)===fechaSel);
@@ -538,18 +560,25 @@ function verDetalleSalida(r) {
   abrirModal('modal-det-salida');
 }
 
+// ════ MODAL AGREGAR VIAJE ══════════════
+
 async function abrirModalViaje() {
   const d = await fetch('/api/viaje/opciones/').then(r=>r.json());
+
+  // FIX: limpiar y reconstruir rutasDuracion correctamente
   rutasDuracion = {};
   d.rutas.forEach(r => { rutasDuracion[String(r.value)] = r.duracion || ''; });
+
   fillSelect('mv-ruta',      d.rutas,      'Seleccionar...');
   fillSelect('mv-autobus',   d.autobuses,  'Seleccionar...');
   fillSelect('mv-conductor', d.conductores,'Seleccionar...');
   fillSelect('mv-estado',    d.estados,    'Seleccionar...');
+
+  // FIX: usar toLocalDatetimeString para que la hora del input sea hora local
   const now = new Date();
   now.setMinutes(Math.ceil(now.getMinutes()/15)*15, 0, 0);
-  document.getElementById('mv-salida').value         = now.toISOString().slice(0,16);
-  document.getElementById('mv-llegada').value        = '';
+  document.getElementById('mv-salida').value          = toLocalDatetimeString(now);
+  document.getElementById('mv-llegada').value         = '';
   document.getElementById('mv-llegada-display').value = 'Selecciona ruta para calcular…';
   calcularLlegadaAuto();
   abrirModal('modal-viaje');
@@ -560,22 +589,58 @@ function calcularLlegadaAuto() {
   const salidaStr = document.getElementById('mv-salida').value;
   const displayEl = document.getElementById('mv-llegada-display');
   const hiddenEl  = document.getElementById('mv-llegada');
-  if (!rutaId || !salidaStr) { displayEl.value='Selecciona ruta y hora de salida…'; hiddenEl.value=''; return; }
+
+  if (!rutaId || !salidaStr) {
+    displayEl.value = 'Selecciona ruta y hora de salida…';
+    hiddenEl.value  = '';
+    return;
+  }
+
   const minutos = parseDuracionAMinutos(rutasDuracion[String(rutaId)] || '');
-  if (!minutos) { displayEl.value='Duración de ruta no disponible'; hiddenEl.value=''; return; }
-  const salida  = new Date(salidaStr);
-  if (isNaN(salida.getTime())) { displayEl.value='Fecha de salida inválida'; hiddenEl.value=''; return; }
-  const llegada = new Date(salida.getTime() + minutos*60000);
-  hiddenEl.value  = llegada.toISOString().slice(0,16);
-  const opts      = {weekday:'short',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'};
+  if (!minutos) {
+    displayEl.value = 'Duración de ruta no disponible';
+    hiddenEl.value  = '';
+    return;
+  }
+
+  // FIX: parsear como hora local (no UTC) para que el cálculo sea correcto
+  const salida = parseDatetimeLocal(salidaStr);
+  if (!salida || isNaN(salida.getTime())) {
+    displayEl.value = 'Fecha de salida inválida';
+    hiddenEl.value  = '';
+    return;
+  }
+
+  const llegada = new Date(salida.getTime() + minutos * 60000);
+
+  // FIX: guardar en hora local, no en UTC
+  hiddenEl.value = toLocalDatetimeString(llegada);
+
+  const opts = { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' };
   displayEl.value = llegada.toLocaleDateString('es-MX', opts) +
-    '  (+' + (minutos>=60 ? Math.floor(minutos/60)+'h '+(minutos%60?minutos%60+'min':'') : minutos+'min') + ')';
+    '  (+' + (minutos >= 60
+      ? Math.floor(minutos/60) + 'h ' + (minutos % 60 ? minutos % 60 + 'min' : '')
+      : minutos + 'min') + ')';
 }
 
 function parseDuracionAMinutos(dur) {
   if (!dur) return 0;
-  dur = String(dur).trim();
-  if (dur.includes(':')) { const [h,m] = dur.split(':').map(Number); return (h*60)+(m||0); }
+  dur = String(dur).trim().toLowerCase();
+
+  // Formato HH:MM  →  "2:30", "0:45"
+  if (/^\d+:\d+$/.test(dur)) {
+    const [h, m] = dur.split(':').map(Number);
+    return (h * 60) + (m || 0);
+  }
+
+  // Formato Xh Ym  →  "2h50m", "0h45m", "3h", "45m", "1h15m"
+  const hMatch  = dur.match(/(\d+)\s*h/);
+  const mMatch  = dur.match(/(\d+)\s*m/);
+  const horas   = hMatch ? parseInt(hMatch[1]) : 0;
+  const minutos = mMatch ? parseInt(mMatch[1]) : 0;
+  if (hMatch || mMatch) return (horas * 60) + minutos;
+
+  // Fallback: número solo → minutos directos
   const n = parseInt(dur);
   return isNaN(n) ? 0 : n;
 }
@@ -806,6 +871,22 @@ function exportarPasajerosCSV() {
 
 const COLS_IMAGEN = new Set(['foto']);
 
+// Columnas que se omiten en la vista tarjetas por ser poco legibles o redundantes
+const COLS_OCULTAS_CARDS = new Set(['serieVIN', 'serievin', 'firebase_uid', 'clave', 'contrasena']);
+
+function setGestionView(view) {
+  gestionView = view;
+  document.getElementById('gvt-tabla').classList.toggle('active', view === 'tabla');
+  document.getElementById('gvt-cards').classList.toggle('active', view === 'cards');
+  document.getElementById('gestion-tabla-wrap').style.display = view === 'tabla' ? '' : 'none';
+  document.getElementById('gestion-cards-wrap').style.display = view === 'cards' ? '' : 'none';
+  // Re-renderizar con datos cacheados si los hay
+  if (gestionLastData) {
+    if (view === 'tabla') renderGestionTabla(gestionLastData);
+    else                  renderGestionCards(gestionLastData);
+  }
+}
+
 function celdaGestion(col, val) {
   if (COLS_IMAGEN.has(col) && val && val !== '—') {
     const url = val.startsWith('http') ? val : `/media/${val}`;
@@ -817,12 +898,124 @@ function celdaGestion(col, val) {
   return `<td>${val??'—'}</td>`;
 }
 
+// ════ TOGGLE DB / LEGIBLE ═══════════════
+// Tablas que tienen modo legible implementado en el backend
+const TABLAS_CON_LEGIBLE = new Set([
+  'modelo', 'ruta', 'viaje', 'asiento', 'viaje_asiento',
+  'taquillero', 'ticket', 'pago'
+]);
+
+function onDbToggleChange() {
+  const chk = document.getElementById('db-toggle-chk');
+
+  // Si intenta activar legible en tabla sin soporte → revertir y avisar
+  if (chk.checked && !TABLAS_CON_LEGIBLE.has(tablaActual.nombre)) {
+    chk.checked = false;
+    toast('No es necesario este modo aquí', 'err');
+    return;
+  }
+
+  gestionModo = chk.checked ? 'legible' : 'db';
+
+  // Actualizar estilos de labels
+  document.getElementById('db-toggle-lbl-db').classList.toggle('active', !chk.checked);
+  document.getElementById('db-toggle-lbl-leg').classList.toggle('active', chk.checked);
+
+  // Recargar datos con el nuevo modo
+  recargarGestion();
+}
+
+function _syncDbToggleUI() {
+  const chk = document.getElementById('db-toggle-chk');
+  chk.checked = (gestionModo === 'legible');
+  document.getElementById('db-toggle-lbl-db').classList.toggle('active', gestionModo !== 'legible');
+  document.getElementById('db-toggle-lbl-leg').classList.toggle('active', gestionModo === 'legible');
+  document.getElementById('db-toggle-wrap').style.display = 'flex';
+}
+
 async function recargarGestion() {
   const tabla = tablaActual.nombre;
   if (!tabla) return;
+  // Mostrar buscador y toggle
+  document.getElementById('gestion-search-wrap').style.display = '';
+  _syncDbToggleUI();
+  // Limpiar búsqueda al recargar
+  const inp = document.getElementById('gestion-search');
+  inp.value = '';
+  document.getElementById('gestion-search-clear').style.display = 'none';
+  // Mostrar spinner en la vista activa
   document.getElementById('gestion-tbody').innerHTML = '<tr><td colspan="20"><span class="spinner"></span></td></tr>';
-  const d = await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
+  document.getElementById('gestion-cards-wrap').innerHTML = '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
+
+  const url = `/api/crud/${tabla}/leer/?modo=${gestionModo}`;
+  const d = await fetch(url).then(r=>r.json());
   if (d.error) { toast(d.error,'err'); return; }
+
+  gestionLastData = d;
+
+  // Badge de modo en el info-bar
+  const badge = `<span class="modo-badge ${gestionModo}">${gestionModo === 'legible' ? '🔤 Legible' : '🗄 DB'}</span>`;
+  document.getElementById('gestion-info').innerHTML = `${d.rows.length} registro(s)${badge}`;
+
+  if (gestionView === 'tabla') renderGestionTabla(d);
+  else                         renderGestionCards(d);
+}
+
+// ════ BUSCADOR DE GESTIÓN ════════════════
+function _infoBadge() {
+  return `<span class="modo-badge ${gestionModo}">${gestionModo === 'legible' ? '🔤 Legible' : '🗄 DB'}</span>`;
+}
+
+function filtrarGestion() {
+  const q = document.getElementById('gestion-search').value.trim().toLowerCase();
+  document.getElementById('gestion-search-clear').style.display = q ? '' : 'none';
+
+  if (!gestionLastData) return;
+
+  if (!q) {
+    // Sin búsqueda: mostrar todo sin highlights
+    if (gestionView === 'tabla') renderGestionTabla(gestionLastData);
+    else                         renderGestionCards(gestionLastData);
+    document.getElementById('gestion-info').innerHTML = `${gestionLastData.rows.length} registro(s)${_infoBadge()}`;
+    return;
+  }
+
+  // Filtrar filas que tengan al menos una celda que contenga el término
+  const filtradas = gestionLastData.rows.filter(row =>
+    Object.values(row).some(v => v !== null && String(v).toLowerCase().includes(q))
+  );
+
+  const datFiltrada = { cols: gestionLastData.cols, rows: filtradas };
+  const total = gestionLastData.rows.length;
+  document.getElementById('gestion-info').innerHTML =
+    `${filtradas.length} resultado(s) de ${total} registro(s)${_infoBadge()}`;
+
+  if (gestionView === 'tabla') renderGestionTabla(datFiltrada, q);
+  else                         renderGestionCards(datFiltrada, q);
+}
+
+function limpiarBusqueda() {
+  document.getElementById('gestion-search').value = '';
+  document.getElementById('gestion-search-clear').style.display = 'none';
+  filtrarGestion();
+}
+
+// Resalta el término buscado dentro de un texto
+function highlightMatch(text, q) {
+  if (!q || !text) return text ?? '—';
+  const str = String(text);
+  if (!q) return str;
+  const idx = str.toLowerCase().indexOf(q.toLowerCase());
+  if (idx === -1) return str;
+  return (
+    str.substring(0, idx) +
+    `<span class="search-hl">${str.substring(idx, idx + q.length)}</span>` +
+    str.substring(idx + q.length)
+  );
+}
+
+function renderGestionTabla(d, q = '') {
+  const tabla = tablaActual.nombre;
   document.getElementById('gestion-thead').innerHTML =
     `<tr>${d.cols.map(c=>`<th>${c}</th>`).join('')}<th>Acciones</th></tr>`;
   if (!d.rows.length) {
@@ -833,14 +1026,71 @@ async function recargarGestion() {
   const pk = d.cols[0];
   document.getElementById('gestion-tbody').innerHTML = d.rows.map(row=>`
     <tr>
-      ${d.cols.map(c=>celdaGestion(c, row[c])).join('')}
+      ${d.cols.map(c=>{
+        if (COLS_IMAGEN.has(c) && row[c] && row[c] !== '—') {
+          const url = String(row[c]).startsWith('http') ? row[c] : `/media/${row[c]}`;
+          return `<td><img src="${url}" alt="foto"
+            style="width:44px;height:44px;object-fit:cover;border-radius:50%;border:2px solid var(--border);cursor:pointer;vertical-align:middle;"
+            onerror="this.style.display='none'"
+            onclick="verFotoGrande('${url}')"></td>`;
+        }
+        return `<td>${highlightMatch(row[c], q)}</td>`;
+      }).join('')}
       <td style="white-space:nowrap"><div style="display:flex;gap:4px;flex-wrap:wrap">
         <button class="btn btn-gray btn-sm"    onclick='verDetalle(${JSON.stringify(d.cols)},${JSON.stringify(row)})'>Ver</button>
         <button class="btn btn-naranja btn-sm" onclick='abrirEditar("${tabla}","${pk}","${row[pk]}")'>Editar</button>
         <button class="btn btn-danger btn-sm"  onclick='eliminarReg("${tabla}","${pk}","${row[pk]}")'>Eliminar</button>
       </div></td>
     </tr>`).join('');
-  document.getElementById('gestion-info').textContent = `${d.rows.length} registro(s)`;
+}
+
+function renderGestionCards(d, q = '') {
+  const tabla = tablaActual.nombre;
+  const wrap  = document.getElementById('gestion-cards-wrap');
+  if (!d.rows.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>Sin registros</p></div>';
+    return;
+  }
+  const pk = d.cols[0];
+  wrap.innerHTML = `<div class="gestion-cards-grid">${d.rows.map((row, idx) => {
+    const pkVal   = row[pk];
+    const pkLabel = `${pk.charAt(0).toUpperCase() + pk.slice(1)} #${pkVal}`;
+
+    // Foto si existe
+    const fotoCol = d.cols.find(c => COLS_IMAGEN.has(c));
+    const fotoVal = fotoCol ? row[fotoCol] : null;
+    const fotoHtml = fotoVal && fotoVal !== '—'
+      ? `<img class="gc-card-foto" src="${fotoVal.startsWith('http') ? fotoVal : '/media/'+fotoVal}"
+           onerror="this.style.display='none'" onclick="verFotoGrande('${fotoVal.startsWith('http') ? fotoVal : '/media/'+fotoVal}')">`
+      : '';
+
+    // Campos visibles (excluir PK, foto, y cols ocultas)
+    const camposCols = d.cols.filter(c =>
+      c !== pk &&
+      !COLS_IMAGEN.has(c) &&
+      !COLS_OCULTAS_CARDS.has(c)
+    );
+
+    const camposHtml = camposCols.map(c => `
+      <div class="gc-field">
+        <span class="gc-field-key">${c}</span>
+        <span class="gc-field-val">${highlightMatch(row[c], q)}</span>
+      </div>`).join('');
+
+    return `
+      <div class="gc-card" style="animation-delay:${Math.min(idx*.03,.3)}s">
+        <div class="gc-card-header">
+          <span class="gc-card-id">${pkLabel}</span>
+          ${fotoHtml}
+        </div>
+        <div class="gc-card-fields">${camposHtml}</div>
+        <div class="gc-card-actions">
+          <button class="btn btn-gray btn-sm"    onclick='verDetalle(${JSON.stringify(d.cols)},${JSON.stringify(row)})'>Ver</button>
+          <button class="btn btn-naranja btn-sm" onclick='abrirEditar("${tabla}","${pk}","${pkVal}")'>Editar</button>
+          <button class="btn btn-danger btn-sm"  onclick='eliminarReg("${tabla}","${pk}","${pkVal}")'>Eliminar</button>
+        </div>
+      </div>`;
+  }).join('')}</div>`;
 }
 
 function verFotoGrande(url) {
@@ -854,13 +1104,34 @@ function verFotoGrande(url) {
 async function abrirInsertar() {
   const tabla = tablaActual.nombre;
   if (!tabla) { toast('Selecciona una tabla','err'); return; }
-  const d = await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
-  tablaActual.esquema = d;
-  tablaActual.modo    = 'insertar';
-  document.getElementById('crud-modal-title').textContent  = `Insertar en ${tabla}`;
-  document.getElementById('crud-submit-btn').textContent   = 'Insertar';
-  renderCrudForm(d, null);
-  abrirModal('modal-crud');
+
+  try {
+    const esq   = await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
+    const datos = await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
+    const pkCol = esq.columnas.find(c => c.Key === 'PRI')?.Field;
+
+    let nextId = '';
+    if (pkCol && datos.rows?.length) {
+      const max = Math.max(...datos.rows.map(r => parseInt(r[pkCol]) || 0));
+      nextId = max + 1;
+    } else {
+      nextId = 1;
+    }
+
+    tablaActual.esquema = esq;
+    tablaActual.modo    = 'insertar';
+    tablaActual.nextId  = nextId;
+
+    document.getElementById('crud-modal-title').textContent  = `Insertar en ${tabla}`;
+    document.getElementById('crud-submit-btn').textContent   = 'Insertar';
+
+    renderCrudForm(esq, null);
+    abrirModal('modal-crud');
+
+  } catch (e) {
+    toast('Error al preparar formulario','err');
+    console.error(e);
+  }
 }
 
 async function abrirEditar(tabla, pk, pkv) {
@@ -880,24 +1151,103 @@ async function abrirEditar(tabla, pk, pkv) {
 function renderCrudForm(esq, vals) {
   const c = document.getElementById('crud-form-fields');
   c.innerHTML = '';
+
   esq.columnas.forEach(col => {
-    const name = col.Field, val = vals ? (vals[name]??'') : '';
-    const isAI = (col.Extra||'').toLowerCase().includes('auto_increment');
-    const isPK = col.Key==='PRI';
-    const div  = document.createElement('div');
-    div.className = 'form-field';
-    if (esq.fk_map[name]) {
-      const opts = esq.opciones[name]||[];
-      div.innerHTML = `<label>${name}</label>
-        <select data-field="${name}" ${isPK?'disabled':''}>
-          <option value="">— seleccionar —</option>
-          ${opts.map(o=>`<option value="${o.value}" ${String(o.value)===String(val)?'selected':''}>${o.label}</option>`).join('')}
-        </select>`;
-    } else {
-      const ro = isPK && tablaActual.modo==='editar';
-      div.innerHTML = `<label>${name}${isAI?' (auto)':''}</label>
-        <input data-field="${name}" type="text" value="${val}" placeholder="${col.Type}" ${ro||isAI?'readonly':''}/>`;
+    const name = col.Field;
+    let val = vals ? (vals[name] ?? '') : '';
+    const isPK = col.Key === 'PRI';
+
+    if (!vals && isPK && tablaActual.nextId) {
+      val = tablaActual.nextId;
     }
+
+    const isEditing = tablaActual.modo === 'editar';
+    const div = document.createElement('div');
+    div.className = 'form-field';
+
+    // ── FOREIGN KEYS ───────────────────
+    if (esq.fk_map[name]) {
+      const opts = esq.opciones[name] || [];
+      div.innerHTML = `
+        <label>${name}</label>
+        <select data-field="${name}" ${isPK && isEditing ? 'disabled' : ''}>
+          <option value="">— seleccionar —</option>
+          ${opts.map(o => `
+            <option value="${o.value}" ${String(o.value) === String(val) ? 'selected' : ''}>
+              ${o.label}
+            </option>`).join('')}
+        </select>
+      `;
+    }
+    // ── INPUT CON TIPO ESTRICTO POR COLUMNA ───────────────────
+    else {
+      const readOnly = isPK && isEditing;
+      const colType  = col.Type.toLowerCase();
+
+      let inputType  = 'text';
+      let extraAttrs = '';
+      let placeholder = '';
+
+      if (colType === 'date') {
+        inputType   = 'date';
+        placeholder = 'YYYY-MM-DD';
+      } else if (/^(datetime|timestamp)(\(\d+\))?$/.test(colType)) {
+        inputType   = 'datetime-local';
+        placeholder = 'YYYY-MM-DD HH:MM';
+      } else if (/^time(\(\d+\))?$/.test(colType)) {
+        inputType   = 'time';
+        placeholder = 'HH:MM';
+      } else if (/^(tinyint|smallint|mediumint|bigint|int)(\(\d+\))?$/.test(colType) || /^bool(ean)?$/.test(colType)) {
+        inputType  = 'number';
+        const isBool = /^(bool(ean)?|tinyint\(1\))$/.test(colType);
+        if (isBool) {
+          extraAttrs  = 'step="1" min="0" max="1"';
+          placeholder = '0 o 1';
+        } else {
+          extraAttrs  = 'step="1"';
+          placeholder = 'Solo números enteros';
+        }
+      } else if (/^(decimal|numeric|float|double|real)(\(\d+,\d+\))?$/.test(colType)) {
+        inputType   = 'number';
+        extraAttrs  = 'step="any"';
+        placeholder = 'Número decimal';
+      } else if (colType === 'year' || colType === 'year(4)') {
+        inputType   = 'number';
+        extraAttrs  = 'step="1" min="1900" max="2100"';
+        placeholder = 'YYYY';
+      } else {
+        inputType = 'text';
+        const lenMatch = colType.match(/\((\d+)\)/);
+        if (lenMatch) {
+          extraAttrs  = `maxlength="${lenMatch[1]}"`;
+          placeholder = `Máx. ${lenMatch[1]} caracteres`;
+        } else {
+          placeholder = col.Type;
+        }
+      }
+
+      // ── Formatear valor existente para inputs de fecha ──
+      if (val) {
+        if (inputType === 'datetime-local') {
+          val = String(val).replace(' ', 'T').substring(0, 16);
+        } else if (inputType === 'date') {
+          val = String(val).substring(0, 10);
+        }
+      }
+
+      div.innerHTML = `
+        <label>${name}</label>
+        <input
+          data-field="${name}"
+          type="${inputType}"
+          value="${val}"
+          placeholder="${placeholder}"
+          ${extraAttrs}
+          ${readOnly ? 'readonly' : ''}
+        />
+      `;
+    }
+
     c.appendChild(div);
   });
 }
