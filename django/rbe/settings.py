@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-p&co780gt&ojpgq0er7-9q%t^arrei=qtfp=3&j9+%6dt=r_=q'
 
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = ['*']
 
@@ -81,8 +81,6 @@ USE_TZ = False
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
-    BASE_DIR.parent / 'css',
-    BASE_DIR.parent / 'imagenes',
 ]
 
 # ── Redirecciones de login ─────────────────────────────────────

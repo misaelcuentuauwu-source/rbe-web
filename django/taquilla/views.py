@@ -20,7 +20,7 @@ def ok_view(request):
     return FileResponse(open(path, 'rb'))
 
 def index_view(request):
-    path = os.path.join(settings.BASE_DIR, '..', 'index.html')
+    return redirect('login')
     return FileResponse(open(path, 'rb'))
 
 CLAVE_MAESTRA = "RutasBaja2024"
