@@ -11,6 +11,7 @@ SECRET_KEY = 'django-insecure-p&co780gt&ojpgq0er7-9q%t^arrei=qtfp=3&j9+%6dt=r_=q
 DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = ['*']
+CSRF_TRUSTED_ORIGINS = ['https://rbe-web-production.up.railway.app']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
