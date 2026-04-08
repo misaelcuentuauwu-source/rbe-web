@@ -3,17 +3,15 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:http/http.dart' as http;
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import '../../config.dart';
+import '../../utils/pdf_boleto.dart'; // ajusta el path según tu proyecto
 
 // ─────────────────────────────────────────────────────────
-//  HISTORIAL SCREEN  –  RBE v2
-//  Diseño: cards glassmórficas con animación stagger,
-//  header con degradado sutil y shimmer en carga,
-//  chip de estado con pulso animado para "En Ruta".
+//  HISTORIAL SCREEN  –  RBE v3
+//  - Muestra TODAS las ventas registradas
+//  - Filtro: Todas las ventas / Mis ventas
+//  - Reimprimir genera el PDF directamente sin pantalla intermedia
 // ─────────────────────────────────────────────────────────
 
 class HistorialScreen extends StatefulWidget {
@@ -40,7 +38,10 @@ class _HistorialScreenState extends State<HistorialScreen>
   bool cargando = true;
   bool mostrarFiltros = false;
 
-  // Filtros
+  // Filtro de ventas: 'todas' o 'mias'
+  String _filtroVendedor = 'todas';
+
+  // Filtros existentes
   DateTime? fechaDesde;
   DateTime? fechaHasta;
   String? origenFiltro;
@@ -51,11 +52,13 @@ class _HistorialScreenState extends State<HistorialScreen>
   final _origenCtrl = TextEditingController();
   final _destinoCtrl = TextEditingController();
 
+  // Reimprimir en proceso
+  Set<int> _reimprimiendoFolios = {};
+
   // ── Animaciones ───────────────────────────────────────
   late AnimationController _filterPanelCtrl;
   late Animation<double> _filterPanelAnim;
 
-  // Controlador de lista para stagger
   final List<AnimationController> _cardCtrls = [];
   final List<Animation<double>> _cardFadeAnims = [];
   final List<Animation<Offset>> _cardSlideAnims = [];
@@ -86,7 +89,7 @@ class _HistorialScreenState extends State<HistorialScreen>
     'Retrasado': _EstadoMeta(
       color: Color(0xFFE65100),
       bg: Color(0xFFFFF3E0),
-      icon: Icons.schedule_rounded,
+      icon: Icons.watch_later_outlined,
     ),
   };
 
@@ -145,34 +148,104 @@ class _HistorialScreenState extends State<HistorialScreen>
   }
 
   // ── Data ──────────────────────────────────────────────
+  /// Carga TODAS las ventas desde el endpoint general
   Future<void> cargarHistorial() async {
     setState(() => cargando = true);
     try {
       final res = await http
-          .get(
-            Uri.parse('${Config.baseUrl}/api/historial/${widget.vendedorId}/'),
-          )
+          .get(Uri.parse('${Config.baseUrl}/api/historial/'))
           .timeout(const Duration(seconds: 10));
+
+      debugPrint('STATUS: ${res.statusCode}');
+      debugPrint('BODY: ${res.body}'); // ← esto te dirá exactamente qué regresa
+
       if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as List;
-        setState(() {
-          historial = data;
-          historialFiltrado = List.from(data);
-          cargando = false;
-        });
-        _iniciarAnimacionCards(historialFiltrado.length);
+        final decoded = jsonDecode(res.body);
+        if (decoded is List) {
+          setState(() {
+            historial = decoded;
+            cargando = false;
+          });
+          aplicarFiltros();
+        } else {
+          debugPrint('ERROR: el backend no devolvió una lista: $decoded');
+          setState(() => cargando = false);
+        }
       } else {
+        debugPrint('ERROR HTTP: ${res.statusCode} - ${res.body}');
         setState(() => cargando = false);
       }
     } catch (e) {
-      debugPrint('Error: $e');
+      debugPrint('EXCEPCION: $e');
       setState(() => cargando = false);
     }
   }
 
+  // ── Reimprimir boleto directamente ────────────────────
+  Future<void> _reimprimir(BuildContext ctx, int folio) async {
+    if (_reimprimiendoFolios.contains(folio)) return;
+    setState(() => _reimprimiendoFolios.add(folio));
+
+    try {
+      // 1) Traer datos del folio
+      final res = await http
+          .get(Uri.parse('${Config.baseUrl}/api/boleto/$folio/detalle/'))
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode != 200) {
+        _snack(ctx, 'No se pudieron obtener los datos del boleto', true);
+        return;
+      }
+
+      final data = jsonDecode(res.body) as Map<String, dynamic>;
+
+      // 2) Construir lista de pasajeros con el formato que espera PdfBoleto
+      final pasajeros = (data['pasajeros'] as List).map((p) {
+        return {
+          'nombre': p['nombre'],
+          'primer_apellido': p['primer_apellido'],
+          'asiento_etiqueta': p['asiento_etiqueta'],
+          'asiento_id': p['asiento_id'],
+          'tipo': p['tipo'],
+          'precio_unitario':
+              double.tryParse(p['precio_unitario'].toString()) ?? 0.0,
+        };
+      }).toList();
+
+      // 3) Generar PDF
+      final pdfBytes = await PdfBoleto.generar(
+        pagoId: folio,
+        origenNombre: data['origen'],
+        destinoNombre: data['destino'],
+        horaSalida: data['hora_salida'],
+        horaLlegada: data['hora_llegada'] ?? '',
+        fechaViaje: data['fecha_viaje'] ?? '',
+        montoTotal: double.tryParse(data['monto'].toString()) ?? 0.0,
+        pasajeros: List<Map<String, dynamic>>.from(pasajeros),
+        metodoPago: data['metodo_pago_id'] ?? 1,
+      );
+
+      // 4) Mostrar diálogo de impresión
+      await Printing.layoutPdf(onLayout: (_) async => pdfBytes);
+    } catch (e) {
+      debugPrint('Error reimprimir: $e');
+      _snack(ctx, 'Error al generar el boleto', true);
+    } finally {
+      if (mounted) setState(() => _reimprimiendoFolios.remove(folio));
+    }
+  }
+
+  // ── Filtros ───────────────────────────────────────────
   void aplicarFiltros() {
     setState(() {
       historialFiltrado = historial.where((item) {
+        // Filtro Todas / Mis ventas
+        if (_filtroVendedor == 'mias') {
+          if (item['vendedor_id']?.toString() != widget.vendedorId.toString()) {
+            return false;
+          }
+        }
+
         final campo = _tipoFiltroFecha == 'viaje'
             ? item['hora_salida']
             : item['fecha'];
@@ -218,11 +291,11 @@ class _HistorialScreenState extends State<HistorialScreen>
     setState(() {
       fechaDesde = fechaHasta = origenFiltro = destinoFiltro = estadoFiltro =
           null;
+      _filtroVendedor = 'todas';
       _origenCtrl.clear();
       _destinoCtrl.clear();
-      historialFiltrado = List.from(historial);
     });
-    _iniciarAnimacionCards(historialFiltrado.length);
+    aplicarFiltros();
   }
 
   bool get hayFiltros =>
@@ -230,7 +303,8 @@ class _HistorialScreenState extends State<HistorialScreen>
       fechaHasta != null ||
       (origenFiltro?.isNotEmpty == true) ||
       (destinoFiltro?.isNotEmpty == true) ||
-      (estadoFiltro?.isNotEmpty == true);
+      (estadoFiltro?.isNotEmpty == true) ||
+      _filtroVendedor == 'mias';
 
   // ── Fecha helpers ─────────────────────────────────────
   Future<void> _selecFecha(BuildContext ctx, bool esDesde) async {
@@ -287,525 +361,6 @@ class _HistorialScreenState extends State<HistorialScreen>
     }
   }
 
-  // ── PDF (sin cambios funcionales) ─────────────────────
-  Future<Uint8List> _generarQrBytes(String data) async {
-    final qrPainter = QrPainter(
-      data: data,
-      version: QrVersions.auto,
-      errorCorrectionLevel: QrErrorCorrectLevel.M,
-      color: const ui.Color(0xFF1C2D3A),
-      emptyColor: const ui.Color(0xFFFFFFFF),
-    );
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    const size = 300.0;
-    qrPainter.paint(canvas, const Size(size, size));
-    final picture = recorder.endRecording();
-    final image = await picture.toImage(size.toInt(), size.toInt());
-    final bd = await image.toByteData(format: ui.ImageByteFormat.png);
-    return bd!.buffer.asUint8List();
-  }
-
-  Future<Uint8List> _generarPdf(Map<String, dynamic> data) async {
-    final doc = pw.Document();
-    final folio = data['folio'];
-    final viaje = data['viaje'] as Map<String, dynamic>;
-    final tickets = data['tickets'] as List;
-    final origen = viaje['origen'].toString();
-    final destino = viaje['destino'].toString();
-    final monto =
-        double.tryParse(data['monto'].toString())?.toStringAsFixed(2) ?? '0.00';
-    final metodo = (data['metodo_pago_id'] ?? 1) == 2 ? 'Tarjeta' : 'Efectivo';
-
-    final hsDt = DateTime.tryParse(viaje['hora_salida'].toString());
-    final horaSalida = hsDt != null
-        ? '${hsDt.hour.toString().padLeft(2, '0')}:${hsDt.minute.toString().padLeft(2, '0')}'
-        : viaje['hora_salida'].toString();
-    final fechaViaje = hsDt != null
-        ? '${hsDt.day} ${_meses[hsDt.month]} ${hsDt.year}'
-        : '';
-
-    final cP = PdfColor.fromHex('E9713A');
-    final cS = PdfColor.fromHex('2C7FB1');
-    final cD = PdfColor.fromHex('1C2D3A');
-    final cG = PdfColor.fromHex('6B8FA8');
-    final cW = PdfColors.white;
-    final cGL = PdfColor.fromHex('E8ECF0');
-
-    for (final t in tickets) {
-      final nombre = '${t['nombre'] ?? ''} ${t['primer_apellido'] ?? ''}'
-          .trim();
-      final asiento = t['asiento']?.toString() ?? '-';
-      final tipo = t['tipo_pasajero']?.toString() ?? 'Adulto';
-      final precio =
-          double.tryParse(t['precio'].toString())?.toStringAsFixed(2) ?? '0.00';
-
-      final qrBytes = await _generarQrBytes(
-        jsonEncode({
-          'folio': folio,
-          'pasajero': nombre,
-          'asiento': asiento,
-          'origen': origen,
-          'destino': destino,
-          'fecha': fechaViaje,
-          'salida': horaSalida,
-        }),
-      );
-
-      doc.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat.a4,
-          margin: pw.EdgeInsets.zero,
-          build: (_) => pw.Padding(
-            padding: const pw.EdgeInsets.symmetric(
-              horizontal: 50,
-              vertical: 60,
-            ),
-            child: pw.Container(
-              decoration: pw.BoxDecoration(
-                color: cW,
-                borderRadius: pw.BorderRadius.circular(16),
-                border: pw.Border.all(color: cGL, width: 1),
-              ),
-              child: pw.Column(
-                mainAxisSize: pw.MainAxisSize.min,
-                children: [
-                  pw.Container(
-                    width: double.infinity,
-                    padding: const pw.EdgeInsets.fromLTRB(28, 18, 28, 18),
-                    decoration: pw.BoxDecoration(
-                      color: cP,
-                      borderRadius: const pw.BorderRadius.only(
-                        topLeft: pw.Radius.circular(16),
-                        topRight: pw.Radius.circular(16),
-                      ),
-                    ),
-                    child: pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Text(
-                              'RUTAS BAJA EXPRESS',
-                              style: pw.TextStyle(
-                                color: cW,
-                                fontSize: 16,
-                                fontWeight: pw.FontWeight.bold,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                            pw.SizedBox(height: 2),
-                            pw.Text(
-                              'BOARDING PASS',
-                              style: pw.TextStyle(
-                                color: cW,
-                                fontSize: 9,
-                                letterSpacing: 2,
-                              ),
-                            ),
-                          ],
-                        ),
-                        pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.end,
-                          children: [
-                            pw.Text(
-                              'FOLIO',
-                              style: pw.TextStyle(
-                                color: PdfColor.fromHex('FFFFFF99'),
-                                fontSize: 9,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                            pw.Text(
-                              '#$folio',
-                              style: pw.TextStyle(
-                                color: cW,
-                                fontSize: 18,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.fromLTRB(28, 22, 28, 0),
-                    child: pw.Row(
-                      crossAxisAlignment: pw.CrossAxisAlignment.center,
-                      children: [
-                        pw.Expanded(
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.start,
-                            children: [
-                              pw.Text(
-                                'DE',
-                                style: pw.TextStyle(
-                                  color: cG,
-                                  fontSize: 9,
-                                  letterSpacing: 2,
-                                ),
-                              ),
-                              pw.SizedBox(height: 2),
-                              pw.Text(
-                                origen.toUpperCase(),
-                                style: pw.TextStyle(
-                                  color: cD,
-                                  fontSize: 28,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                              pw.SizedBox(height: 2),
-                              pw.Text(
-                                horaSalida,
-                                style: pw.TextStyle(
-                                  color: cP,
-                                  fontSize: 20,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                              pw.Text(
-                                'SALIDA',
-                                style: pw.TextStyle(
-                                  color: cG,
-                                  fontSize: 8,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        pw.Text(
-                          '→',
-                          style: pw.TextStyle(color: cG, fontSize: 28),
-                        ),
-                        pw.Expanded(
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.end,
-                            children: [
-                              pw.Text(
-                                'HACIA',
-                                style: pw.TextStyle(
-                                  color: cG,
-                                  fontSize: 9,
-                                  letterSpacing: 2,
-                                ),
-                              ),
-                              pw.SizedBox(height: 2),
-                              pw.Text(
-                                destino.toUpperCase(),
-                                textAlign: pw.TextAlign.right,
-                                style: pw.TextStyle(
-                                  color: cD,
-                                  fontSize: 28,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                              pw.SizedBox(height: 2),
-                              pw.Text(
-                                fechaViaje,
-                                style: pw.TextStyle(
-                                  color: cS,
-                                  fontSize: 14,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                              ),
-                              pw.Text(
-                                'FECHA',
-                                style: pw.TextStyle(
-                                  color: cG,
-                                  fontSize: 8,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  pw.SizedBox(height: 18),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.symmetric(horizontal: 28),
-                    child: pw.Container(
-                      padding: const pw.EdgeInsets.all(14),
-                      decoration: pw.BoxDecoration(
-                        color: PdfColor.fromHex('F8F9FA'),
-                        borderRadius: pw.BorderRadius.circular(10),
-                      ),
-                      child: pw.Row(
-                        children: [
-                          pw.Expanded(
-                            flex: 3,
-                            child: pw.Column(
-                              crossAxisAlignment: pw.CrossAxisAlignment.start,
-                              children: [
-                                pw.Text(
-                                  'NOMBRE PASAJERO',
-                                  style: pw.TextStyle(
-                                    color: cG,
-                                    fontSize: 8,
-                                    letterSpacing: 1.5,
-                                  ),
-                                ),
-                                pw.SizedBox(height: 4),
-                                pw.Text(
-                                  nombre,
-                                  style: pw.TextStyle(
-                                    color: cD,
-                                    fontSize: 14,
-                                    fontWeight: pw.FontWeight.bold,
-                                  ),
-                                ),
-                                pw.SizedBox(height: 2),
-                                pw.Text(
-                                  tipo,
-                                  style: pw.TextStyle(color: cG, fontSize: 9),
-                                ),
-                              ],
-                            ),
-                          ),
-                          pw.Container(width: 1, height: 46, color: cGL),
-                          pw.SizedBox(width: 14),
-                          pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.center,
-                            children: [
-                              pw.Text(
-                                'ASIENTO',
-                                style: pw.TextStyle(
-                                  color: cG,
-                                  fontSize: 8,
-                                  letterSpacing: 1.5,
-                                ),
-                              ),
-                              pw.SizedBox(height: 4),
-                              pw.Container(
-                                padding: const pw.EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 5,
-                                ),
-                                decoration: pw.BoxDecoration(
-                                  color: cP,
-                                  borderRadius: pw.BorderRadius.circular(8),
-                                ),
-                                child: pw.Text(
-                                  asiento,
-                                  style: pw.TextStyle(
-                                    color: cW,
-                                    fontSize: 20,
-                                    fontWeight: pw.FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  pw.SizedBox(height: 14),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.symmetric(horizontal: 28),
-                    child: pw.Row(
-                      children: [
-                        _chipPdf('PAGO', metodo, cG, cD, cGL),
-                        pw.SizedBox(width: 10),
-                        _chipPdf('PRECIO', '\$$precio MXN', cG, cS, cGL),
-                        pw.SizedBox(width: 10),
-                        _chipPdf('TOTAL', '\$$monto MXN', cG, cP, cGL),
-                      ],
-                    ),
-                  ),
-                  pw.SizedBox(height: 18),
-                  pw.Row(
-                    children: [
-                      pw.Container(
-                        width: 14,
-                        height: 14,
-                        decoration: pw.BoxDecoration(
-                          color: PdfColor.fromHex('EEEEEE'),
-                          shape: pw.BoxShape.circle,
-                        ),
-                      ),
-                      pw.Expanded(child: pw.Container(height: 1, color: cGL)),
-                      pw.Container(
-                        width: 14,
-                        height: 14,
-                        decoration: pw.BoxDecoration(
-                          color: PdfColor.fromHex('EEEEEE'),
-                          shape: pw.BoxShape.circle,
-                        ),
-                      ),
-                    ],
-                  ),
-                  pw.SizedBox(height: 18),
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.fromLTRB(28, 0, 28, 24),
-                    child: pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: pw.CrossAxisAlignment.center,
-                      children: [
-                        pw.Column(
-                          crossAxisAlignment: pw.CrossAxisAlignment.start,
-                          children: [
-                            pw.Text(
-                              'EMITIDO POR',
-                              style: pw.TextStyle(
-                                color: cG,
-                                fontSize: 8,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                            pw.SizedBox(height: 3),
-                            pw.Text(
-                              'Rutas Baja Express',
-                              style: pw.TextStyle(
-                                color: cD,
-                                fontSize: 11,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
-                            ),
-                            pw.SizedBox(height: 12),
-                            pw.Text(
-                              'Preséntate 30 min antes de la salida.',
-                              style: pw.TextStyle(color: cG, fontSize: 8),
-                            ),
-                            pw.SizedBox(height: 4),
-                            pw.Text(
-                              'www.rutasbaja.mx',
-                              style: pw.TextStyle(
-                                color: cP,
-                                fontSize: 8,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        pw.Column(
-                          children: [
-                            pw.Container(
-                              padding: const pw.EdgeInsets.all(6),
-                              decoration: pw.BoxDecoration(
-                                color: cW,
-                                border: pw.Border.all(color: cGL),
-                                borderRadius: pw.BorderRadius.circular(6),
-                              ),
-                              child: pw.Image(
-                                pw.MemoryImage(qrBytes),
-                                width: 90,
-                                height: 90,
-                              ),
-                            ),
-                            pw.SizedBox(height: 4),
-                            pw.Text(
-                              'Escanea para verificar',
-                              style: pw.TextStyle(color: cG, fontSize: 7),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-    return doc.save();
-  }
-
-  static pw.Widget _chipPdf(
-    String label,
-    String value,
-    PdfColor lc,
-    PdfColor vc,
-    PdfColor bg,
-  ) {
-    return pw.Expanded(
-      child: pw.Container(
-        padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: pw.BoxDecoration(
-          color: bg,
-          borderRadius: pw.BorderRadius.circular(8),
-        ),
-        child: pw.Column(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Text(
-              label,
-              style: pw.TextStyle(color: lc, fontSize: 7, letterSpacing: 1),
-            ),
-            pw.SizedBox(height: 2),
-            pw.Text(
-              value,
-              style: pw.TextStyle(
-                color: vc,
-                fontSize: 9,
-                fontWeight: pw.FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _reimprimir(BuildContext ctx, int folio) async {
-    showDialog(
-      context: ctx,
-      barrierDismissible: false,
-      builder: (_) => Center(
-        child: Container(
-          padding: const EdgeInsets.all(28),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const CircularProgressIndicator(color: naranja),
-              const SizedBox(height: 16),
-              Text(
-                'Generando boleto…',
-                style: TextStyle(color: dark.withOpacity(.7), fontSize: 14),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-
-    try {
-      final res = await http
-          .get(Uri.parse('${Config.baseUrl}/api/boleto/$folio/'))
-          .timeout(const Duration(seconds: 10));
-
-      if (!ctx.mounted) return;
-      Navigator.pop(ctx);
-
-      if (res.statusCode != 200) {
-        _snack(ctx, 'No se pudo cargar el boleto', true);
-        return;
-      }
-
-      final pdfBytes = await _generarPdf(jsonDecode(res.body));
-      if (!ctx.mounted) return;
-      await Printing.layoutPdf(
-        onLayout: (_) async => pdfBytes,
-        name: 'Boleto_Folio_$folio.pdf',
-      );
-    } catch (e) {
-      if (ctx.mounted) {
-        Navigator.pop(ctx);
-        _snack(ctx, 'Error: $e', true);
-      }
-    }
-  }
-
   void _snack(BuildContext ctx, String msg, bool error) {
     ScaffoldMessenger.of(ctx).showSnackBar(
       SnackBar(
@@ -826,7 +381,6 @@ class _HistorialScreenState extends State<HistorialScreen>
         child: Column(
           children: [
             _buildHeader(),
-            // Panel de filtros con animación
             SizeTransition(
               sizeFactor: _filterPanelAnim,
               axisAlignment: -1,
@@ -862,7 +416,6 @@ class _HistorialScreenState extends State<HistorialScreen>
       ),
       child: Row(
         children: [
-          // Icono con fondo semi-transparente
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -905,7 +458,6 @@ class _HistorialScreenState extends State<HistorialScreen>
               ],
             ),
           ),
-          // Botón filtros
           _HeaderBtn(
             activo: mostrarFiltros,
             tieneIndicador: hayFiltros,
@@ -936,7 +488,6 @@ class _HistorialScreenState extends State<HistorialScreen>
             ),
           ),
           const SizedBox(width: 8),
-          // Botón refrescar
           _HeaderBtn(
             activo: false,
             onTap: () {
@@ -962,7 +513,39 @@ class _HistorialScreenState extends State<HistorialScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Tipo fecha toggle
+          // ── NUEVO: Filtro Todas / Mis ventas ──────────
+          _SectionLabel('Ventas a mostrar'),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _ToggleChip(
+                  label: 'Todas las ventas',
+                  icon: Icons.store_rounded,
+                  activo: _filtroVendedor == 'todas',
+                  onTap: () {
+                    setState(() => _filtroVendedor = 'todas');
+                    aplicarFiltros();
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _ToggleChip(
+                  label: 'Mis ventas',
+                  icon: Icons.person_rounded,
+                  activo: _filtroVendedor == 'mias',
+                  onTap: () {
+                    setState(() => _filtroVendedor = 'mias');
+                    aplicarFiltros();
+                  },
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // ── Tipo fecha toggle ──────────────────────────
           _SectionLabel('Filtrar fechas por'),
           const SizedBox(height: 8),
           Row(
@@ -993,7 +576,8 @@ class _HistorialScreenState extends State<HistorialScreen>
             ],
           ),
           const SizedBox(height: 10),
-          // Rango de fechas
+
+          // ── Rango de fechas ───────────────────────────
           Row(
             children: [
               Expanded(
@@ -1028,7 +612,7 @@ class _HistorialScreenState extends State<HistorialScreen>
             ],
           ),
           const SizedBox(height: 10),
-          // Origen / Destino
+
           _FilterField(
             controller: _origenCtrl,
             hint: 'Ciudad de origen',
@@ -1063,16 +647,19 @@ class _HistorialScreenState extends State<HistorialScreen>
             },
           ),
           const SizedBox(height: 12),
+
           _SectionLabel('Estado del viaje'),
           const SizedBox(height: 8),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              _buildChipEstado(null, 'Todos'),
-              ..._estados.keys.map((e) => _buildChipEstado(e, e)),
+              _buildChipEstado(null, 'Cualquiera'),
+              _buildChipEstado('Disponible', 'Disponible'),
+              _buildChipEstado('Finalizado', 'Finalizado'),
             ],
           ),
+
           if (hayFiltros) ...[
             const SizedBox(height: 10),
             SizedBox(
@@ -1152,6 +739,36 @@ class _HistorialScreenState extends State<HistorialScreen>
               ),
             ),
           ),
+          // Indicador visual de qué ventas se muestran
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: azul.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _filtroVendedor == 'mias'
+                      ? Icons.person_rounded
+                      : Icons.store_rounded,
+                  size: 12,
+                  color: azul,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  _filtroVendedor == 'mias' ? 'Mis ventas' : 'Todas',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: azul,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
           const Spacer(),
           GestureDetector(
             onTap: limpiarFiltros,
@@ -1177,7 +794,7 @@ class _HistorialScreenState extends State<HistorialScreen>
       return _buildEmptyState(
         icon: Icons.receipt_long_rounded,
         titulo: 'Sin ventas registradas',
-        subtitulo: 'Las ventas que realices aparecerán aquí',
+        subtitulo: 'Las ventas realizadas aparecerán aquí',
       );
     }
 
@@ -1194,8 +811,9 @@ class _HistorialScreenState extends State<HistorialScreen>
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
       itemCount: historialFiltrado.length,
       itemBuilder: (_, i) {
-        if (i >= _cardFadeAnims.length)
+        if (i >= _cardFadeAnims.length) {
           return _buildTarjeta(historialFiltrado[i], i);
+        }
         return FadeTransition(
           opacity: _cardFadeAnims[i],
           child: SlideTransition(
@@ -1294,9 +912,12 @@ class _HistorialScreenState extends State<HistorialScreen>
     final monto =
         double.tryParse(venta['monto'].toString())?.toStringAsFixed(2) ??
         '0.00';
+    final folio = venta['folio'] as int;
+    final esPropia =
+        venta['vendedor_id']?.toString() == widget.vendedorId.toString();
 
     return _TarjetaVenta(
-      key: ValueKey(venta['folio']),
+      key: ValueKey(folio),
       enRuta: enRuta,
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1306,7 +927,7 @@ class _HistorialScreenState extends State<HistorialScreen>
             // ── Fila 1: folio + estado + fecha ────────────
             Row(
               children: [
-                _FolioChip(folio: '#${venta['folio']}'),
+                _FolioChip(folio: '#$folio'),
                 const SizedBox(width: 8),
                 if (estado.isNotEmpty)
                   _EstadoChip(
@@ -1317,6 +938,34 @@ class _HistorialScreenState extends State<HistorialScreen>
                     pulsa: enRuta,
                   ),
                 const Spacer(),
+                // Indicador si es venta propia
+                if (esPropia)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: azul.withOpacity(0.09),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        Icon(Icons.person_rounded, size: 10, color: azul),
+                        SizedBox(width: 3),
+                        Text(
+                          'Yo',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: azul,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const SizedBox(width: 6),
                 Text(
                   _fmtFecha(venta['fecha']),
                   style: const TextStyle(fontSize: 10, color: muted),
@@ -1331,7 +980,6 @@ class _HistorialScreenState extends State<HistorialScreen>
 
             const SizedBox(height: 10),
 
-            // ── Fechas ────────────────────────────────────
             _DateRow(
               icon: Icons.receipt_outlined,
               label: 'Venta',
@@ -1346,7 +994,6 @@ class _HistorialScreenState extends State<HistorialScreen>
 
             const SizedBox(height: 12),
 
-            // ── Divider decorativo ─────────────────────────
             Row(
               children: [
                 Container(
@@ -1416,7 +1063,10 @@ class _HistorialScreenState extends State<HistorialScreen>
             const SizedBox(height: 12),
 
             // ── Botón reimprimir ──────────────────────────
-            _ReimprimirBtn(onTap: () => _reimprimir(context, venta['folio'])),
+            _ReimprimirBtn(
+              cargando: _reimprimiendoFolios.contains(folio),
+              onTap: () => _reimprimir(context, folio),
+            ),
           ],
         ),
       ),
@@ -1441,7 +1091,6 @@ class _EstadoMeta {
   });
 }
 
-// ── Tarjeta con efecto press ──────────────────────────────
 class _TarjetaVenta extends StatefulWidget {
   final Widget child;
   final bool enRuta;
@@ -1498,13 +1147,11 @@ class _TarjetaVentaState extends State<_TarjetaVenta>
               BoxShadow(
                 color: Colors.black.withOpacity(0.055),
                 blurRadius: 12,
-                spreadRadius: 0,
                 offset: const Offset(0, 4),
               ),
               BoxShadow(
                 color: Colors.black.withOpacity(0.025),
                 blurRadius: 4,
-                spreadRadius: 0,
                 offset: const Offset(0, 1),
               ),
             ],
@@ -1516,7 +1163,6 @@ class _TarjetaVentaState extends State<_TarjetaVenta>
   }
 }
 
-// ── Folio chip ────────────────────────────────────────────
 class _FolioChip extends StatelessWidget {
   final String folio;
   const _FolioChip({required this.folio});
@@ -1541,7 +1187,6 @@ class _FolioChip extends StatelessWidget {
   }
 }
 
-// ── Estado chip con pulso opcional ───────────────────────
 class _EstadoChip extends StatefulWidget {
   final String label;
   final Color color, bg;
@@ -1617,7 +1262,6 @@ class _EstadoChipState extends State<_EstadoChip>
   }
 }
 
-// ── Ruta row ──────────────────────────────────────────────
 class _RutaRow extends StatelessWidget {
   final String origen, destino;
   const _RutaRow({required this.origen, required this.destino});
@@ -1675,7 +1319,6 @@ class _RutaRow extends StatelessWidget {
   }
 }
 
-// ── Fecha row ─────────────────────────────────────────────
 class _DateRow extends StatelessWidget {
   final IconData icon;
   final String label, value;
@@ -1712,7 +1355,6 @@ class _DateRow extends StatelessWidget {
   }
 }
 
-// ── Mini chip ─────────────────────────────────────────────
 class _MiniChip extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1745,10 +1387,11 @@ class _MiniChip extends StatelessWidget {
   }
 }
 
-// ── Botón reimprimir ──────────────────────────────────────
+// ── Botón reimprimir con estado de carga ──────────────────
 class _ReimprimirBtn extends StatefulWidget {
   final VoidCallback onTap;
-  const _ReimprimirBtn({required this.onTap});
+  final bool cargando;
+  const _ReimprimirBtn({required this.onTap, this.cargando = false});
 
   @override
   State<_ReimprimirBtn> createState() => _ReimprimirBtnState();
@@ -1781,44 +1424,74 @@ class _ReimprimirBtnState extends State<_ReimprimirBtn>
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTapDown: (_) => _ctrl.forward(),
-      onTapUp: (_) {
-        _ctrl.reverse();
-        widget.onTap();
-      },
-      onTapCancel: () => _ctrl.reverse(),
+      onTapDown: widget.cargando ? null : (_) => _ctrl.forward(),
+      onTapUp: widget.cargando
+          ? null
+          : (_) {
+              _ctrl.reverse();
+              widget.onTap();
+            },
+      onTapCancel: widget.cargando ? null : () => _ctrl.reverse(),
       child: ScaleTransition(
         scale: _scale,
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFFEF7D44), Color(0xFFE9713A)],
+            gradient: LinearGradient(
+              colors: widget.cargando
+                  ? [const Color(0xFFBBBBBB), const Color(0xFFAAAAAA)]
+                  : [const Color(0xFFEF7D44), const Color(0xFFE9713A)],
             ),
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFE9713A).withOpacity(0.3),
+                color: (widget.cargando ? Colors.grey : const Color(0xFFE9713A))
+                    .withOpacity(0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 3),
               ),
             ],
           ),
-          child: const Row(
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: 17),
-              SizedBox(width: 8),
-              Text(
-                'Reimprimir boleto',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.2,
+              if (widget.cargando) ...[
+                const SizedBox(
+                  width: 15,
+                  height: 15,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Generando PDF…',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ] else ...[
+                const Icon(
+                  Icons.picture_as_pdf_rounded,
+                  color: Colors.white,
+                  size: 17,
+                ),
+                const SizedBox(width: 8),
+                const Text(
+                  'Reimprimir boleto',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1827,7 +1500,6 @@ class _ReimprimirBtnState extends State<_ReimprimirBtn>
   }
 }
 
-// ── Header button ─────────────────────────────────────────
 class _HeaderBtn extends StatelessWidget {
   final bool activo;
   final bool tieneIndicador;
@@ -1876,7 +1548,6 @@ class _HeaderBtn extends StatelessWidget {
   }
 }
 
-// ── Toggle chip ───────────────────────────────────────────
 class _ToggleChip extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -1927,7 +1598,6 @@ class _ToggleChip extends StatelessWidget {
   }
 }
 
-// ── Date button ───────────────────────────────────────────
 class _DateBtn extends StatelessWidget {
   final String label;
   final DateTime? fecha;
@@ -1993,7 +1663,6 @@ class _DateBtn extends StatelessWidget {
   }
 }
 
-// ── Filter field ──────────────────────────────────────────
 class _FilterField extends StatelessWidget {
   final TextEditingController controller;
   final String hint;
@@ -2040,7 +1709,6 @@ class _FilterField extends StatelessWidget {
   }
 }
 
-// ── Section label ─────────────────────────────────────────
 class _SectionLabel extends StatelessWidget {
   final String text;
   const _SectionLabel(this.text);
@@ -2059,7 +1727,6 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-// ── Shimmer card ──────────────────────────────────────────
 class _ShimmerCard extends StatefulWidget {
   @override
   State<_ShimmerCard> createState() => _ShimmerCardState();
