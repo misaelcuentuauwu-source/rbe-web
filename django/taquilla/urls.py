@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from django.views.generic import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
@@ -31,6 +31,8 @@ urlpatterns = [
     path('api/crud/<str:tabla>/insertar/',   views.crud_insertar,   name='crud_insertar'),
     path('api/crud/<str:tabla>/actualizar/', views.crud_actualizar, name='crud_actualizar'),
     path('api/crud/<str:tabla>/eliminar/',   views.crud_eliminar,   name='crud_eliminar'),
+    # API móvil (taquilla) — debe ir ANTES de las rutas api/ individuales
+    path('api/', include('taquilla.api_urls')),
     # Salidas / viajes
     path('api/salidas/',             views.salidas_json,           name='salidas_json'),
     path('api/historial/',           views.historial_json,         name='historial_json'),

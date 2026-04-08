@@ -354,123 +354,16 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
   // ═══════════════════════════════════════════════════════════════════════════
   Widget _buildBusLandscape() {
     return LayoutBuilder(
-      builder: (ctx, bc) {
-        final disA = asientos
-            .where((a) => a['asiento']['tipo']['codigo'] == 'DIS')
-            .toList();
-        final normA = asientos
-            .where((a) => a['asiento']['tipo']['codigo'] != 'DIS')
-            .toList();
-
-        // En landscape el alto disponible determina el "ancho" del bus
-        final screenH = MediaQuery.of(ctx).size.height;
-        final availH = (screenH - kToolbarHeight - 100).clamp(140.0, 280.0);
-        final busH = availH;
-
-        const seatGap = 4.0;
-        const vPad = 14.0;
-        // 4 asientos en el eje vertical + pasillo
-        final seatH = ((busH - vPad * 2 - seatGap * 5) / 4).clamp(24.0, 54.0);
-        final seatW = seatH * 1.12;
-
-        // Cabina del conductor (frente izquierdo)
-        final cabW = seatW * 1.9;
-
-        final numCols = (normA.length / 4).ceil();
-        final colW = seatW + seatGap * 4;
-
-        // Ancho total del bus
-        final busW =
-            vPad * 2 +
-            cabW +
-            seatGap * 2 +
-            seatW +
-            seatGap * 4 + // columna discapacidad
-            numCols * colW +
-            seatW * 0.6 +
-            24;
-
+      builder: (context, constraints) {
         return Center(
-          child: SizedBox(
-            width: busW,
-            height: busH,
-            child: Stack(
-              children: [
-                // Marco del bus rotado 90° para que el frente quede a la izquierda
-                Positioned.fill(
-                  child: CustomPaint(
-                    painter: const _BusCarroceriaHorizontalPainter(),
-                  ),
-                ),
-                // Contenido interno
-                Positioned.fill(
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // ── Cabina del conductor ──
-                        SizedBox(
-                          width: cabW,
-                          child: CustomPaint(
-                            painter: _FrenteFlatHorizontalPainter(),
-                          ),
-                        ),
-                        SizedBox(width: seatGap * 2),
-
-                        // ── Columna discapacidad ──
-                        _buildColumnaAsientos(
-                          arr: [
-                            disA.isNotEmpty ? disA[0] : null,
-                            null,
-                            null,
-                            disA.length > 1 ? disA[1] : null,
-                          ],
-                          seatW: seatW,
-                          seatH: seatH,
-                          seatGap: seatGap,
-                          labels: [
-                            disA.isNotEmpty ? 'D1' : '',
-                            '',
-                            '',
-                            disA.length > 1 ? 'D2' : '',
-                          ],
-                        ),
-                        SizedBox(width: seatGap * 2),
-
-                        // ── Columnas normales ──
-                        ...List.generate(numCols, (ci) {
-                          const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-                          final start = ci * 4;
-                          final end = min(start + 4, normA.length);
-                          final col = normA.sublist(start, end);
-                          while (col.length < 4) col.add(null);
-                          final l = letras[ci % 26];
-                          return Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildColumnaAsientos(
-                                arr: col,
-                                seatW: seatW,
-                                seatH: seatH,
-                                seatGap: seatGap,
-                                labels: [
-                                  col[0] != null ? '${l}1' : '',
-                                  col[1] != null ? '${l}2' : '',
-                                  col[2] != null ? '${l}3' : '',
-                                  col[3] != null ? '${l}4' : '',
-                                ],
-                              ),
-                              SizedBox(width: seatGap * 4),
-                            ],
-                          );
-                        }),
-                        SizedBox(width: seatW * 0.4),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: RotatedBox(
+              quarterTurns: 3, // 👈 giro correcto
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: constraints.maxHeight),
+                child: _buildBusPortrait(), // 👈 reutilizas TODO
+              ),
             ),
           ),
         );
@@ -514,26 +407,36 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
     required double aisleW,
     required List<String> labels,
   }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _seat(izq[0], seatW, seatH, labels[0]),
-            SizedBox(width: seatGap * 3.5),
-            _seat(izq[1], seatW, seatH, labels[1]),
-          ],
-        ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _seat(der[0], seatW, seatH, labels[2]),
-            SizedBox(width: seatGap * 3.5),
-            _seat(der[1], seatW, seatH, labels[3]),
-          ],
-        ),
-      ],
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: isLandscape
+            ? 0 // 👈 en horizontal NO cambia nada
+            : MediaQuery.of(context).size.width * 0.06, // 👈 solo vertical
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _seat(izq[0], seatW, seatH, labels[0]),
+              SizedBox(width: seatGap * 3.5),
+              _seat(izq[1], seatW, seatH, labels[1]),
+            ],
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _seat(der[0], seatW, seatH, labels[2]),
+              SizedBox(width: seatGap * 3.5),
+              _seat(der[1], seatW, seatH, labels[3]),
+            ],
+          ),
+        ],
+      ),
     );
   }
 

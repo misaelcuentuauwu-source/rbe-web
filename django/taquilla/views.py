@@ -1307,10 +1307,15 @@ def api_comprar(request):
                 precio_final     = float(precio_base) * (1 - descuento / 100)
                 asiento          = Asiento.objects.get(numero=p['asiento_id'])
                 ticket = Ticket.objects.create(
-                    precio=precio_final, fechaemision=timezone.now(),
-                    asiento=asiento, viaje=viaje, pasajero=pasajero,
-                    tipopasajero=tipo_pasajero, pago=pago
-                )
+    precio=precio_final,
+    fechaemision=timezone.now(),
+    asiento=asiento,
+    viaje=viaje,
+    pasajero=pasajero,
+    tipopasajero=tipo_pasajero,
+    pago=pago,
+    etiqueta_asiento=p.get('asiento_etiqueta')  # 👈 ESTA ES LA CLAVE
+)
                 tickets_creados.append(ticket)
                 from django.db import connection
                 with connection.cursor() as cur:
@@ -1344,14 +1349,16 @@ def api_buscar_boleto(request, folio):
             'viaje': {
                 'origen': viaje.ruta.origen.ciudad.nombre,
                 'destino': viaje.ruta.destino.ciudad.nombre,
-                'hora_salida': str(viaje.fechorasalida),
-                'hora_llegada': str(viaje.fechoraentrada),
+                'hora_salida': viaje.fechorasalida.strftime('%H:%M'),
+'hora_llegada':   viaje.fechoraentrada.strftime('%H:%M') if viaje.fechoraentrada else '',
+'fecha_viaje': viaje.fechorasalida.strftime('%d %b %Y'),
                 'duracion': viaje.ruta.duracion,
             },
             'tickets': [
                 {
                     'codigo': t.codigo,
                     'asiento': t.asiento.numero,
+'asiento_etiqueta': t.etiqueta_asiento or str(t.asiento.numero),
                     'tipo_asiento': t.asiento.tipo.descripcion,
                     'nombre': t.pasajero.panombre,
                     'primer_apellido': t.pasajero.paprimerapell,
@@ -1441,30 +1448,91 @@ def api_historial_cliente(request, cliente_id):
 
 
 @api_view(['GET'])
-def api_historial_taquillero(request, vendedor_id):
+def historial_todas(request):
     try:
-        pagos = Pago.objects.filter(vendedor__registro=vendedor_id).order_by('-fechapago')
-        resultado = []
+        pagos = Pago.objects.order_by('-fechapago')
+        data = []
         for pago in pagos:
-            tickets = Ticket.objects.filter(pago=pago)
+            tickets = Ticket.objects.filter(pago=pago).select_related(
+                'viaje__ruta__origen__ciudad',
+                'viaje__ruta__destino__ciudad',
+                'viaje__estado',
+            )
             primer_ticket = tickets.first()
+
+            # Si no hay tickets, igual incluir el pago con datos mínimos
             if primer_ticket:
                 viaje = primer_ticket.viaje
-                resultado.append({
-                    'folio': pago.numero,
-                    'fecha': str(pago.fechapago),
-                    'origen': viaje.ruta.origen.ciudad.nombre,
-                    'destino': viaje.ruta.destino.ciudad.nombre,
-                    'hora_salida': str(viaje.fechorasalida),
-                    'monto': str(pago.monto),
-                    'num_pasajeros': tickets.count(),
-                    'metodo_pago': pago.tipo.nombre,
-                    'estado': viaje.estado.nombre,
-                    'estado_id': viaje.estado.numero,
-                })
-        return Response(resultado)
+                origen   = viaje.ruta.origen.ciudad.nombre
+                destino  = viaje.ruta.destino.ciudad.nombre
+                salida   = str(viaje.fechorasalida)
+                estado   = viaje.estado.nombre
+            else:
+                origen  = 'Sin datos'
+                destino = 'Sin datos'
+                salida  = ''
+                estado  = ''
+
+            data.append({
+                'folio':           pago.numero,
+                'fecha':           str(pago.fechapago),
+                'origen':          origen,
+                'destino':         destino,
+                'hora_salida':     salida,
+                'estado':          estado,
+                'num_pasajeros':   tickets.count(),
+                'monto':           str(pago.monto),
+                'metodo_pago':     pago.tipo.nombre,
+                'vendedor_id':     pago.vendedor.registro if pago.vendedor else None,
+                'vendedor_nombre': f'{pago.vendedor.taqnombre} {pago.vendedor.taqprimerapell}' if pago.vendedor else 'App',
+            })
+        return Response(data)
     except Exception as e:
         return Response({'error': str(e)}, status=400)
+
+
+@api_view(['GET'])
+def detalle_boleto_folio(request, folio):
+    try:
+        pago = Pago.objects.get(numero=folio)
+        tickets = Ticket.objects.filter(pago=pago).select_related(
+            'pasajero', 'asiento', 'tipopasajero',
+            'viaje__ruta__origen__ciudad',
+            'viaje__ruta__destino__ciudad',
+        )
+        primer_ticket = tickets.first()
+        if not primer_ticket:
+            return JsonResponse({'error': 'No se encontraron tickets'}, status=404)
+
+        viaje = primer_ticket.viaje
+        pasajeros = []
+        for t in tickets:
+            pasajeros.append({
+                'nombre':           t.pasajero.panombre,
+                'primer_apellido':  t.pasajero.paprimerapell,
+                'asiento_etiqueta': t.etiqueta_asiento or str(t.asiento.numero),
+                'asiento_id':       t.asiento.numero,
+                'tipo':             t.tipopasajero.descripcion,
+                'precio_unitario':  str(t.precio),
+            })
+
+        data = {
+            'folio':          pago.numero,
+            'origen':         viaje.ruta.origen.ciudad.nombre,
+            'destino':        viaje.ruta.destino.ciudad.nombre,
+            'hora_salida':    viaje.fechorasalida.strftime('%H:%M'),
+            'hora_llegada':   viaje.fechoraentrada.strftime('%H:%M') if viaje.fechoraentrada else '',
+            'fecha_viaje':    viaje.fechorasalida.strftime('%d %b %Y'),
+            'monto':          str(pago.monto),
+            'metodo_pago_id': pago.tipo.numero,
+            'pasajeros':      pasajeros,
+        }
+        return JsonResponse(data)
+
+    except Pago.DoesNotExist:
+        return JsonResponse({'error': 'Folio no encontrado'}, status=404)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=400)
 
 @api_view(['POST'])
 def api_cliente_registro(request):

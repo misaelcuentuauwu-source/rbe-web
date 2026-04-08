@@ -7,8 +7,9 @@ urlpatterns = [
     path('terminales/', views.api_terminales, name='api_terminales'),
     path('comprar/', views.api_comprar, name='api_comprar'),
     path('login/', views.api_login, name='api_login'),
-    path('historial/<int:vendedor_id>/', views.api_historial_taquillero, name='api_historial'),
+    path('historial/', views.historial_todas, name='api_historial'),
     path('boleto/<int:folio>/', views.api_buscar_boleto, name='api_buscar_boleto'),
+    path('boleto/<int:folio>/detalle/', views.detalle_boleto_folio, name='detalle_boleto_folio'),
     path('cliente/google-login/', views.api_cliente_google_login, name='api_cliente_google_login'),
     path('historial/cliente/<int:cliente_id>/', views.api_historial_cliente, name='api_historial_cliente'),
 

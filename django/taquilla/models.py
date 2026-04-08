@@ -160,6 +160,7 @@ class Ticket(models.Model):
     pasajero = models.ForeignKey(Pasajero, models.DO_NOTHING, db_column='pasajero')
     tipopasajero = models.ForeignKey('TipoPasajero', models.DO_NOTHING, db_column='tipopasajero')
     pago = models.ForeignKey(Pago, models.DO_NOTHING, db_column='pago')
+    etiqueta_asiento = models.CharField(max_length=10, null=True, blank=True)
 
     class Meta:
         managed = False

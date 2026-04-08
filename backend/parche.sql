@@ -955,3 +955,6 @@ SELECT * FROM viaje_asiento WHERE viaje = 62 AND ocupado = 1;
 
 SELECT * FROM cuenta_pasajero ORDER BY pasajero_num DESC LIMIT 5;
 SELECT * FROM edo_viaje;
+
+ALTER TABLE ticket 
+ADD COLUMN etiqueta_asiento VARCHAR(10);
