@@ -75,13 +75,13 @@ class _HomeScreenState extends State<HomeScreen>
       parent: _entryController,
       curve: const Interval(0.0, 0.8, curve: Curves.easeOut),
     );
-    _slideAnim = Tween<Offset>(
-      begin: const Offset(0, 0.06),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _entryController,
-      curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
-    ));
+    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.06), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _entryController,
+            curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
+          ),
+        );
     _entryController.forward();
   }
 
@@ -120,7 +120,7 @@ class _HomeScreenState extends State<HomeScreen>
           final isTablet = constraints.maxWidth > 600;
           final isLandscape = constraints.maxWidth > constraints.maxHeight;
           return Container(
-            color: const Color(0xFF008FD4),
+            color: Colors.white, // 👈 era Color(0xFF008FD4)
             child: Container(
               decoration: BoxDecoration(
                 image: DecorationImage(
@@ -129,8 +129,8 @@ class _HomeScreenState extends State<HomeScreen>
                   alignment: isLandscape
                       ? Alignment.centerLeft
                       : isTablet
-                          ? const Alignment(0.0, -2.0)
-                          : Alignment.topCenter,
+                      ? const Alignment(0.0, -2.0)
+                      : Alignment.topCenter,
                 ),
               ),
               child: FadeTransition(
@@ -151,24 +151,47 @@ class _HomeScreenState extends State<HomeScreen>
 
   Widget _buildPortrait(BuildContext context, bool isTablet) {
     final screenHeight = MediaQuery.of(context).size.height;
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(height: screenHeight * 0.37),
-            _buildLogo(),
-            const SizedBox(height: 24),
-            _buildTitle(),
-            const SizedBox(height: 24),
-            const _AnimatedBusRoute(),
-            const Spacer(),
-            _buildButtons(context),
-            const SizedBox(height: 40),
-          ],
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Onda azul
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: screenHeight * 0.65,
+          child: CustomPaint(
+            painter: _WavePainter(color: const Color(0xFF2C7FB1)),
+            child: const SizedBox.expand(),
+          ),
         ),
-      ),
+
+        // Botones siempre pegados al fondo
+        Positioned(
+          bottom: 70,
+          left: 32,
+          right: 32,
+          child: _buildButtons(context),
+        ),
+
+        // Logo + título + bus arriba
+        Positioned(
+          top: screenHeight * 0.42,
+          left: 32,
+          right: 32,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildLogo(),
+              const SizedBox(height: 20),
+              _buildTitle(),
+              const SizedBox(height: 20),
+              const _AnimatedBusRoute(),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -211,8 +234,7 @@ class _HomeScreenState extends State<HomeScreen>
       tween: Tween(begin: 0.5, end: 1.0),
       duration: const Duration(milliseconds: 700),
       curve: Curves.elasticOut,
-      builder: (_, value, child) =>
-          Transform.scale(scale: value, child: child),
+      builder: (_, value, child) => Transform.scale(scale: value, child: child),
       child: Container(
         width: 72,
         height: 72,
@@ -289,11 +311,12 @@ class _HomeScreenState extends State<HomeScreen>
             scaleFactor: 0.97,
             child: const Text(
               'Entrar como invitado',
+              textAlign: TextAlign.center, // 👈 centrado
               style: TextStyle(
-                color: Colors.white60,
+                color: Colors.white, // 👈 era Color(0xFF6B8FA8)
                 fontSize: 13,
                 decoration: TextDecoration.underline,
-                decorationColor: Colors.white60,
+                decorationColor: Colors.white, // 👈 también blanco
               ),
             ),
           ),
@@ -332,9 +355,10 @@ class _AnimatedButtonState extends State<_AnimatedButton>
       duration: const Duration(milliseconds: 100),
       reverseDuration: const Duration(milliseconds: 200),
     );
-    _scale = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeOut),
-    );
+    _scale = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
   }
 
   @override
@@ -358,15 +382,20 @@ class _AnimatedButtonState extends State<_AnimatedButton>
             ? OutlinedButton(
                 onPressed: widget.onTap,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white, width: 1.5),
+                  foregroundColor: Colors.white, // 👈 era azul
+                  side: const BorderSide(
+                    color: Colors.white,
+                    width: 1.5,
+                  ), // 👈 era azul
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: Text(widget.label,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                child: Text(
+                  widget.label,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
               )
             : ElevatedButton(
                 onPressed: widget.onTap,
@@ -380,8 +409,10 @@ class _AnimatedButtonState extends State<_AnimatedButton>
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                child: Text(widget.label,
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
+                child: Text(
+                  widget.label,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
       ),
     );
@@ -459,7 +490,9 @@ class _AnimatedBusRouteState extends State<_AnimatedBusRoute>
                     right: 0,
                     top: 8,
                     child: CircleAvatar(
-                        radius: 5, backgroundColor: Colors.white),
+                      radius: 5,
+                      backgroundColor: Colors.white,
+                    ),
                   ),
                   AnimatedBuilder(
                     animation: _pos,
@@ -467,8 +500,7 @@ class _AnimatedBusRouteState extends State<_AnimatedBusRoute>
                       return Positioned(
                         left: 4 + _pos.value * (w - 36),
                         top: 3,
-                        child: const Text('🚌',
-                            style: TextStyle(fontSize: 20)),
+                        child: const Text('🚌', style: TextStyle(fontSize: 20)),
                       );
                     },
                   ),
@@ -481,13 +513,45 @@ class _AnimatedBusRouteState extends State<_AnimatedBusRoute>
         const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('Tijuana',
-                style: TextStyle(color: Colors.white60, fontSize: 12)),
-            Text('La Paz',
-                style: TextStyle(color: Colors.white60, fontSize: 12)),
+            Text(
+              'Tijuana',
+              style: TextStyle(color: Colors.white60, fontSize: 12),
+            ),
+            Text(
+              'La Paz',
+              style: TextStyle(color: Colors.white60, fontSize: 12),
+            ),
           ],
         ),
       ],
     );
   }
+}
+
+class _WavePainter extends CustomPainter {
+  final Color color;
+  const _WavePainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..color = color;
+    final path = Path();
+    // Empieza alto a la izquierda, cae hacia la derecha — más empinada
+    path.moveTo(0, size.height * 0.02);
+    path.cubicTo(
+      size.width * 0.25,
+      size.height * 0.02, // control 1: se queda arriba
+      size.width * 0.60,
+      size.height * 0.38, // control 2: cae fuerte
+      size.width,
+      size.height * 0.28, // termina más abajo a la derecha
+    );
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
 }
