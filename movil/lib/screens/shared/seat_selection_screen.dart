@@ -6,6 +6,17 @@ import '../../config.dart';
 import '../../utils/transitions.dart';
 import 'pago_screen.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  SeatSelectionScreen  —  completamente responsiva
+//
+//  Cambios v2:
+//  1. En LANDSCAPE el bus rota 90°: viaja de derecha → izquierda.
+//     El contenido interior (cabina, filas, pasillo) se reorganiza
+//     para que tenga sentido en orientación horizontal.
+//  2. Animación staggered por filas: cada fila de asientos aparece
+//     con un fade + slide con delay incremental.
+//  3. La animación de entrada global (fade/scale) sigue funcionando.
+// ─────────────────────────────────────────────────────────────────────────────
 class SeatSelectionScreen extends StatefulWidget {
   final int viajeId;
   final List<Map<String, dynamic>> pasajeros;
@@ -41,137 +52,298 @@ class SeatSelectionScreen extends StatefulWidget {
 class _SeatSelectionScreenState extends State<SeatSelectionScreen>
     with TickerProviderStateMixin {
   // ── Paleta ──────────────────────────────────────────────────────────────────
-  static const azul = Color(0xFF2C7FB1);
-  static const grisOc = Color(0xFFB0B8C1);
-  static const naranja = Color(0xFFE9713A);
-  static const morado = Color(0xFF7B2FBE);
-  static const fondoApp = Color(0xFFF0F4F8);
+  static const _azul = Color(0xFF2C7FB1);
+  static const _grisOc = Color(0xFFB0B8C1);
+  static const _naranja = Color(0xFFE9713A);
+  static const _morado = Color(0xFF7B2FBE);
+  static const _fondo = Color(0xFFF0F4F8);
+  static const _casco = Color(0xFF0F4C5C);
 
-  List<dynamic> asientos = [];
-  List<int> seleccionados = [];
-  bool cargando = true;
+  List<dynamic> _asientos = [];
+  final List<int> _seleccionados = [];
+  bool _cargando = true;
 
-  late AnimationController _entradaCtrl;
-  late Animation<double> _fadeAnim;
-  late Animation<double> _scaleAnim;
+  // ── Controlador de entrada global (fade + scale del bus completo) ───────────
+  late final AnimationController _entryCtrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 550),
+  );
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _entryCtrl,
+    curve: Curves.easeOut,
+  );
+  late final Animation<double> _scale = Tween(
+    begin: 0.95,
+    end: 1.0,
+  ).animate(CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOutBack));
+
+  // ── Controladores staggered por fila ────────────────────────────────────────
+  // Se inicializan después de cargar los asientos.
+  final List<AnimationController> _rowCtrls = [];
+  final List<Animation<double>> _rowFades = [];
+  final List<Animation<Offset>> _rowSlides = [];
+
+  // ── Dimensiones internas de referencia (modo PORTRAIT) ──────────────────────
+  static const double _refW = 320.0;
+  static const double _hPad = 18.0;
+  static const double _vPad = 14.0;
+  static const double _gap = 7.0;
+  static const double _aisleW = 22.0;
+  static const double _seatW = (_refW - 2 * _hPad - 3 * _gap - _aisleW) / 4;
+  static const double _seatH = _seatW * 1.18;
+  static const double _rowH = _seatH + _gap;
+  static const double _cabH = _seatH * 1.80;
+
+  // ── Dimensiones internas de referencia (modo LANDSCAPE) ─────────────────────
+  // El bus gira: el eje largo es ahora horizontal.
+  // "columnas" → lo que eran filas; la cabina queda a la DERECHA.
+  static const double _lRefH = 260.0; // alto de referencia en landscape
+  static const double _lHPad = 14.0; // padding vertical (era horizontal)
+  static const double _lVPad = 12.0; // padding horizontal (era vertical)
+  static const double _lGap = 6.0;
+  static const double _lAisleH = 20.0; // pasillo ahora es horizontal
+  // seatH en landscape: 4 asientos + 3 gaps + 1 pasillo dentro de (lRefH - 2*lHPad)
+  static const double _lSeatH =
+      (_lRefH - 2 * _lHPad - 3 * _lGap - _lAisleH) / 4;
+  static const double _lSeatW = _lSeatH * 1.18;
+  static const double _lColW = _lSeatW + _lGap;
+  static const double _lCabW = _lSeatW * 1.80; // cabina a la derecha
 
   @override
   void initState() {
     super.initState();
-    _entradaCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 600),
-    );
-    _fadeAnim = CurvedAnimation(parent: _entradaCtrl, curve: Curves.easeOut);
-    _scaleAnim = Tween<double>(
-      begin: 0.94,
-      end: 1.0,
-    ).animate(CurvedAnimation(parent: _entradaCtrl, curve: Curves.easeOutBack));
-    cargarAsientos();
+    _cargar();
   }
 
   @override
   void dispose() {
-    _entradaCtrl.dispose();
+    _entryCtrl.dispose();
+    for (final c in _rowCtrls) {
+      c.dispose();
+    }
     super.dispose();
   }
 
   // ── API ─────────────────────────────────────────────────────────────────────
-  Future<void> cargarAsientos() async {
+  Future<void> _cargar() async {
     try {
-      final response = await http
+      final res = await http
           .get(Uri.parse('${Config.baseUrl}/api/viajes/${widget.viajeId}/'))
           .timeout(const Duration(seconds: 10));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
         setState(() {
-          asientos = List<dynamic>.from(data['asientos']);
-          cargando = false;
+          _asientos = List<dynamic>.from(data['asientos']);
+          _cargando = false;
         });
-        _entradaCtrl.forward();
+        _iniciarAnimaciones();
       } else {
-        setState(() => cargando = false);
+        setState(() => _cargando = false);
       }
     } catch (e) {
       debugPrint('Error cargando asientos: $e');
-      setState(() => cargando = false);
+      setState(() => _cargando = false);
     }
   }
 
-  // ── Color del asiento ────────────────────────────────────────────────────────
-  Color _colorAsiento(Map asiento) {
-    final numero = asiento['asiento']['numero'] as int;
-    final ocupado = asiento['ocupado'] == 1;
-    final tipo = asiento['asiento']['tipo']['codigo'] as String;
-    if (seleccionados.contains(numero)) return naranja;
-    if (ocupado) return grisOc;
-    if (tipo == 'DIS') return morado;
-    return azul;
+  // ── Iniciar animaciones: entrada global + stagger por fila ───────────────────
+  void _iniciarAnimaciones() {
+    // 1. Entrada global del bus
+    _entryCtrl.forward();
+
+    // 2. Calcular cuántas filas hay (dis + normales)
+    final norm = _asientos
+        .where((a) => a['asiento']['tipo']['codigo'] != 'DIS')
+        .toList();
+    final numFilas =
+        1 + (norm.length / 4).ceil(); // +1 por fila de discapacidad
+
+    // 3. Crear un AnimationController por fila
+    for (int i = 0; i < numFilas; i++) {
+      final ctrl = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 380),
+      );
+      _rowCtrls.add(ctrl);
+      _rowFades.add(CurvedAnimation(parent: ctrl, curve: Curves.easeOut));
+      _rowSlides.add(
+        Tween<Offset>(
+          begin: const Offset(0.0, 0.18), // desliza desde abajo
+          end: Offset.zero,
+        ).animate(CurvedAnimation(parent: ctrl, curve: Curves.easeOutCubic)),
+      );
+
+      // Delay escalonado: 80ms por fila, empieza tras 200ms (espera la entrada global)
+      final delay = 200 + i * 80;
+      Future.delayed(Duration(milliseconds: delay), () {
+        if (mounted) ctrl.forward();
+      });
+    }
   }
 
-  bool _isOcupado(Map asiento) => asiento['ocupado'] == 1;
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  List<dynamic> get _dis =>
+      _asientos.where((a) => a['asiento']['tipo']['codigo'] == 'DIS').toList();
+  List<dynamic> get _norm =>
+      _asientos.where((a) => a['asiento']['tipo']['codigo'] != 'DIS').toList();
 
-  void _toggleAsiento(Map asiento) {
-    if (_isOcupado(asiento)) return;
-    final numero = asiento['asiento']['numero'] as int;
+  Color _color(dynamic a) {
+    final n = a['asiento']['numero'] as int;
+    if (_seleccionados.contains(n)) return _naranja;
+    if (a['ocupado'] == 1) return _grisOc;
+    if (a['asiento']['tipo']['codigo'] == 'DIS') return _morado;
+    return _azul;
+  }
+
+  bool _esOcupado(dynamic a) => a['ocupado'] == 1;
+
+  bool _esDIS(dynamic a) => a['asiento']['tipo']['codigo'] == 'DIS';
+
+  /// Cuántos pasajeros de tipo Discapacidad vienen en este viaje.
+  int get _totalPasajerosDiscapacidad =>
+      widget.pasajeros.where((p) => p['tipo'] == 'Discapacidad').length;
+
+  /// Cuántos asientos DIS ya están seleccionados.
+  int get _disSeleccionados => _seleccionados.where((n) {
+    try {
+      final asiento = _asientos.firstWhere((a) => a['asiento']['numero'] == n);
+      return _esDIS(asiento);
+    } catch (_) {
+      return false;
+    }
+  }).length;
+
+  void _toggle(dynamic a) {
+    if (_esOcupado(a)) return;
+
+    final n = a['asiento']['numero'] as int;
+    final esDIS = _esDIS(a);
+    final totalDis = _totalPasajerosDiscapacidad;
+
+    // Asiento DIS: bloquear si no hay pasajeros con discapacidad
+    if (esDIS && totalDis == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Este asiento está reservado para pasajeros con discapacidad.',
+          ),
+          backgroundColor: Colors.purple.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
+    // Asiento DIS: bloquear si ya se seleccionaron todos los DIS permitidos
+    if (esDIS && !_seleccionados.contains(n) && _disSeleccionados >= totalDis) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            totalDis == 1
+                ? 'Solo 1 pasajero con discapacidad — ya seleccionaste su asiento.'
+                : 'Ya seleccionaste los $totalDis asientos de discapacidad.',
+          ),
+          backgroundColor: Colors.purple.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
+
     final total = widget.pasajeros.length;
     setState(() {
-      if (seleccionados.contains(numero)) {
-        seleccionados.remove(numero);
+      if (_seleccionados.contains(n)) {
+        _seleccionados.remove(n);
+      } else if (_seleccionados.length < total) {
+        _seleccionados.add(n);
       } else {
-        if (seleccionados.length < total) {
-          seleccionados.add(numero);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Solo puedes seleccionar $total asiento(s)'),
-              backgroundColor: Colors.red.shade400,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Solo puedes seleccionar $total asiento(s)'),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
             ),
-          );
-        }
+          ),
+        );
       }
     });
   }
 
-  String _etiquetaDeAsiento(int numeroAsiento) {
-    const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    final disA = asientos
-        .where((a) => a['asiento']['tipo']['codigo'] == 'DIS')
-        .toList();
-    final normA = asientos
-        .where((a) => a['asiento']['tipo']['codigo'] != 'DIS')
-        .toList();
-    for (int i = 0; i < disA.length; i++) {
-      if (disA[i]['asiento']['numero'] == numeroAsiento) return 'D${i + 1}';
+  String _etiqueta(int numero) {
+    const abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    final dis = _dis;
+    final norm = _norm;
+    for (int i = 0; i < dis.length; i++) {
+      if (dis[i]['asiento']['numero'] == numero) return 'D${i + 1}';
     }
-    for (int i = 0; i < normA.length; i++) {
-      if (normA[i]['asiento']['numero'] == numeroAsiento) {
-        final fila = i ~/ 4;
-        final col = i % 4;
-        return '${letras[fila % letras.length]}${col + 1}';
+    for (int i = 0; i < norm.length; i++) {
+      if (norm[i]['asiento']['numero'] == numero) {
+        return '${abc[(i ~/ 4) % 26]}${(i % 4) + 1}';
       }
     }
-    return '$numeroAsiento';
+    return '$numero';
   }
 
-  // ── Build ────────────────────────────────────────────────────────────────────
+  // ── Altura total del bus PORTRAIT ────────────────────────────────────────────
+  double _refH() {
+    final rows = (_norm.length / 4).ceil();
+    return _vPad + _cabH + _gap + _rowH + rows * _rowH + _seatH * 0.5 + _vPad;
+  }
+
+  // ── Ancho total del bus LANDSCAPE ────────────────────────────────────────────
+  double _lRefW() {
+    final cols = (_norm.length / 4).ceil();
+    return _lVPad +
+        _lCabW +
+        _lGap +
+        _lColW +
+        cols * _lColW +
+        _lSeatW * 0.5 +
+        _lVPad;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  BUILD
+  // ══════════════════════════════════════════════════════════════════════════════
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: fondoApp,
-      appBar: _buildAppBar(),
-      body: cargando ? _buildLoader() : _buildBody(),
+      backgroundColor: _fondo,
+      appBar: _appBar(),
+      body: _cargando
+          ? const Center(child: CircularProgressIndicator(color: _azul))
+          : OrientationBuilder(
+              builder: (ctx, orientation) {
+                final isLandscape = orientation == Orientation.landscape;
+                return Column(
+                  children: [
+                    Expanded(
+                      child: isLandscape
+                          ? _scrollableBusLandscape()
+                          : _scrollableBusPortrait(),
+                    ),
+                    _leyenda(),
+                    _boton(),
+                  ],
+                );
+              },
+            ),
     );
   }
 
-  PreferredSizeWidget _buildAppBar() => AppBar(
-    backgroundColor: azul,
+  PreferredSizeWidget _appBar() => AppBar(
+    backgroundColor: _azul,
     foregroundColor: Colors.white,
     elevation: 0,
+    centerTitle: true,
     title: Column(
       children: [
         const Text(
@@ -184,293 +356,419 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
         ),
       ],
     ),
-    centerTitle: true,
   );
 
-  Widget _buildLoader() =>
-      const Center(child: CircularProgressIndicator(color: azul));
-
-  // ── Body: usa OrientationBuilder para portrait/landscape ────────────────────
-  Widget _buildBody() {
-    return OrientationBuilder(
-      builder: (context, orientation) {
-        final isLandscape = orientation == Orientation.landscape;
-
-        return Column(
-          children: [
-            Expanded(
-              child: isLandscape ? _buildBodyLandscape() : _buildBodyPortrait(),
-            ),
-            // Leyenda compacta en landscape
-            _buildLeyendaBar(compact: isLandscape),
-            _buildBotonConfirmar(),
-          ],
-        );
-      },
-    );
-  }
-
-  // ── Portrait: scroll vertical, bus centrado ──────────────────────────────────
-  Widget _buildBodyPortrait() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-      child: FadeTransition(
-        opacity: _fadeAnim,
-        child: ScaleTransition(scale: _scaleAnim, child: _buildBusPortrait()),
-      ),
-    );
-  }
-
-  // ── Landscape: bus horizontal con scroll lateral si es necesario ─────────────
-  Widget _buildBodyLandscape() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-      child: FadeTransition(
-        opacity: _fadeAnim,
-        child: ScaleTransition(scale: _scaleAnim, child: _buildBusLandscape()),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // BUS PORTRAIT (vertical — comportamiento original)
-  // ═══════════════════════════════════════════════════════════════════════════
-  Widget _buildBusPortrait() {
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  PORTRAIT — mismo comportamiento que antes
+  // ══════════════════════════════════════════════════════════════════════════════
+  Widget _scrollableBusPortrait() {
     return LayoutBuilder(
       builder: (ctx, bc) {
-        // Más ancho en tablets
-        final maxBusW = bc.maxWidth > 600 ? 480.0 : 380.0;
-        final busW = bc.maxWidth.clamp(260.0, maxBusW);
+        final availW = bc.maxWidth;
+        final availH = bc.maxHeight;
+        final refH = _refH();
+        final scale = (availW - 32) / _refW;
+        final scaledH = refH * scale;
 
-        final disA = asientos
-            .where((a) => a['asiento']['tipo']['codigo'] == 'DIS')
-            .toList();
-        final normA = asientos
-            .where((a) => a['asiento']['tipo']['codigo'] != 'DIS')
-            .toList();
-
-        const seatGap = 4.0;
-        const aisleW = 38.0;
-        const hPad = 14.0;
-
-        final seatW = ((busW - hPad * 2 - seatGap * 3) / 4).clamp(28.0, 60.0);
-        final seatH = seatW * 1.12;
-        final rowH = seatH + seatGap;
-        final cabH = seatH * 1.9;
-
-        final numFilas = (normA.length / 4).ceil();
-        final busH = cabH + rowH + numFilas * rowH + seatH * 0.6 + 24;
-
-        return Center(
-          child: SizedBox(
-            width: busW,
-            height: busH,
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: CustomPaint(painter: const _BusCarroceriaPainter()),
+        final busWidget = FadeTransition(
+          opacity: _fade,
+          child: ScaleTransition(
+            scale: _scale,
+            child: FittedBox(
+              fit: BoxFit.fitWidth,
+              child: ClipRect(
+                child: SizedBox(
+                  width: _refW,
+                  height: refH,
+                  child: _busContentPortrait(),
                 ),
-                Positioned.fill(
-                  child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          height: cabH,
-                          child: _buildFrentePortrait(busW, cabH, seatW, seatH),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: seatGap),
-                          child: _buildFila(
-                            izq: [disA.isNotEmpty ? disA[0] : null, null],
-                            der: [null, disA.length > 1 ? disA[1] : null],
-                            seatW: seatW,
-                            seatH: seatH,
-                            seatGap: seatGap,
-                            aisleW: aisleW,
-                            labels: [
-                              disA.isNotEmpty ? 'D1' : '',
-                              '',
-                              '',
-                              disA.length > 1 ? 'D2' : '',
-                            ],
-                          ),
-                        ),
-                        ...List.generate(numFilas, (fi) {
-                          const letras = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-                          final start = fi * 4;
-                          final end = min(start + 4, normA.length);
-                          final fila = normA.sublist(start, end);
-                          while (fila.length < 4) fila.add(null);
-                          final l = letras[fi % 26];
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: seatGap),
-                            child: _buildFila(
-                              izq: [fila[0], fila[1]],
-                              der: [fila[2], fila[3]],
-                              seatW: seatW,
-                              seatH: seatH,
-                              seatGap: seatGap,
-                              aisleW: aisleW,
-                              labels: [
-                                fila[0] != null ? '${l}1' : '',
-                                fila[1] != null ? '${l}2' : '',
-                                fila[2] != null ? '${l}3' : '',
-                                fila[3] != null ? '${l}4' : '',
-                              ],
-                            ),
-                          );
-                        }),
-                        SizedBox(height: seatH * 0.4),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildFrentePortrait(
-    double busW,
-    double cabH,
-    double seatW,
-    double seatH,
-  ) {
-    return SizedBox(
-      width: busW,
-      height: cabH,
-      child: CustomPaint(painter: _FrenteFlatPainter()),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // BUS LANDSCAPE (horizontal — frente a la izquierda, cola a la derecha)
-  // ═══════════════════════════════════════════════════════════════════════════
-  Widget _buildBusLandscape() {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return Center(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: RotatedBox(
-              quarterTurns: 3, // 👈 giro correcto
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: constraints.maxHeight),
-                child: _buildBusPortrait(), // 👈 reutilizas TODO
               ),
             ),
           ),
         );
+
+        if (scaledH + 24 <= availH) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: busWidget,
+            ),
+          );
+        }
+        return SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: busWidget,
+        );
       },
     );
   }
 
-  // ── Columna de 4 asientos para modo LANDSCAPE ────────────────────────────────
-  // Disposición: [izq_arr][izq_abj] | pasillo | [der_arr][der_abj]
-  Widget _buildColumnaAsientos({
-    required List arr,
-    required double seatW,
-    required double seatH,
-    required double seatGap,
-    required List<String> labels,
-  }) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  LANDSCAPE — bus horizontal: viaja de derecha → izquierda
+  //  La cabina queda a la DERECHA (frente del bus).
+  //  El scroll es HORIZONTAL si el bus no cabe.
+  // ══════════════════════════════════════════════════════════════════════════════
+  Widget _scrollableBusLandscape() {
+    return LayoutBuilder(
+      builder: (ctx, bc) {
+        final availW = bc.maxWidth;
+        final availH = bc.maxHeight;
+        final refW = _lRefW();
+
+        // Escala para que el alto del bus quepa en el alto disponible
+        final scale = (availH - 32) / _lRefH;
+        final scaledW = refW * scale;
+
+        final busWidget = FadeTransition(
+          opacity: _fade,
+          child: ScaleTransition(
+            scale: _scale,
+            child: FittedBox(
+              fit: BoxFit.fitHeight,
+              child: ClipRect(
+                child: SizedBox(
+                  width: refW,
+                  height: _lRefH,
+                  child: _busContentLandscape(),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        if (scaledW + 24 <= availW) {
+          // Cabe sin scroll
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: busWidget,
+            ),
+          );
+        }
+
+        // No cabe → scroll horizontal con rebote
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: busWidget,
+        );
+      },
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  CONTENIDO PORTRAIT (vertical, igual que antes + stagger)
+  // ══════════════════════════════════════════════════════════════════════════════
+  Widget _busContentPortrait() {
+    final dis = _dis;
+    final norm = _norm;
+    final numFilas = (norm.length / 4).ceil();
+
+    return Stack(
       children: [
-        // Fila superior (asientos 0 y 1)
-        _seat(arr[0], seatW, seatH, labels[0]),
-        SizedBox(height: seatGap * 3.5),
-        _seat(arr[1], seatW, seatH, labels[1]),
-        // Pasillo
-        const Spacer(),
-        // Fila inferior (asientos 2 y 3)
-        _seat(arr[2], seatW, seatH, labels[2]),
-        SizedBox(height: seatGap * 3.5),
-        _seat(arr[3], seatW, seatH, labels[3]),
+        Positioned.fill(
+          child: CustomPaint(painter: _CarroceriaPainter(_casco)),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: _hPad,
+            vertical: _vPad,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Cabina conductor
+              SizedBox(
+                height: _cabH,
+                child: CustomPaint(painter: _CabinaPainter(_casco)),
+              ),
+              const SizedBox(height: _gap),
+
+              // Fila discapacidad — índice de animación 0
+              _filaAnimadaPortrait(
+                rowIndex: 0,
+                asientos: [
+                  dis.isNotEmpty ? dis[0] : null,
+                  null,
+                  null,
+                  dis.length > 1 ? dis[1] : null,
+                ],
+                labels: [
+                  dis.isNotEmpty ? 'D1' : '',
+                  '',
+                  '',
+                  dis.length > 1 ? 'D2' : '',
+                ],
+              ),
+              const SizedBox(height: _gap),
+
+              // Filas normales — índices 1..numFilas
+              ...List.generate(numFilas, (fi) {
+                const abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                final start = fi * 4;
+                final end = min(start + 4, norm.length);
+                final row = norm.sublist(start, end).cast<dynamic>();
+                while (row.length < 4) row.add(null);
+                final l = abc[fi % 26];
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: _gap),
+                  child: _filaAnimadaPortrait(
+                    rowIndex: fi + 1,
+                    asientos: [row[0], row[1], row[2], row[3]],
+                    labels: [
+                      row[0] != null ? '${l}1' : '',
+                      row[1] != null ? '${l}2' : '',
+                      row[2] != null ? '${l}3' : '',
+                      row[3] != null ? '${l}4' : '',
+                    ],
+                  ),
+                );
+              }),
+
+              SizedBox(height: _seatH * 0.5),
+            ],
+          ),
+        ),
       ],
     );
   }
 
-  // ── Fila de asientos (portrait) ──────────────────────────────────────────────
-  Widget _buildFila({
-    required List izq,
-    required List der,
-    required double seatW,
-    required double seatH,
-    required double seatGap,
-    required double aisleW,
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  CONTENIDO LANDSCAPE (horizontal)
+  //  Layout: [columnas de asientos de izquierda a derecha] → [cabina a la derecha]
+  //  El pasajero "sube" por la izquierda y el frente del bus está a la derecha.
+  // ══════════════════════════════════════════════════════════════════════════════
+  Widget _busContentLandscape() {
+    final dis = _dis;
+    final norm = _norm;
+    final numCols = (norm.length / 4)
+        .ceil(); // cada "columna" = lo que era una fila
+
+    return Stack(
+      children: [
+        // Carrocería horizontal
+        Positioned.fill(
+          child: CustomPaint(painter: _CarroceriaHPainter(_casco)),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: _lVPad,
+            vertical: _lHPad,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Columna discapacidad (a la izquierda del todo) ──────────────
+              _columnaAnimadaLandscape(
+                colIndex: 0,
+                asientos: [
+                  dis.isNotEmpty ? dis[0] : null,
+                  null,
+                  null,
+                  dis.length > 1 ? dis[1] : null,
+                ],
+                labels: [
+                  dis.isNotEmpty ? 'D1' : '',
+                  '',
+                  '',
+                  dis.length > 1 ? 'D2' : '',
+                ],
+              ),
+              const SizedBox(width: _lGap),
+
+              // ── Columnas normales ───────────────────────────────────────────
+              ...List.generate(numCols, (ci) {
+                const abc = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+                final start = ci * 4;
+                final end = min(start + 4, norm.length);
+                final col = norm.sublist(start, end).cast<dynamic>();
+                while (col.length < 4) col.add(null);
+                final l = abc[ci % 26];
+                return Padding(
+                  padding: const EdgeInsets.only(right: _lGap),
+                  child: _columnaAnimadaLandscape(
+                    colIndex: ci + 1,
+                    asientos: [col[0], col[1], col[2], col[3]],
+                    labels: [
+                      col[0] != null ? '${l}1' : '',
+                      col[1] != null ? '${l}2' : '',
+                      col[2] != null ? '${l}3' : '',
+                      col[3] != null ? '${l}4' : '',
+                    ],
+                  ),
+                );
+              }),
+
+              SizedBox(width: _lSeatW * 0.5),
+
+              // ── Cabina conductor (a la derecha = frente del bus) ────────────
+              SizedBox(
+                width: _lCabW,
+                child: CustomPaint(painter: _CabinaHPainter(_casco)),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  FILA ANIMADA (portrait) — envuelve una fila en FadeTransition + SlideTransition
+  // ══════════════════════════════════════════════════════════════════════════════
+  Widget _filaAnimadaPortrait({
+    required int rowIndex,
+    required List<dynamic> asientos,
     required List<String> labels,
   }) {
-    final isLandscape =
-        MediaQuery.of(context).orientation == Orientation.landscape;
-
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: isLandscape
-            ? 0 // 👈 en horizontal NO cambia nada
-            : MediaQuery.of(context).size.width * 0.06, // 👈 solo vertical
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _seat(izq[0], seatW, seatH, labels[0]),
-              SizedBox(width: seatGap * 3.5),
-              _seat(izq[1], seatW, seatH, labels[1]),
-            ],
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _seat(der[0], seatW, seatH, labels[2]),
-              SizedBox(width: seatGap * 3.5),
-              _seat(der[1], seatW, seatH, labels[3]),
-            ],
-          ),
-        ],
+    if (rowIndex >= _rowFades.length) {
+      return _filaPortrait(asientos, labels);
+    }
+    return FadeTransition(
+      opacity: _rowFades[rowIndex],
+      child: SlideTransition(
+        position: _rowSlides[rowIndex],
+        child: _filaPortrait(asientos, labels),
       ),
     );
   }
 
-  Widget _seat(dynamic asiento, double w, double h, String etiqueta) {
-    if (asiento == null) return SizedBox(width: w, height: h);
+  // ── Fila portrait (4 asientos + pasillo) ─────────────────────────────────────
+  Widget _filaPortrait(List<dynamic> asientos, List<String> labels) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _asientoW(asientos[0], labels[0]),
+        const SizedBox(width: _gap),
+        _asientoW(asientos[1], labels[1]),
+        const SizedBox(width: _aisleW),
+        _asientoW(asientos[2], labels[2]),
+        const SizedBox(width: _gap),
+        _asientoW(asientos[3], labels[3]),
+      ],
+    );
+  }
 
-    final color = _colorAsiento(asiento);
-    final ocupado = _isOcupado(asiento);
-    final numero = asiento['asiento']['numero'] as int;
-    final selected = seleccionados.contains(numero);
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  COLUMNA ANIMADA (landscape) — columna = lo que era fila en portrait
+  //  La animación slide ahora viene desde la DERECHA (dirección de marcha)
+  // ══════════════════════════════════════════════════════════════════════════════
+  Widget _columnaAnimadaLandscape({
+    required int colIndex,
+    required List<dynamic> asientos,
+    required List<String> labels,
+  }) {
+    final col = _columnaLandscape(asientos, labels);
+
+    if (colIndex >= _rowFades.length) return col;
+
+    // En landscape el slide viene desde la derecha
+    final slideL =
+        Tween<Offset>(begin: const Offset(0.18, 0.0), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _rowCtrls[colIndex],
+            curve: Curves.easeOutCubic,
+          ),
+        );
+
+    return FadeTransition(
+      opacity: _rowFades[colIndex],
+      child: SlideTransition(position: slideL, child: col),
+    );
+  }
+
+  // ── Columna landscape (4 asientos en vertical + pasillo horizontal) ───────────
+  Widget _columnaLandscape(List<dynamic> asientos, List<String> labels) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _asientoWL(asientos[0], labels[0]),
+        const SizedBox(height: _lGap),
+        _asientoWL(asientos[1], labels[1]),
+        const SizedBox(height: _lAisleH), // pasillo horizontal
+        _asientoWL(asientos[2], labels[2]),
+        const SizedBox(height: _lGap),
+        _asientoWL(asientos[3], labels[3]),
+      ],
+    );
+  }
+
+  // ── Asiento portrait ─────────────────────────────────────────────────────────
+  Widget _asientoW(dynamic a, String etiqueta) {
+    if (a == null) return const SizedBox(width: _seatW, height: _seatH);
+    final c = _color(a);
+    final ocu = _esOcupado(a);
+    final n = a['asiento']['numero'] as int;
+    final selected = _seleccionados.contains(n);
 
     return GestureDetector(
-      onTap: () => _toggleAsiento(asiento),
+      onTap: () => _toggle(a),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        width: w,
-        height: h,
+        duration: const Duration(milliseconds: 160),
+        width: _seatW,
+        height: _seatH,
         child: CustomPaint(
-          painter: _SeatPainter(
-            color: color,
-            selected: selected,
-            ocupado: ocupado,
+          painter: _AsientoPainter(color: c, selected: selected, ocupado: ocu),
+          child: Align(
+            alignment: const Alignment(0, -0.25),
+            child: Text(
+              etiqueta,
+              style: TextStyle(
+                color: ocu ? Colors.white54 : Colors.white,
+                fontSize: _seatW * 0.20,
+                fontWeight: FontWeight.bold,
+                height: 1.0,
+              ),
+            ),
           ),
-          child: Center(
-            child: Align(
-              alignment: const Alignment(0, -0.3),
-              child: Text(
-                etiqueta,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: ocupado ? Colors.white60 : Colors.white,
-                  fontSize: min(w, h) * 0.22,
-                  fontWeight: FontWeight.bold,
-                  height: 1.0,
+        ),
+      ),
+    );
+  }
+
+  // ── Asiento landscape (girado 90°: el respaldo queda a la izquierda) ──────────
+  Widget _asientoWL(dynamic a, String etiqueta) {
+    if (a == null) return const SizedBox(width: _lSeatW, height: _lSeatH);
+    final c = _color(a);
+    final ocu = _esOcupado(a);
+    final n = a['asiento']['numero'] as int;
+    final selected = _seleccionados.contains(n);
+
+    return GestureDetector(
+      onTap: () => _toggle(a),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        width: _lSeatW,
+        height: _lSeatH,
+        // Rotamos el painter 90° para que el asiento mire hacia la derecha
+        child: Transform.rotate(
+          angle: -pi / 2,
+          child: SizedBox(
+            width: _lSeatH,
+            height: _lSeatW,
+            child: CustomPaint(
+              painter: _AsientoPainter(
+                color: c,
+                selected: selected,
+                ocupado: ocu,
+              ),
+              child: Align(
+                alignment: const Alignment(0, -0.25),
+                child: Text(
+                  etiqueta,
+                  style: TextStyle(
+                    color: ocu ? Colors.white54 : Colors.white,
+                    fontSize: _lSeatH * 0.20,
+                    fontWeight: FontWeight.bold,
+                    height: 1.0,
+                  ),
                 ),
               ),
             ),
@@ -481,74 +779,62 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
   }
 
   // ── Leyenda ──────────────────────────────────────────────────────────────────
-  Widget _buildLeyendaBar({bool compact = false}) {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: compact ? 8 : 12,
-        vertical: compact ? 6 : 10,
-      ),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.06),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _chip(azul, 'Disponible', compact: compact),
-          _chip(grisOc, 'Ocupado', compact: compact),
-          _chip(naranja, 'Seleccionado', compact: compact),
-          _chip(morado, 'Discapacidad', compact: compact),
-        ],
-      ),
-    );
-  }
-
-  Widget _chip(Color color, String label, {bool compact = false}) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: compact ? 10 : 14,
-          height: compact ? 10 : 14,
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(4),
-          ),
-        ),
-        SizedBox(width: compact ? 4 : 6),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: compact ? 10 : 11,
-            color: const Color(0xFF555555),
-            fontWeight: FontWeight.w500,
-          ),
+  Widget _leyenda() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.07),
+          blurRadius: 8,
+          offset: const Offset(0, -2),
         ),
       ],
-    );
-  }
+    ),
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      children: [
+        _chip(_azul, 'Disponible'),
+        _chip(_grisOc, 'Ocupado'),
+        _chip(_naranja, 'Seleccionado'),
+        _chip(_morado, 'Discapacidad'),
+      ],
+    ),
+  );
+
+  Widget _chip(Color c, String l) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Container(
+        width: 12,
+        height: 12,
+        decoration: BoxDecoration(
+          color: c,
+          borderRadius: BorderRadius.circular(4),
+        ),
+      ),
+      const SizedBox(width: 5),
+      Text(
+        l,
+        style: const TextStyle(
+          fontSize: 11,
+          color: Color(0xFF555555),
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    ],
+  );
 
   // ── Botón confirmar ──────────────────────────────────────────────────────────
-  Widget _buildBotonConfirmar() {
+  Widget _boton() {
     final total = widget.pasajeros.length;
-    final listos = seleccionados.length == total;
-
-    String texto;
-    if (seleccionados.isEmpty) {
-      texto = 'Selecciona $total asiento${total > 1 ? "s" : ""}';
-    } else if (listos) {
-      texto =
-          'Confirmar ${seleccionados.length} asiento${seleccionados.length > 1 ? "s" : ""}';
-    } else {
-      final faltan = total - seleccionados.length;
-      texto = 'Faltan $faltan asiento${faltan > 1 ? "s" : ""}';
-    }
+    final listos = _seleccionados.length == total;
+    final faltan = total - _seleccionados.length;
+    final texto = _seleccionados.isEmpty
+        ? 'Selecciona $total asiento${total > 1 ? "s" : ""}'
+        : listos
+        ? 'Confirmar ${_seleccionados.length} asiento${_seleccionados.length > 1 ? "s" : ""}'
+        : 'Faltan $faltan asiento${faltan > 1 ? "s" : ""}';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -559,12 +845,12 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
         height: 50,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: listos ? naranja : grisOc,
+          color: listos ? _naranja : _grisOc,
           boxShadow: listos
               ? [
                   BoxShadow(
-                    color: naranja.withOpacity(0.40),
-                    blurRadius: 12,
+                    color: _naranja.withOpacity(0.38),
+                    blurRadius: 14,
                     offset: const Offset(0, 4),
                   ),
                 ]
@@ -592,20 +878,20 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
     );
   }
 
+  // ── Confirmar ────────────────────────────────────────────────────────────────
   void _confirmar() {
-    const descuentos = {
+    const descMap = {
       'Adulto': 0,
       'Estudiante': 25,
       'INAPAM': 30,
       'Discapacidad': 15,
     };
-    double montoTotal = 0;
-    final pasajerosConAsiento = widget.pasajeros.asMap().entries.map((e) {
+    double total = 0;
+    final pax = widget.pasajeros.asMap().entries.map((e) {
       final p = Map<String, dynamic>.from(e.value);
-      p['asiento_id'] = seleccionados[e.key];
-      p['asiento_etiqueta'] = _etiquetaDeAsiento(seleccionados[e.key]);
-      final desc = descuentos[p['tipo']] ?? 0;
-      montoTotal += widget.precioPorPasajero * (1 - desc / 100);
+      p['asiento_id'] = _seleccionados[e.key];
+      p['asiento_etiqueta'] = _etiqueta(_seleccionados[e.key]);
+      total += widget.precioPorPasajero * (1 - (descMap[p['tipo']] ?? 0) / 100);
       return p;
     }).toList();
 
@@ -614,13 +900,13 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
       AppRoutes.slideLeft(
         PagoScreen(
           viajeId: widget.viajeId,
-          pasajeros: pasajerosConAsiento,
+          pasajeros: pax,
           origenNombre: widget.origenNombre,
           destinoNombre: widget.destinoNombre,
           horaSalida: widget.horaSalida,
           horaLlegada: widget.horaLlegada,
           fechaViaje: widget.fechaViaje,
-          montoTotal: montoTotal,
+          montoTotal: total,
           vendedorId: widget.vendedorId,
           tipoUsuario: widget.tipoUsuario,
           datosUsuario: widget.datosUsuario,
@@ -630,488 +916,357 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// _BusCarroceriaPainter — Marco del bus en modo PORTRAIT (vertical)
-// ═══════════════════════════════════════════════════════════════════════════════
-class _BusCarroceriaPainter extends CustomPainter {
-  const _BusCarroceriaPainter();
+// ═════════════════════════════════════════════════════════════════════════════
+//  _CarroceriaPainter  —  PORTRAIT (vertical, igual que antes)
+// ═════════════════════════════════════════════════════════════════════════════
+class _CarroceriaPainter extends CustomPainter {
+  final Color color;
+  const _CarroceriaPainter(this.color);
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
+    const r = Radius.circular(22.0);
 
-    final relleno = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    final borde = Paint()
-      ..color = const Color(0xFF0F4C5C)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6;
-
-    final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, w, h),
-      const Radius.circular(28),
-    );
-    canvas.drawRRect(rect, relleno);
-    canvas.drawRRect(rect, borde);
-
-    // Borde superior grueso
-    final topBorder = Paint()
-      ..color = const Color(0xFF0F4C5C)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 18
-      ..strokeCap = StrokeCap.round;
-    final path = Path();
-    const r = 28.0;
-    path.moveTo(0, r);
-    path.quadraticBezierTo(0, 0, r, 0);
-    path.lineTo(w - r, 0);
-    path.quadraticBezierTo(w, 0, w, r);
-    canvas.drawPath(path, topBorder);
-
-    final sidePaint = Paint()..color = const Color(0xFF0F4C5C);
-    final sideW = w * 0.04;
-    final sideH = h * 0.08;
-
-    // Salientes laterales arriba
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(-sideW / 2, h * 0.15, sideW, sideH),
-        const Radius.circular(4),
-      ),
-      sidePaint,
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), r),
+      Paint()..color = Colors.white,
     );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(w - sideW / 2, h * 0.15, sideW, sideH),
-        const Radius.circular(4),
-      ),
-      sidePaint,
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), r),
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.5,
+    );
+    canvas.drawLine(
+      const Offset(22, 2.5),
+      Offset(w - 22, 2.5),
+      Paint()
+        ..color = color
+        ..strokeWidth = 13
+        ..strokeCap = StrokeCap.round,
     );
 
-    // Llantas inferiores
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(-sideW / 2, h * 0.75, sideW, sideH),
-        const Radius.circular(4),
-      ),
-      sidePaint,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(w - sideW / 2, h * 0.75, sideW, sideH),
-        const Radius.circular(4),
-      ),
-      sidePaint,
-    );
-
-    // Retrovisores
-    final retroY = h * 0.02;
-    final brazoH = h * 0.025;
-    final brazoW = w * 0.06;
-    final espejoH = h * 0.09;
-    final espejoW = w * 0.06;
-    final espejoY = retroY - (brazoH * 0.5);
+    final sideP = Paint()..color = color;
+    final sw = max(w * 0.036, 4.0);
+    final sh = h * 0.058;
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(-brazoW, retroY, brazoW, brazoH),
-        const Radius.circular(2),
+        Rect.fromLTWH(0, h * 0.13, sw, sh),
+        const Radius.circular(3),
       ),
-      sidePaint,
+      sideP,
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(-brazoW - espejoW, espejoY, espejoW, espejoH),
-        const Radius.circular(4),
+        Rect.fromLTWH(w - sw, h * 0.13, sw, sh),
+        const Radius.circular(3),
       ),
-      sidePaint,
+      sideP,
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(w, retroY, brazoW, brazoH),
-        const Radius.circular(2),
+        Rect.fromLTWH(0, h * 0.73, sw, sh),
+        const Radius.circular(3),
       ),
-      sidePaint,
+      sideP,
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(w + brazoW, espejoY, espejoW, espejoH),
-        const Radius.circular(4),
+        Rect.fromLTWH(w - sw, h * 0.73, sw, sh),
+        const Radius.circular(3),
       ),
-      sidePaint,
+      sideP,
     );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _CarroceriaPainter o) => o.color != color;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// _BusCarroceriaHorizontalPainter — Marco del bus en modo LANDSCAPE (horizontal)
-// El frente está a la IZQUIERDA y la cola a la DERECHA.
-// ═══════════════════════════════════════════════════════════════════════════════
-class _BusCarroceriaHorizontalPainter extends CustomPainter {
-  const _BusCarroceriaHorizontalPainter();
+// ═════════════════════════════════════════════════════════════════════════════
+//  _CarroceriaHPainter  —  LANDSCAPE (horizontal)
+//  Frente del bus a la DERECHA. El "techo" es el borde derecho.
+// ═════════════════════════════════════════════════════════════════════════════
+class _CarroceriaHPainter extends CustomPainter {
+  final Color color;
+  const _CarroceriaHPainter(this.color);
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
+    const r = Radius.circular(22.0);
 
-    final relleno = Paint()
-      ..color = Colors.white
-      ..style = PaintingStyle.fill;
-    final borde = Paint()
-      ..color = const Color(0xFF0F4C5C)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6;
-
-    final rect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, w, h),
-      const Radius.circular(28),
-    );
-    canvas.drawRRect(rect, relleno);
-    canvas.drawRRect(rect, borde);
-
-    // Borde izquierdo grueso (es el "frente" del bus)
-    final leftBorder = Paint()
-      ..color = const Color(0xFF0F4C5C)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 18
-      ..strokeCap = StrokeCap.round;
-    final path = Path();
-    const r = 28.0;
-    path.moveTo(r, 0);
-    path.quadraticBezierTo(0, 0, 0, r);
-    path.lineTo(0, h - r);
-    path.quadraticBezierTo(0, h, r, h);
-    canvas.drawPath(path, leftBorder);
-
-    final sidePaint = Paint()..color = const Color(0xFF0F4C5C);
-    final sideW = w * 0.08;
-    final sideH = h * 0.04;
-
-    // Llantas: arriba y abajo del bus (eje vertical)
-    // Llanta delantera izquierda-superior
+    // Fondo blanco
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.15, -sideH / 2, sideW, sideH),
-        const Radius.circular(4),
-      ),
-      sidePaint,
-    );
-    // Llanta delantera izquierda-inferior
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.15, h - sideH / 2, sideW, sideH),
-        const Radius.circular(4),
-      ),
-      sidePaint,
-    );
-    // Llanta trasera derecha-superior
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.75, -sideH / 2, sideW, sideH),
-        const Radius.circular(4),
-      ),
-      sidePaint,
-    );
-    // Llanta trasera derecha-inferior
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.75, h - sideH / 2, sideW, sideH),
-        const Radius.circular(4),
-      ),
-      sidePaint,
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), r),
+      Paint()..color = Colors.white,
     );
 
-    // Retrovisores (salen por arriba del frente izquierdo)
-    final retroX = w * 0.02;
-    final brazoW2 = w * 0.025;
-    final brazoH2 = h * 0.06;
-    final espejoW2 = w * 0.09;
-    final espejoH2 = h * 0.06;
-    final espejoX = retroX - (brazoW2 * 0.5);
+    // Borde exterior
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), r),
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.5,
+    );
 
-    // Brazo retrovisor superior
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(retroX, -brazoH2, brazoW2, brazoH2),
-        const Radius.circular(2),
-      ),
-      sidePaint,
+    // "Techo" del bus = borde DERECHO (frente)
+    canvas.drawLine(
+      Offset(w - 2.5, 22),
+      Offset(w - 2.5, h - 22),
+      Paint()
+        ..color = color
+        ..strokeWidth = 13
+        ..strokeCap = StrokeCap.round,
     );
-    // Espejo retrovisor superior
+
+    final sideP = Paint()..color = color;
+    final sh = max(h * 0.036, 4.0); // alto de espejos/llantas
+    final sw = w * 0.058; // ancho de los salientes
+
+    // Espejos (derecha — frente)
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(espejoX, -brazoH2 - espejoH2, espejoW2, espejoH2),
-        const Radius.circular(4),
+        Rect.fromLTWH(w * 0.87, 0, sw, sh),
+        const Radius.circular(3),
       ),
-      sidePaint,
+      sideP,
     );
-    // Brazo retrovisor inferior
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(retroX, h, brazoW2, brazoH2),
-        const Radius.circular(2),
+        Rect.fromLTWH(w * 0.87, h - sh, sw, sh),
+        const Radius.circular(3),
       ),
-      sidePaint,
+      sideP,
     );
-    // Espejo retrovisor inferior
+
+    // Llantas (izquierda — trasera)
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(espejoX, h + brazoH2, espejoW2, espejoH2),
-        const Radius.circular(4),
+        Rect.fromLTWH(0, 0, sw, sh),
+        const Radius.circular(3),
       ),
-      sidePaint,
+      sideP,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, h - sh, sw, sh),
+        const Radius.circular(3),
+      ),
+      sideP,
     );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _CarroceriaHPainter o) => o.color != color;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// _FrenteFlatPainter — Cabina del conductor en modo PORTRAIT (frente arriba)
-// ═══════════════════════════════════════════════════════════════════════════════
-class _FrenteFlatPainter extends CustomPainter {
+// ═════════════════════════════════════════════════════════════════════════════
+//  _CabinaPainter  —  PORTRAIT (volante, asiento, puerta)
+// ═════════════════════════════════════════════════════════════════════════════
+class _CabinaPainter extends CustomPainter {
+  final Color color;
+  const _CabinaPainter(this.color);
+
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
-    final color = const Color(0xFF0F4C5C);
-
-    final stroke = Paint()
+    final f = Paint()..color = color;
+    final s = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 5
+      ..strokeWidth = 3.5
       ..strokeCap = StrokeCap.round;
-    final fill = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
 
-    // Ventana superior
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.25, h * 0.01, w * 0.5, h * 0.08),
-        const Radius.circular(10),
+        Rect.fromLTWH(w * 0.28, h * 0.03, w * 0.44, h * 0.10),
+        const Radius.circular(7),
       ),
-      fill,
+      f,
     );
 
-    // Volante
-    final center = Offset(w * 0.20, h * 0.33);
-    final radius = w * 0.08;
-    canvas.drawCircle(center, radius, stroke);
-    canvas.drawCircle(center, radius * 0.25, fill);
-    canvas.drawLine(center, Offset(center.dx, center.dy - radius), stroke);
-    canvas.drawLine(
-      center,
-      Offset(center.dx - radius * 0.8, center.dy + radius * 0.5),
-      stroke,
-    );
-    canvas.drawLine(
-      center,
-      Offset(center.dx + radius * 0.8, center.dy + radius * 0.5),
-      stroke,
-    );
+    final cx = w * 0.21;
+    final cy = h * 0.40;
+    final r = w * 0.072;
+    canvas.drawCircle(Offset(cx, cy), r, s);
+    canvas.drawCircle(Offset(cx, cy), r * 0.20, f);
+    canvas.drawLine(Offset(cx, cy), Offset(cx, cy - r), s);
+    canvas.drawLine(Offset(cx, cy), Offset(cx - r * 0.78, cy + r * 0.48), s);
+    canvas.drawLine(Offset(cx, cy), Offset(cx + r * 0.78, cy + r * 0.48), s);
 
-    // Asiento
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.10, h * 0.55, w * 0.20, h * 0.24),
-        const Radius.circular(6),
+        Rect.fromLTWH(w * 0.10, h * 0.62, w * 0.17, h * 0.20),
+        const Radius.circular(4),
       ),
-      fill,
+      f,
     );
-    final curva = Path()
-      ..moveTo(w * 0.10, h * 0.85)
-      ..quadraticBezierTo(w * 0.20, h * 0.92, w * 0.30, h * 0.85);
-    canvas.drawPath(curva, stroke);
 
-    // Escalones
-    final startX = w * 0.75;
-    final spacing = w * 0.06;
     for (int i = 0; i < 4; i++) {
-      final x = startX + (i * spacing);
+      final x = w * 0.72 + i * w * 0.052;
       canvas.drawLine(
-        Offset(x, h * 0.40),
-        Offset(x, h * 0.75),
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..strokeCap = StrokeCap.round,
+        Offset(x, h * 0.46),
+        Offset(x, h * 0.78),
+        s..strokeWidth = 1.6,
       );
     }
-    canvas.drawRect(Rect.fromLTWH(w - 1, h * 0.40, 6, h * 0.45), fill);
-
-    final curvaDer = Path()
-      ..moveTo(w * 0.70, h * 0.82)
-      ..quadraticBezierTo(w * 0.88, h * 0.85, w * 0.98, h * 0.82);
-    canvas.drawPath(curvaDer, stroke..strokeWidth = 2.5);
+    canvas.drawLine(
+      Offset(w * 0.72, h * 0.78),
+      Offset(w * 0.93, h * 0.78),
+      s..strokeWidth = 2.2,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _CabinaPainter o) => o.color != color;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// _FrenteFlatHorizontalPainter — Cabina del conductor en modo LANDSCAPE
-// El frente mira hacia la izquierda; el painter dibuja la cabina girada 90°.
-// ═══════════════════════════════════════════════════════════════════════════════
-class _FrenteFlatHorizontalPainter extends CustomPainter {
+// ═════════════════════════════════════════════════════════════════════════════
+//  _CabinaHPainter  —  LANDSCAPE (cabina girada 90°, frente a la derecha)
+// ═════════════════════════════════════════════════════════════════════════════
+class _CabinaHPainter extends CustomPainter {
+  final Color color;
+  const _CabinaHPainter(this.color);
+
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
-    final color = const Color(0xFF0F4C5C);
-
-    final stroke = Paint()
+    final f = Paint()..color = color;
+    final s = Paint()
       ..color = color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 4
+      ..strokeWidth = 3.5
       ..strokeCap = StrokeCap.round;
-    final fill = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
 
-    // Ventana lateral (ahora es una franja vertical a la izquierda)
+    // Parabrisas (lado derecho — frente)
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.01, h * 0.25, w * 0.08, h * 0.5),
-        const Radius.circular(8),
+        Rect.fromLTWH(w * 0.87, h * 0.28, w * 0.10, h * 0.44),
+        const Radius.circular(7),
       ),
-      fill,
+      f,
     );
 
-    // Volante (centrado verticalmente, desplazado a la derecha de la ventana)
-    final center = Offset(w * 0.50, h * 0.28);
-    final radius = h * 0.10;
-    canvas.drawCircle(center, radius, stroke);
-    canvas.drawCircle(center, radius * 0.25, fill);
-    canvas.drawLine(center, Offset(center.dx - radius, center.dy), stroke);
-    canvas.drawLine(
-      center,
-      Offset(center.dx + radius * 0.5, center.dy - radius * 0.8),
-      stroke,
-    );
-    canvas.drawLine(
-      center,
-      Offset(center.dx + radius * 0.5, center.dy + radius * 0.8),
-      stroke,
-    );
+    // Volante (rotado: ahora el conductor mira a la derecha)
+    final cx = w * 0.60;
+    final cy = h * 0.21;
+    final r = h * 0.072;
+    canvas.drawCircle(Offset(cx, cy), r, s);
+    canvas.drawCircle(Offset(cx, cy), r * 0.20, f);
+    canvas.drawLine(Offset(cx, cy), Offset(cx + r, cy), s);
+    canvas.drawLine(Offset(cx, cy), Offset(cx - r * 0.48, cy - r * 0.78), s);
+    canvas.drawLine(Offset(cx, cy), Offset(cx - r * 0.48, cy + r * 0.78), s);
 
-    // Asiento del conductor
+    // Asiento conductor (debajo del volante)
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.25, h * 0.55, w * 0.50, h * 0.22),
-        const Radius.circular(6),
+        Rect.fromLTWH(w * 0.38, h * 0.10, w * 0.20, h * 0.17),
+        const Radius.circular(4),
       ),
-      fill,
+      f,
     );
-    final curvaAsiento = Path()
-      ..moveTo(w * 0.20, h * 0.55)
-      ..quadraticBezierTo(w * 0.50, h * 0.48, w * 0.80, h * 0.55);
-    canvas.drawPath(curvaAsiento, stroke);
 
-    // Escalones (líneas horizontales en la parte derecha/inferior)
-    final startY = h * 0.75;
-    final spacingY = h * 0.06;
+    // Puerta / escalones (lado izquierdo de la cabina)
     for (int i = 0; i < 4; i++) {
-      final y = startY + (i * spacingY);
+      final y = h * 0.72 + i * h * 0.052;
       canvas.drawLine(
-        Offset(w * 0.25, y),
-        Offset(w * 0.85, y),
-        Paint()
-          ..color = color
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..strokeCap = StrokeCap.round,
+        Offset(w * 0.22, y),
+        Offset(w * 0.54, y),
+        s..strokeWidth = 1.6,
       );
     }
-    // Línea inferior gruesa (escalón)
-    canvas.drawRect(Rect.fromLTWH(w * 0.25, h - 1, w * 0.60, 5), fill);
+    canvas.drawLine(
+      Offset(w * 0.22, h * 0.72),
+      Offset(w * 0.22, h * 0.93),
+      s..strokeWidth = 2.2,
+    );
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _CabinaHPainter o) => o.color != color;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// _SeatPainter — Asiento (vista cenital)
-// ═══════════════════════════════════════════════════════════════════════════════
-class _SeatPainter extends CustomPainter {
+// ═════════════════════════════════════════════════════════════════════════════
+//  _AsientoPainter  —  mismo para portrait y landscape
+//  (en landscape se aplica Transform.rotate externamente)
+// ═════════════════════════════════════════════════════════════════════════════
+class _AsientoPainter extends CustomPainter {
   final Color color;
   final bool selected;
   final bool ocupado;
-  final bool esIcono;
 
-  const _SeatPainter({
+  const _AsientoPainter({
     required this.color,
     required this.selected,
     required this.ocupado,
-    this.esIcono = false,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final w = size.width;
     final h = size.height;
-
-    final mainColor = ocupado ? color.withOpacity(0.45) : color;
-    final armColor = Color.lerp(
+    final base = ocupado ? color.withOpacity(0.42) : color;
+    final dark = Color.lerp(
       color,
       Colors.black,
-      0.12,
-    )!.withOpacity(ocupado ? 0.45 : 1.0);
-    final armRadius = Radius.circular(w * 0.18);
+      0.14,
+    )!.withOpacity(ocupado ? 0.42 : 1.0);
+    final ar = Radius.circular(w * 0.16);
 
-    // Apoyabrazos izquierdo
+    // Apoyabrazos
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(-w * 0.10, h * 0.30, w * 0.26, h * 0.55),
-        armRadius,
+        Rect.fromLTWH(0, h * 0.28, w * 0.15, h * 0.57),
+        ar,
       ),
-      Paint()..color = armColor,
+      Paint()..color = dark,
     );
-    // Apoyabrazos derecho
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.84, h * 0.30, w * 0.26, h * 0.55),
-        armRadius,
+        Rect.fromLTWH(w * 0.85, h * 0.28, w * 0.15, h * 0.57),
+        ar,
       ),
-      Paint()..color = armColor,
+      Paint()..color = dark,
     );
+
     // Respaldo
     final body = RRect.fromRectAndRadius(
-      Rect.fromLTWH(w * 0.06, 0, w * 0.88, h * 0.78),
-      Radius.circular(w * 0.22),
+      Rect.fromLTWH(w * 0.13, 0, w * 0.74, h * 0.76),
+      Radius.circular(w * 0.20),
     );
-    canvas.drawRRect(body, Paint()..color = mainColor);
+    canvas.drawRRect(body, Paint()..color = base);
+
     // Cojín
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.02, h * 0.74, w * 0.96, h * 0.24),
-        Radius.circular(w * 0.08),
+        Rect.fromLTWH(w * 0.09, h * 0.72, w * 0.82, h * 0.25),
+        Radius.circular(w * 0.10),
       ),
-      Paint()..color = armColor,
+      Paint()..color = dark,
     );
-    // Borde seleccionado
+
+    // Borde selección
     if (selected) {
       canvas.drawRRect(
         body,
         Paint()
           ..color = Colors.white
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5,
+          ..strokeWidth = 2.0,
       );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _SeatPainter old) =>
-      old.color != color || old.selected != selected || old.ocupado != ocupado;
+  bool shouldRepaint(covariant _AsientoPainter o) =>
+      o.color != color || o.selected != selected || o.ocupado != ocupado;
 }
