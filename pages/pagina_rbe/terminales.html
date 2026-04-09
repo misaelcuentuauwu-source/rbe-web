@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terminales – Rutas Baja Express</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&family=Open+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--azul:#1F77A8;--azul-oscuro:#15557a;--azul-claro:#2d8fc4;--naranja:#E96F2E;--naranja-claro:#f08040;--blanco:#ffffff;--fondo:#fdfbf9;--gris-claro:#f5f4f0;--gris-medio:#e8e6e0;--gris-texto:#4a4a4a;--negro:#1a1a1a}
+  *{margin:0;padding:0;box-sizing:border-box}html{scroll-behavior:smooth}
+  body{font-family:'Open Sans',sans-serif;color:var(--gris-texto);background:var(--fondo);overflow-x:hidden}
+  header{background:var(--azul);display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:70px;position:sticky;top:0;z-index:1000;box-shadow:0 2px 16px rgba(0,0,0,.3)}
+  .logo-area{display:flex;align-items:center;gap:12px;text-decoration:none}
+  .logo-area img{height:44px;width:auto}
+  .logo-area h1{font-family:'Montserrat',sans-serif;font-size:1.3rem;font-weight:700;color:var(--blanco);letter-spacing:1px}
+  nav{display:flex;gap:8px}
+  nav a{color:rgba(255,255,255,.85);text-decoration:none;font-family:'Montserrat',sans-serif;font-size:.85rem;font-weight:600;letter-spacing:.5px;padding:8px 16px;border-radius:4px;transition:all .2s}
+  nav a:hover{color:var(--blanco);background:rgba(255,255,255,.15)}
+  nav a.active{background:var(--naranja);color:var(--blanco)}
+  .hero{position:relative;height:380px;background:linear-gradient(135deg,var(--azul-oscuro) 0%,var(--azul) 60%,var(--azul-claro) 100%);display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .hero::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E")}
+  .hero::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:80px;background:var(--fondo);clip-path:ellipse(55% 100% at 50% 100%)}
+  .hero-content{text-align:center;z-index:1;padding:0 20px;animation:fadeUp .8s ease both}
+  .hero-badge{display:inline-block;background:rgba(233,111,46,.25);border:1px solid var(--naranja);color:var(--naranja-claro);font-family:'Montserrat',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:6px 20px;border-radius:50px;margin-bottom:20px}
+  .hero-content h2{font-family:'Montserrat',sans-serif;font-size:clamp(2rem,5vw,3.2rem);font-weight:900;color:var(--blanco);line-height:1.15;margin-bottom:16px;text-shadow:0 2px 20px rgba(0,0,0,.3)}
+  .hero-content h2 span{color:var(--naranja-claro)}
+  .hero-content p{color:rgba(255,255,255,.82);font-size:1.05rem;font-weight:300;max-width:520px;margin:0 auto;line-height:1.7}
+  .section-header{text-align:center;margin-bottom:48px}
+  .seccion-badge{display:inline-block;background:var(--naranja);color:var(--blanco);font-family:'Montserrat',sans-serif;font-size:.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:5px 14px;border-radius:3px;margin-bottom:16px}
+  .section-header h2{font-family:'Montserrat',sans-serif;font-size:2rem;font-weight:900;color:var(--negro);margin-top:4px}
+  .section-header h2 span{color:var(--azul)}
+  .section-header p{color:var(--gris-texto);font-size:.97rem;max-width:600px;margin:.8rem auto 0;line-height:1.7}
+  .mapa-section{padding:70px 40px 40px;max-width:1200px;margin:0 auto}
+  .mapa-contenedor{background:var(--blanco);border-radius:24px;padding:40px;box-shadow:0 10px 40px rgba(0,0,0,.05);text-align:center}
+  .mapa-svg-wrap{width:100%;max-width:500px;margin:0 auto 10px}
+  .mapa-svg-wrap svg{width:100%;height:auto;display:block}
+  .pin-circle{fill:var(--naranja);stroke:var(--blanco);stroke-width:2.5;transition:r .2s,fill .2s}
+  .terminal-pin{cursor:pointer}
+  .terminal-pin:hover .pin-circle{fill:var(--azul)}
+  .ruta-line{stroke:var(--azul);stroke-width:2;fill:none;stroke-dasharray:5 3;opacity:.55}
+  .terminales-section{padding:60px 40px 100px;max-width:1400px;margin:0 auto}
+  .info-terminales-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:32px}
+  .info-card{background:var(--blanco);border-radius:24px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,.05);transition:all .4s;border:1px solid var(--gris-medio)}
+  .info-card:hover{transform:translateY(-12px);box-shadow:0 20px 40px rgba(31,119,168,.12);border-color:var(--azul)}
+  .info-card-img{height:210px;background-size:cover;background-position:center}
+  .info-card-content{padding:28px}
+  .info-card-content h3{font-family:'Montserrat',sans-serif;color:var(--azul);font-size:1.3rem;font-weight:700;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center}
+  .info-item{margin-bottom:14px;font-size:14px;color:var(--gris-texto);display:flex;flex-direction:column}
+  .info-item strong{color:var(--naranja);font-weight:700;margin-bottom:3px;font-size:11px;text-transform:uppercase;letter-spacing:.8px;font-family:'Montserrat',sans-serif}
+  .btn-moderno{display:block;text-align:center;background:var(--naranja);color:var(--blanco);text-decoration:none;padding:13px 20px;border-radius:50px;margin-top:18px;font-weight:700;font-size:13px;transition:all .3s;font-family:'Montserrat',sans-serif}
+  .btn-moderno:hover{background:var(--azul);transform:scale(1.02)}
+  .cta{background:linear-gradient(135deg,var(--naranja) 0%,#c45a1e 100%);padding:72px 40px;text-align:center;position:relative;overflow:hidden}
+  .cta::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='20' cy='20' r='10'/%3E%3C/g%3E%3C/svg%3E")}
+  .cta h2{font-family:'Montserrat',sans-serif;font-size:2rem;font-weight:900;color:var(--blanco);margin-bottom:14px;position:relative}
+  .cta p{color:rgba(255,255,255,.85);margin-bottom:32px;position:relative}
+  .cta-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;position:relative}
+  .btn-primary{background:var(--blanco);color:var(--naranja);font-family:'Montserrat',sans-serif;font-size:.88rem;font-weight:700;padding:14px 32px;border-radius:6px;text-decoration:none;transition:all .2s;display:inline-block}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.2)}
+  .btn-secondary{background:transparent;color:var(--blanco);font-family:'Montserrat',sans-serif;font-size:.88rem;font-weight:700;padding:14px 32px;border-radius:6px;text-decoration:none;border:2px solid rgba(255,255,255,.5);transition:all .2s;display:inline-block}
+  .btn-secondary:hover{border-color:var(--blanco);background:rgba(255,255,255,.1)}
+  /* FOOTER AZUL ESTRELLADO */
+  .footer{background:var(--azul-oscuro);color:rgba(255,255,255,.7);padding:60px 40px 0;position:relative;overflow:hidden}
+  .footer::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(255,255,255,.2) 1px,transparent 1px);background-size:38px 38px;pointer-events:none;z-index:0}
+  .footer::after{content:'';position:absolute;top:-100px;right:-100px;width:400px;height:400px;background:rgba(255,255,255,.04);border-radius:50%;pointer-events:none}
+  .footer-container{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:2fr 1fr 1fr 1.5fr;gap:40px;padding-bottom:48px;border-bottom:1px solid rgba(255,255,255,.15);position:relative;z-index:1}
+  .footer-col h3{font-family:'Montserrat',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--blanco);margin-bottom:16px}
+  .footer-col p{font-size:.88rem;line-height:1.8;color:rgba(255,255,255,.65)}
+  .footer-col ul{list-style:none}
+  .footer-col ul li{font-size:.88rem;margin-bottom:8px}
+  .footer-col ul li a{color:rgba(255,255,255,.65);text-decoration:none;transition:color .2s}
+  .footer-col ul li a:hover{color:var(--naranja-claro)}
+  .social{display:flex;gap:10px;margin-top:16px}
+  .social span{width:34px;height:34px;background:rgba(255,255,255,.12);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.85rem;cursor:pointer;transition:all .2s;color:rgba(255,255,255,.8)}
+  .social span:hover{background:var(--naranja);color:var(--blanco)}
+  .footer-bottom{max-width:1200px;margin:0 auto;padding:20px 0;font-size:.82rem;color:rgba(255,255,255,.4);text-align:center;position:relative;z-index:1}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
+  .reveal.visible{opacity:1;transform:translateY(0)}
+  @media(max-width:900px){.info-terminales-grid{grid-template-columns:1fr}.footer-container{grid-template-columns:1fr 1fr}header{padding:0 20px}nav a{padding:6px 10px;font-size:.78rem}}
+  @media(max-width:600px){.footer-container{grid-template-columns:1fr}.logo-area h1{font-size:1rem}}
+</style>
+</head>
+<body>
+
+<header>
+  <a href="rbe.html" class="logo-area"><img src="Logo RBE moderno.png" alt="RBE Logo"><h1>Rutas Baja Express</h1></a>
+  <nav>
+    <a href="rbe.html">Inicio</a>
+    <a href="nosotros.html">Nosotros</a>
+    <a href="terminales.html" class="active">Terminales</a>
+    <a href="app.html">App</a>
+    <a href="contacto.html">Contacto</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">7 Destinos en Baja California</div>
+    <h2>Nuestras <span>Terminales</span></h2>
+    <p>Conectando cada rincón de Baja California con comodidad, puntualidad y seguridad en cada ruta.</p>
+  </div>
+</section>
+
+<section class="mapa-section">
+  <div class="mapa-contenedor reveal">
+    <div class="section-header" style="margin-bottom:28px">
+      <span class="seccion-badge">Ruta Activa</span>
+      <h2>Explora <span>el mapa</span></h2>
+      <p>Haz clic en cada pin para ir directamente a la información de esa terminal.</p>
+    </div>
+    <div class="mapa-svg-wrap">
+      <svg viewBox="0 0 520 520" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <defs>
+          <filter id="pinShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.4)"/>
+          </filter>
+        </defs>
+        <!-- Imagen real del mapa de Baja California -->
+        <image href="bajaCaliforniaMapa2.jpg" x="0" y="0" width="520" height="520" preserveAspectRatio="xMidYMid meet"/>
+        <!-- Rutas (coordenadas ajustadas al mapa real) -->
+        <!-- Tijuana(155,80) - Tecate(230,88) - Mexicali(340,72) -->
+        <line x1="170" y1="65" x2="200" y2="70" class="ruta-line"/>
+        <line x1="210" y1="70" x2="250" y2="85" class="ruta-line"/>
+        <!-- Tijuana - Rosarito -->
+        <line x1="155" y1="70" x2="160" y2="100" class="ruta-line"/>
+        <!-- Rosarito - Ensenada -->
+        <line x1="170" y1="105" x2="240" y2="176" class="ruta-line"/>
+        <!-- Ensenada - San Quintín -->
+        <line x1="230" y1="165" x2="270" y2="270" class="ruta-line"/>
+        <!-- Mexicali - San Felipe -->
+        <line x1="260" y1="90" x2="320" y2="248" class="ruta-line"/>
+                 <!-- Tijuana -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#tijuana'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="155" cy="60" r="10"/>
+          <circle cx="155" cy="60" r="4" fill="white"/>
+          <text x="130" y="40" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">Tijuana</text>
+        </g>
+        <!-- Tecate -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#tecate'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="210" cy="65" r="10"/>
+          <circle cx="210" cy="65" r="4" fill="white"/>
+          <text x="210" y="50" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">Tecate</text>
+        </g>
+        <!-- Mexicali -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#mexicali'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="260" cy="90" r="10"/>
+          <circle cx="260" cy="90" r="4" fill="white"/>
+          <text x="260" y="75" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">Mexicali</text>
+        </g>
+        <!-- Rosarito -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#rosarito'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="160" cy="95" r="10"/>
+          <circle cx="160" cy="95" r="4" fill="white"/>
+          <text x="143" y="116" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">Rosarito</text>
+        </g>
+        <!-- Ensenada -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#ensenada'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="230" cy="170" r="10"/>
+          <circle cx="230" cy="170" r="4" fill="white"/>
+          <text x="200" y="150" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">Ensenada</text>
+        </g>
+        <!-- San Felipe -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#sanfelipe'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="320" cy="248" r="10"/>
+          <circle cx="320" cy="248" r="4" fill="white"/>
+          <text x="333" y="244" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">San Felipe</text>
+        </g>
+        <!-- San Quintín -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#sanquintin'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="270" cy="270" r="10"/>
+          <circle cx="270" cy="270" r="4" fill="white"/>
+          <text x="235" y="300" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">San Quintín</text>
+        </g>
+        <!-- Leyenda -->
+        <rect x="8" y="480" width="164" height="42" rx="8" fill="white" fill-opacity="0.92" stroke="#c8dcea" stroke-width="1"/>
+        <circle cx="26" cy="493" r="6" fill="#E96F2E" stroke="white" stroke-width="2"/>
+        <text x="38" y="497" font-size="10" font-family="Montserrat,sans-serif" fill="#4a4a4a" font-weight="700">Terminal RBE</text>
+        <line x1="18" y1="510" x2="36" y2="510" stroke="#1F77A8" stroke-width="2" stroke-dasharray="4 2"/>
+        <text x="40" y="514" font-size="10" font-family="Montserrat,sans-serif" fill="#4a4a4a">Ruta activa</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<section class="terminales-section">
+  <div class="section-header reveal">
+    <span class="seccion-badge">Dónde encontrarnos</span>
+    <h2>Información <span>por Terminal</span></h2>
+    <p>Horarios, direcciones y teléfonos de cada una de nuestras 7 terminales en Baja California.</p>
+  </div>
+  <div class="info-terminales-grid">
+
+    <div class="info-card reveal" id="tijuana">
+      <div class="info-card-img" style="background-image:url('tijuana.jpg')"></div>
+      <div class="info-card-content">
+        <h3>Central Tijuana <span>📍</span></h3>
+        <div class="info-item"><strong>Dirección</strong>Blvd. Insurgentes 2100, Zona Centro.</div>
+        <div class="info-item"><strong>Horario Taquilla</strong>Lunes a Domingo: 24 Horas</div>
+        <div class="info-item"><strong>Teléfono</strong>(664) 112 3344</div>
+        <div class="info-item"><strong>Taquilleros</strong>5 ventanillas disponibles</div>
+        <a href="#" class="btn-moderno">Ver en Google Maps</a>
+      </div>
+    </div>
+
+    <div class="info-card reveal" id="mexicali">
+      <div class="info-card-img" style="background-image:url('mexicali.jpg')"></div>
+      <div class="info-card-content">
+        <h3>Central Mexicali <span>📍</span></h3>
+        <div class="info-item"><strong>Dirección</strong>Calz. Independencia 501, Centro Cívico.</div>
+        <div class="info-item"><strong>Horario Taquilla</strong>Lunes a Domingo: 05:00 AM – 11:30 PM</div>
+        <div class="info-item"><strong>Teléfono</strong>(686) 221 9080</div>
+        <div class="info-item"><strong>Taquilleros</strong>3 ventanillas disponibles</div>
+        <a href="#" class="btn-moderno">Ver en Google Maps</a>
+      </div>
+    </div>
+
+    <div class="info-card reveal" id="ensenada">
+      <div class="info-card-img" style="background-image:url('ensenada.jpg')"></div>
+      <div class="info-card-content">
+        <h3>Central Ensenada <span>📍</span></h3>
+        <div class="info-item"><strong>Dirección</strong>Av. Reforma 1245, Zona Centro.</div>
+        <div class="info-item"><strong>Horario Taquilla</strong>Lunes a Domingo: 06:00 AM – 10:00 PM</div>
+        <div class="info-item"><strong>Teléfono</strong>(646) 331 7722</div>
+        <div class="info-item"><strong>Taquilleros</strong>3 ventanillas disponibles</div>
+        <a href="#" class="btn-moderno">Ver en Google Maps</a>
+      </div>
+    </div>
+
+    <div class="info-card reveal" id="tecate">
+      <div class="info-card-img" style="background-image:url('tecate.jpg')"></div>
+      <div class="info-card-content">
+        <h3>Terminal Tecate <span>📍</span></h3>
+        <div class="info-item"><strong>Dirección</strong>Blvd. Benito Juárez 780, Zona Centro.</div>
+        <div class="info-item"><strong>Horario Taquilla</strong>Lunes a Domingo: 06:00 AM – 09:00 PM</div>
+        <div class="info-item"><strong>Teléfono</strong>(665) 229 4433</div>
+        <div class="info-item"><strong>Taquilleros</strong>3 ventanillas disponibles</div>
+        <a href="#" class="btn-moderno">Ver en Google Maps</a>
+      </div>
+    </div>
+
+    <div class="info-card reveal" id="rosarito">
+      <div class="info-card-img" style="background-image:url('rosarito.jpg')"></div>
+      <div class="info-card-content">
+        <h3>Terminal Rosarito <span>📍</span></h3>
+        <div class="info-item"><strong>Dirección</strong>Blvd. Popotla 455, Zona Centro.</div>
+        <div class="info-item"><strong>Horario Taquilla</strong>Lunes a Domingo: 07:00 AM – 08:00 PM</div>
+        <div class="info-item"><strong>Teléfono</strong>(661) 123 8899</div>
+        <div class="info-item"><strong>Taquilleros</strong>3 ventanillas disponibles</div>
+        <a href="#" class="btn-moderno">Ver en Google Maps</a>
+      </div>
+    </div>
+
+    <div class="info-card reveal" id="sanfelipe">
+      <div class="info-card-img" style="background-image:url('sanFelipe.jpg')"></div>
+      <div class="info-card-content">
+        <h3>Terminal San Felipe <span>📍</span></h3>
+        <div class="info-item"><strong>Dirección</strong>Av. Mar de Cortés 320, Zona Centro.</div>
+        <div class="info-item"><strong>Horario Taquilla</strong>Lunes a Domingo: 07:00 AM – 09:00 PM</div>
+        <div class="info-item"><strong>Teléfono</strong>(686) 198 5522</div>
+        <div class="info-item"><strong>Taquilleros</strong>3 ventanillas disponibles</div>
+        <a href="#" class="btn-moderno">Ver en Google Maps</a>
+      </div>
+    </div>
+
+    <div class="info-card reveal" id="sanquintin">
+      <div class="info-card-img" style="background-image:url('sanQuintin.jpg')"></div>
+      <div class="info-card-content">
+        <h3>Terminal San Quintín <span>📍</span></h3>
+        <div class="info-item"><strong>Dirección</strong>Carretera Transpeninsular KM 189.</div>
+        <div class="info-item"><strong>Horario Taquilla</strong>Lunes a Domingo: 06:00 AM – 08:00 PM</div>
+        <div class="info-item"><strong>Teléfono</strong>(616) 123 7700</div>
+        <div class="info-item"><strong>Taquilleros</strong>3 ventanillas disponibles</div>
+        <a href="#" class="btn-moderno">Ver en Google Maps</a>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section class="cta">
+  <h2>¿Listo para tu próximo viaje?</h2>
+  <p>Compra tu boleto en minutos desde nuestra app y olvídate de las filas.</p>
+  <div class="cta-btns">
+    <a href="app.html" class="btn-primary">Descargar App</a>
+    <a href="contacto.html" class="btn-secondary">Contáctanos</a>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-container">
+    <div class="footer-col"><h3>RBE Express</h3><p>Transporte regional en Baja California. Seguridad, puntualidad y comodidad en cada viaje que realizas con nosotros.</p></div>
+    <div class="footer-col"><h3>Enlaces</h3><ul><li><a href="rbe.html">Inicio</a></li><li><a href="nosotros.html">Nosotros</a></li><li><a href="terminales.html">Terminales</a></li><li><a href="app.html">App Oficial</a></li><li><a href="contacto.html">Contacto</a></li></ul></div>
+    <div class="footer-col"><h3>Terminales</h3><ul><li><a href="#tijuana">Tijuana</a></li><li><a href="#rosarito">Rosarito</a></li><li><a href="#tecate">Tecate</a></li><li><a href="#mexicali">Mexicali</a></li><li><a href="#ensenada">Ensenada</a></li><li><a href="#sanfelipe">San Felipe</a></li><li><a href="#sanquintin">San Quintín</a></li></ul></div>
+    <div class="footer-col"><h3>Contacto</h3><p>📞 +52-664-256-2895</p><p>📧 contacto@rbe.com</p><div class="social"><span>f</span><span>X</span><span>📷</span></div></div>
+  </div>
+  <div class="footer-bottom">© 2026 Rutas Baja Express | Todos los derechos reservados.</div>
+</footer>
+
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((e,i) => { if(e.isIntersecting){setTimeout(()=>e.target.classList.add('visible'),i*100);obs.unobserve(e.target);} });
+  },{threshold:.1});
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>

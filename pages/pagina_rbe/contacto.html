@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contacto – Rutas Baja Express</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&family=Open+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--azul:#1F77A8;--azul-oscuro:#15557a;--azul-claro:#2d8fc4;--naranja:#E96F2E;--naranja-claro:#f08040;--blanco:#ffffff;--fondo:#fdfbf9;--gris-claro:#f5f4f0;--gris-medio:#e8e6e0;--gris-texto:#4a4a4a;--negro:#1a1a1a}
+  *{margin:0;padding:0;box-sizing:border-box}html{scroll-behavior:smooth}
+  body{font-family:'Open Sans',sans-serif;color:var(--gris-texto);background:var(--fondo);overflow-x:hidden}
+  header{background:var(--azul);display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:70px;position:sticky;top:0;z-index:1000;box-shadow:0 2px 16px rgba(0,0,0,.3)}
+  .logo-area{display:flex;align-items:center;gap:12px;text-decoration:none}
+  .logo-area img{height:44px;width:auto}
+  .logo-area h1{font-family:'Montserrat',sans-serif;font-size:1.3rem;font-weight:700;color:var(--blanco);letter-spacing:1px}
+  nav{display:flex;gap:8px}
+  nav a{color:rgba(255,255,255,.85);text-decoration:none;font-family:'Montserrat',sans-serif;font-size:.85rem;font-weight:600;letter-spacing:.5px;padding:8px 16px;border-radius:4px;transition:all .2s}
+  nav a:hover{color:var(--blanco);background:rgba(255,255,255,.15)}
+  nav a.active{background:var(--naranja);color:var(--blanco)}
+  .hero{position:relative;height:380px;background:linear-gradient(135deg,var(--azul-oscuro) 0%,var(--azul) 60%,var(--azul-claro) 100%);display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .hero::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/svg%3E")}
+  .hero::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:80px;background:var(--fondo);clip-path:ellipse(55% 100% at 50% 100%)}
+  .hero-content{text-align:center;z-index:1;padding:0 20px;animation:fadeUp .8s ease both}
+  .hero-badge{display:inline-block;background:rgba(233,111,46,.25);border:1px solid var(--naranja);color:var(--naranja-claro);font-family:'Montserrat',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:6px 20px;border-radius:50px;margin-bottom:20px}
+  .hero-content h2{font-family:'Montserrat',sans-serif;font-size:clamp(2rem,5vw,3.2rem);font-weight:900;color:var(--blanco);line-height:1.15;margin-bottom:16px;text-shadow:0 2px 20px rgba(0,0,0,.3)}
+  .hero-content h2 span{color:var(--naranja-claro)}
+  .hero-content p{color:rgba(255,255,255,.82);font-size:1.05rem;font-weight:300;max-width:520px;margin:0 auto;line-height:1.7}
+  .contacto-rapido{padding:70px 40px 0;max-width:1200px;margin:0 auto}
+  .section-header{text-align:center;margin-bottom:48px}
+  .seccion-badge{display:inline-block;background:var(--naranja);color:var(--blanco);font-family:'Montserrat',sans-serif;font-size:.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:5px 14px;border-radius:3px;margin-bottom:16px}
+  .section-header h2{font-family:'Montserrat',sans-serif;font-size:2rem;font-weight:900;color:var(--negro);margin-top:4px}
+  .section-header h2 span{color:var(--azul)}
+  .section-header p{color:var(--gris-texto);font-size:.97rem;max-width:600px;margin:.8rem auto 0;line-height:1.7}
+  .rapido-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px;margin-bottom:60px}
+  .rapido-card{background:var(--blanco);border-radius:16px;padding:32px 24px;text-align:center;box-shadow:0 6px 20px rgba(0,0,0,.05);border:1.5px solid var(--gris-medio);transition:all .3s}
+  .rapido-card:hover{transform:translateY(-6px);box-shadow:0 14px 32px rgba(31,119,168,.1);border-color:var(--azul)}
+  .rapido-icon{font-size:2rem;margin-bottom:14px;display:block}
+  .rapido-card h4{font-family:'Montserrat',sans-serif;color:var(--negro);font-size:.95rem;font-weight:700;margin-bottom:8px}
+  .rapido-card p{font-size:.86rem;line-height:1.6;color:var(--gris-texto)}
+  .rapido-card a{color:var(--azul);text-decoration:none;font-weight:600;font-size:.88rem}
+  .rapido-card a:hover{color:var(--naranja)}
+  .contacto-main{padding:0 40px 80px;max-width:1200px;margin:0 auto;display:grid;grid-template-columns:1fr 1.2fr;gap:50px;align-items:start}
+  .info-contacto{background:var(--blanco);padding:44px 40px;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.05);border-top:5px solid var(--azul)}
+  .info-contacto h3{font-family:'Montserrat',sans-serif;color:var(--azul);font-size:1.5rem;font-weight:800;margin-bottom:14px}
+  .info-contacto > p{color:var(--gris-texto);line-height:1.8;margin-bottom:32px;font-size:.95rem}
+  .item-info{display:flex;align-items:flex-start;gap:16px;margin-bottom:28px}
+  .item-info .icono{font-size:1.4rem;color:var(--naranja);background:var(--gris-claro);padding:10px;border-radius:10px;line-height:1;flex-shrink:0}
+  .item-info div h4{font-family:'Montserrat',sans-serif;color:var(--negro);font-size:.9rem;font-weight:700;margin-bottom:6px}
+  .item-info div p{margin:0;color:var(--gris-texto);font-size:.88rem;line-height:1.7}
+  .redes-titulo{font-family:'Montserrat',sans-serif;font-size:.8rem;font-weight:700;color:var(--negro);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;margin-top:8px}
+  .social{display:flex;gap:10px}
+  .social span{width:38px;height:38px;background:var(--gris-claro);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.9rem;cursor:pointer;transition:all .2s;color:var(--gris-texto);font-weight:700;font-family:'Montserrat',sans-serif}
+  .social span:hover{background:var(--naranja);color:var(--blanco)}
+  .formulario-contacto{background:var(--blanco);padding:44px 40px;border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.05)}
+  .formulario-contacto h3{font-family:'Montserrat',sans-serif;color:var(--negro);font-size:1.5rem;font-weight:800;margin-bottom:28px}
+  .grupo-input{margin-bottom:22px}
+  .grupo-input label{display:block;font-family:'Montserrat',sans-serif;font-size:.82rem;font-weight:700;color:var(--negro);letter-spacing:.4px;margin-bottom:8px}
+  .grupo-input input,.grupo-input textarea,.grupo-input select{width:100%;padding:14px 16px;border:1.5px solid var(--gris-medio);border-radius:8px;font-family:'Open Sans',sans-serif;font-size:.95rem;transition:all .3s;background:var(--fondo);color:var(--negro)}
+  .grupo-input input:focus,.grupo-input textarea:focus,.grupo-input select:focus{outline:none;border-color:var(--azul);box-shadow:0 0 0 3px rgba(31,119,168,.1);background:var(--blanco)}
+  .grupo-input textarea{resize:vertical;min-height:130px}
+  .btn-enviar{background:var(--naranja);color:var(--blanco);font-family:'Montserrat',sans-serif;font-weight:700;font-size:.95rem;border:none;padding:16px 32px;border-radius:50px;cursor:pointer;width:100%;transition:all .3s;letter-spacing:.3px}
+  .btn-enviar:hover{background:var(--azul);transform:translateY(-3px);box-shadow:0 10px 24px rgba(31,119,168,.25)}
+  .mensaje-exito{display:none;background:#d4edda;border:1px solid #c3e6cb;color:#155724;padding:16px 20px;border-radius:10px;font-size:.9rem;margin-top:16px;font-family:'Montserrat',sans-serif;font-weight:600}
+  .cta{background:linear-gradient(135deg,var(--naranja) 0%,#c45a1e 100%);padding:72px 40px;text-align:center;position:relative;overflow:hidden}
+  .cta::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='20' cy='20' r='10'/%3E%3C/g%3E%3C/svg%3E")}
+  .cta h2{font-family:'Montserrat',sans-serif;font-size:2rem;font-weight:900;color:var(--blanco);margin-bottom:14px;position:relative}
+  .cta p{color:rgba(255,255,255,.85);margin-bottom:32px;position:relative}
+  .cta-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;position:relative}
+  .btn-primary{background:var(--blanco);color:var(--naranja);font-family:'Montserrat',sans-serif;font-size:.88rem;font-weight:700;padding:14px 32px;border-radius:6px;text-decoration:none;transition:all .2s;display:inline-block}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.2)}
+  .btn-secondary{background:transparent;color:var(--blanco);font-family:'Montserrat',sans-serif;font-size:.88rem;font-weight:700;padding:14px 32px;border-radius:6px;text-decoration:none;border:2px solid rgba(255,255,255,.5);transition:all .2s;display:inline-block}
+  .btn-secondary:hover{border-color:var(--blanco);background:rgba(255,255,255,.1)}
+  /* FOOTER AZUL ESTRELLADO */
+  .footer{background:var(--azul-oscuro);color:rgba(255,255,255,.7);padding:60px 40px 0;position:relative;overflow:hidden}
+  .footer::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(255,255,255,.2) 1px,transparent 1px);background-size:38px 38px;pointer-events:none;z-index:0}
+  .footer::after{content:'';position:absolute;top:-100px;right:-100px;width:400px;height:400px;background:rgba(255,255,255,.04);border-radius:50%;pointer-events:none}
+  .footer-container{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:2fr 1fr 1fr 1.5fr;gap:40px;padding-bottom:48px;border-bottom:1px solid rgba(255,255,255,.15);position:relative;z-index:1}
+  .footer-col h3{font-family:'Montserrat',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--blanco);margin-bottom:16px}
+  .footer-col p{font-size:.88rem;line-height:1.8;color:rgba(255,255,255,.65)}
+  .footer-col ul{list-style:none}
+  .footer-col ul li{font-size:.88rem;margin-bottom:8px}
+  .footer-col ul li a{color:rgba(255,255,255,.65);text-decoration:none;transition:color .2s}
+  .footer-col ul li a:hover{color:var(--naranja-claro)}
+  .footer .social span{background:rgba(255,255,255,.12);color:rgba(255,255,255,.8)}
+  .footer .social span:hover{background:var(--naranja);color:var(--blanco)}
+  .footer-bottom{max-width:1200px;margin:0 auto;padding:20px 0;font-size:.82rem;color:rgba(255,255,255,.4);text-align:center;position:relative;z-index:1}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
+  .reveal.visible{opacity:1;transform:translateY(0)}
+  @media(max-width:900px){.contacto-main{grid-template-columns:1fr}.footer-container{grid-template-columns:1fr 1fr}header{padding:0 20px}nav a{padding:6px 10px;font-size:.78rem}}
+  @media(max-width:600px){.footer-container{grid-template-columns:1fr}.logo-area h1{font-size:1rem}.contacto-main{padding:0 20px 60px}.contacto-rapido{padding:60px 20px 0}}
+</style>
+</head>
+<body>
+
+<header>
+  <a href="rbe.html" class="logo-area"><img src="Logo RBE moderno.png" alt="RBE Logo"><h1>Rutas Baja Express</h1></a>
+  <nav>
+    <a href="rbe.html">Inicio</a><a href="nosotros.html">Nosotros</a><a href="terminales.html">Terminales</a><a href="app.html">App</a><a href="contacto.html" class="active">Contacto</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">Atención al viajero</div>
+    <h2>Estamos para <span>escucharte</span></h2>
+    <p>¿Tienes dudas sobre rutas, horarios o servicios? Un asesor de RBE te responderá a la brevedad.</p>
+  </div>
+</section>
+
+<section class="contacto-rapido">
+  <div class="section-header reveal">
+    <span class="seccion-badge">Acceso directo</span>
+    <h2>¿Cómo podemos <span>ayudarte</span>?</h2>
+    <p>Elige el canal de atención que más te convenga.</p>
+  </div>
+  <div class="rapido-grid">
+    <div class="rapido-card reveal"><span class="rapido-icon">📞</span><h4>Llamada directa</h4><p>Lunes a Domingo, 24 horas.</p><a href="tel:+526642562895">+52 (664) 256 2895</a></div>
+    <div class="rapido-card reveal"><span class="rapido-icon">📧</span><h4>Correo electrónico</h4><p>Te respondemos en menos de 24 horas.</p><a href="mailto:contacto@rbe.com">contacto@rbe.com</a></div>
+    <div class="rapido-card reveal"><span class="rapido-icon">📱</span><h4>Soporte App</h4><p>Problemas técnicos con la aplicación.</p><a href="mailto:soporteapp@rbe.com">soporteapp@rbe.com</a></div>
+    <div class="rapido-card reveal"><span class="rapido-icon">📍</span><h4>Oficinas Centrales</h4><p>Blvd. Insurgentes 2100, Tijuana, B.C.</p><a href="#">Ver en mapa</a></div>
+  </div>
+</section>
+
+<section class="contacto-main">
+  <div class="info-contacto reveal">
+    <h3>Ponte en contacto</h3>
+    <p>Nuestro equipo de atención al cliente está disponible para resolver cualquier inquietud y ayudarte a planear tu próximo viaje por Baja California.</p>
+    <div class="item-info"><span class="icono">📍</span><div><h4>Oficinas Centrales</h4><p>Blvd. Insurgentes 2100,<br>Tijuana, B.C., México.</p></div></div>
+    <div class="item-info"><span class="icono">📞</span><div><h4>Atención Telefónica</h4><p>+52 (664) 256 2895<br>Lunes a Domingo, 24 horas.</p></div></div>
+    <div class="item-info"><span class="icono">📧</span><div><h4>Correo Electrónico</h4><p>contacto@rbe.com<br>soporteapp@rbe.com</p></div></div>
+    <div class="item-info"><span class="icono">🕒</span><div><h4>Horario de Atención</h4><p>Telefónica: 24 horas, todos los días.<br>Correo: respuesta en menos de 24 h.</p></div></div>
+    <div class="redes-titulo">Síguenos en redes</div>
+    <div class="social"><span>f</span><span>X</span><span>📷</span></div>
+  </div>
+  <div class="formulario-contacto reveal">
+    <h3>Envíanos un mensaje</h3>
+    <div class="grupo-input"><label for="nombre">Nombre Completo</label><input type="text" id="nombre" placeholder="Ej. Juan Pérez"></div>
+    <div class="grupo-input"><label for="correo">Correo Electrónico</label><input type="email" id="correo" placeholder="tu@correo.com"></div>
+    <div class="grupo-input"><label for="asunto">Asunto</label>
+      <select id="asunto">
+        <option value="">Selecciona un tema...</option>
+        <option>Información sobre rutas y horarios</option>
+        <option>Compra o cancelación de boletos</option>
+        <option>Soporte técnico de la App</option>
+        <option>Equipaje y políticas de viaje</option>
+        <option>Facturación</option>
+        <option>Otro</option>
+      </select>
+    </div>
+    <div class="grupo-input"><label for="mensaje">Mensaje</label><textarea id="mensaje" placeholder="Escribe aquí tus dudas o comentarios..."></textarea></div>
+    <button type="button" class="btn-enviar" onclick="enviarFormulario()">Enviar Mensaje</button>
+    <div class="mensaje-exito" id="msgExito">✅ ¡Mensaje enviado! Te contactaremos pronto.</div>
+  </div>
+</section>
+
+<section class="cta">
+  <h2>¿Prefieres viajar sin esperar?</h2>
+  <p>Descarga la app y compra tu boleto en menos de dos minutos desde cualquier lugar.</p>
+  <div class="cta-btns">
+    <a href="app.html" class="btn-primary">Descargar App</a>
+    <a href="terminales.html" class="btn-secondary">Ver Terminales</a>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-container">
+    <div class="footer-col"><h3>RBE Express</h3><p>Transporte regional en Baja California. Seguridad, puntualidad y comodidad en cada viaje que realizas con nosotros.</p></div>
+    <div class="footer-col"><h3>Enlaces</h3><ul><li><a href="rbe.html">Inicio</a></li><li><a href="nosotros.html">Nosotros</a></li><li><a href="terminales.html">Terminales</a></li><li><a href="app.html">App Oficial</a></li><li><a href="contacto.html">Contacto</a></li></ul></div>
+    <div class="footer-col"><h3>Terminales</h3><ul><li><a href="terminales.html#tijuana">Tijuana</a></li><li><a href="terminales.html#rosarito">Rosarito</a></li><li><a href="terminales.html#tecate">Tecate</a></li><li><a href="terminales.html#mexicali">Mexicali</a></li><li><a href="terminales.html#ensenada">Ensenada</a></li><li><a href="terminales.html#sanfelipe">San Felipe</a></li><li><a href="terminales.html#sanquintin">San Quintín</a></li></ul></div>
+    <div class="footer-col"><h3>Contacto</h3><p>📞 +52-664-256-2895</p><p>📧 contacto@rbe.com</p><div class="social"><span>f</span><span>X</span><span>📷</span></div></div>
+  </div>
+  <div class="footer-bottom">© 2026 Rutas Baja Express | Todos los derechos reservados.</div>
+</footer>
+
+<script>
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((e,i) => { if(e.isIntersecting){setTimeout(()=>e.target.classList.add('visible'),i*100);obs.unobserve(e.target);} });
+  },{threshold:.1});
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+  function enviarFormulario() {
+    if (!document.getElementById('nombre').value.trim() || !document.getElementById('correo').value.trim() || !document.getElementById('mensaje').value.trim()) { alert('Por favor completa todos los campos obligatorios.'); return; }
+    document.getElementById('msgExito').style.display = 'block';
+    setTimeout(() => document.getElementById('msgExito').style.display = 'none', 5000);
+  }
+</script>
+</body>
+</html>

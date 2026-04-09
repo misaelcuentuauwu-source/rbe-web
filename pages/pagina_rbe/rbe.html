@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inicio – Rutas Baja Express</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;900&family=Open+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--azul:#1F77A8;--azul-oscuro:#15557a;--azul-claro:#2d8fc4;--naranja:#E96F2E;--naranja-claro:#f08040;--blanco:#ffffff;--fondo:#fdfbf9;--gris-claro:#f5f4f0;--gris-medio:#e8e6e0;--gris-texto:#4a4a4a;--negro:#1a1a1a}
+  *{margin:0;padding:0;box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{font-family:'Open Sans',sans-serif;color:var(--gris-texto);background:var(--gris-claro);overflow-x:hidden}
+  header{background:var(--azul);display:flex;align-items:center;justify-content:space-between;padding:0 40px;height:70px;position:sticky;top:0;z-index:1000;box-shadow:0 2px 16px rgba(0,0,0,.3)}
+  .logo-area{display:flex;align-items:center;gap:12px;text-decoration:none}
+  .logo-area img{height:44px;width:auto}
+  .logo-area h1{font-family:'Montserrat',sans-serif;font-size:1.3rem;font-weight:700;color:var(--blanco);letter-spacing:1px}
+  nav{display:flex;gap:8px}
+  nav a{color:rgba(255,255,255,.85);text-decoration:none;font-family:'Montserrat',sans-serif;font-size:.85rem;font-weight:600;letter-spacing:.5px;padding:8px 16px;border-radius:4px;transition:all .2s}
+  nav a:hover{color:var(--blanco);background:rgba(255,255,255,.15)}
+  nav a.active{background:var(--naranja);color:var(--blanco)}
+  .slider{position:relative;width:100%;height:85vh;overflow:hidden}
+  .slider::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:80px;background:var(--gris-claro);clip-path:ellipse(55% 100% at 50% 100%);z-index:10}
+  input[type="radio"]{display:none}
+  .slides{display:flex;width:400%;height:100%;transition:margin-left .8s cubic-bezier(.25,.8,.25,1)}
+  .slide{width:100%;position:relative}
+  .slide img{width:100%;height:100%;object-fit:cover;transition:transform 8s ease}
+  .slide:hover img{transform:scale(1.05)}
+  .slide::before{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(26,26,26,.9) 0%,rgba(31,119,168,.4) 100%);z-index:1}
+  .slide-overlay{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2;text-align:center;width:90%;max-width:800px}
+  .hero-badge{display:inline-block;background:rgba(233,111,46,.8);color:var(--blanco);font-family:'Montserrat',sans-serif;font-size:.75rem;font-weight:700;letter-spacing:3px;text-transform:uppercase;padding:6px 20px;border-radius:50px;margin-bottom:20px}
+  .slide-overlay h2{font-family:'Montserrat',sans-serif;font-size:clamp(2rem,5vw,3.8rem);font-weight:900;color:var(--blanco);margin-bottom:15px;text-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.1}
+  .slide-overlay h2 span{color:var(--naranja-claro)}
+  .slide-overlay p{color:rgba(255,255,255,.9);font-size:1.1rem;text-shadow:0 2px 10px rgba(0,0,0,.5)}
+  #s1:checked ~ .slides{margin-left:0}
+  #s2:checked ~ .slides{margin-left:-100%}
+  #s3:checked ~ .slides{margin-left:-200%}
+  #s4:checked ~ .slides{margin-left:-300%}
+  .navigation label{position:absolute;top:50%;transform:translateY(-50%);font-size:30px;color:var(--blanco);background:rgba(0,0,0,.3);width:60px;height:60px;display:none;align-items:center;justify-content:center;border-radius:50%;cursor:pointer;transition:.3s;user-select:none;z-index:5;border:2px solid transparent}
+  .navigation label:hover{background:var(--naranja);border-color:var(--blanco);transform:translateY(-50%) scale(1.1)}
+  .prev{left:30px}.next{right:30px}
+  #s1:checked ~ .navigation .s1,#s2:checked ~ .navigation .s2,#s3:checked ~ .navigation .s3,#s4:checked ~ .navigation .s4{display:flex}
+  .stats-band{background:var(--blanco);border-top:1px solid var(--gris-medio);border-bottom:1px solid var(--gris-medio);padding:40px}
+  .stats-inner{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:20px;text-align:center}
+  .stat-item .num{font-family:'Montserrat',sans-serif;font-size:2.4rem;font-weight:900;color:var(--naranja);line-height:1}
+  .stat-item .label{font-size:.82rem;color:var(--gris-texto);margin-top:6px;font-weight:500}
+  .seccion-base{padding:80px 40px;max-width:1200px;margin:0 auto;text-align:center}
+  .seccion-badge{display:inline-block;background:var(--naranja);color:var(--blanco);font-family:'Montserrat',sans-serif;font-size:.7rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:5px 14px;border-radius:3px;margin-bottom:16px}
+  .seccion-titulo{font-family:'Montserrat',sans-serif;font-size:2.2rem;font-weight:900;color:var(--negro);margin-bottom:20px}
+  .seccion-titulo span{color:var(--azul)}
+  .seccion-texto{font-size:1rem;line-height:1.8;color:var(--gris-texto);max-width:800px;margin:0 auto 40px}
+  .mapa-contenedor{background:var(--blanco);border-radius:20px;padding:40px;box-shadow:0 10px 40px rgba(0,0,0,.05);margin-bottom:60px}
+  .mapa-svg-wrap{width:100%;max-width:500px;margin:0 auto 40px}
+  .mapa-svg-wrap svg{width:100%;height:auto;display:block}
+  .pin-circle{fill:var(--naranja);stroke:var(--blanco);stroke-width:2.5;transition:r .2s,fill .2s}
+  .terminal-pin{cursor:pointer}
+  .terminal-pin:hover .pin-circle{fill:var(--azul)}
+  .ruta-line{stroke:var(--azul);stroke-width:2;fill:none;stroke-dasharray:5 3;opacity:.55}
+  .terminales-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:22px;perspective:1000px}
+  .card-terminal{height:230px;border-radius:16px;overflow:hidden;position:relative;background-size:cover;background-position:center;cursor:pointer;transition:transform .4s ease,box-shadow .4s ease;transform-style:preserve-3d;box-shadow:0 10px 20px rgba(0,0,0,.08)}
+  .card-terminal:hover{box-shadow:0 20px 40px rgba(0,0,0,.2),0 0 20px rgba(233,111,46,.15)}
+  .card-terminal:nth-child(1){background-image:url('tijuana.jpg')}
+  .card-terminal:nth-child(2){background-image:url('rosarito.jpg')}
+  .card-terminal:nth-child(3){background-image:url('tecate.jpg')}
+  .card-terminal:nth-child(4){background-image:url('mexicali.jpg')}
+  .card-terminal:nth-child(5){background-image:url('ensenada.jpg')}
+  .card-terminal:nth-child(6){background-image:url('sanfelipe.jpg')}
+  .card-terminal:nth-child(7){background-image:url('sanquintin.jpg')}
+  .card-terminal::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,var(--azul-oscuro),var(--azul-claro));opacity:.4}
+  .terminal-overlay{position:absolute;bottom:0;width:100%;padding:20px 18px;background:linear-gradient(to top,rgba(26,26,26,.92),transparent);color:var(--blanco);text-align:left}
+  .terminal-overlay h3{font-family:'Montserrat',sans-serif;font-size:1.15rem;margin-bottom:3px}
+  .terminal-overlay p{font-size:.8rem;opacity:.8}
+  .app-section{background:var(--azul-oscuro);padding:80px 40px;position:relative;overflow:hidden}
+  .app-section::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(255,255,255,.2) 1px,transparent 1px);background-size:38px 38px;pointer-events:none;z-index:0}
+  .app-section::after{content:'';position:absolute;top:-120px;right:-120px;width:500px;height:500px;background:rgba(255,255,255,.04);border-radius:50%;pointer-events:none}
+  .app-content{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:60px;position:relative;z-index:1}
+  .app-text{flex:1;min-width:300px}
+  .app-text h2{font-family:'Montserrat',sans-serif;font-size:2.4rem;font-weight:900;color:var(--blanco);margin-bottom:20px;line-height:1.2}
+  .app-text h2 span{color:var(--naranja-claro)}
+  .app-text p{font-size:1rem;line-height:1.8;color:rgba(255,255,255,.65);margin-bottom:30px}
+  .btn-store{width:180px;cursor:pointer;transition:transform .3s,box-shadow .3s;border-radius:8px;display:block}
+  .btn-store:hover{transform:translateY(-5px);box-shadow:0 15px 25px rgba(233,111,46,.3)}
+  .app-img{flex:1;text-align:center;min-width:260px}
+  .app-img img{width:100%;max-width:300px;filter:drop-shadow(0 20px 30px rgba(0,0,0,.4));animation:flotar 4s ease-in-out infinite}
+  @keyframes flotar{0%{transform:translateY(0)}50%{transform:translateY(-20px)}100%{transform:translateY(0)}}
+  .cta{background:linear-gradient(135deg,var(--naranja) 0%,#c45a1e 100%);padding:72px 40px;text-align:center;position:relative;overflow:hidden}
+  .cta::before{content:'';position:absolute;inset:0;background:url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='20' cy='20' r='10'/%3E%3C/g%3E%3C/svg%3E")}
+  .cta h2{font-family:'Montserrat',sans-serif;font-size:2rem;font-weight:900;color:var(--blanco);margin-bottom:14px;position:relative}
+  .cta p{color:rgba(255,255,255,.85);margin-bottom:32px;position:relative}
+  .cta-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;position:relative}
+  .btn-primary{background:var(--blanco);color:var(--naranja);font-family:'Montserrat',sans-serif;font-size:.88rem;font-weight:700;padding:14px 32px;border-radius:6px;text-decoration:none;transition:all .2s;display:inline-block}
+  .btn-primary:hover{background:var(--fondo);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.2)}
+  .btn-secondary{background:transparent;color:var(--blanco);font-family:'Montserrat',sans-serif;font-size:.88rem;font-weight:700;padding:14px 32px;border-radius:6px;text-decoration:none;border:2px solid rgba(255,255,255,.5);transition:all .2s;display:inline-block}
+  .btn-secondary:hover{border-color:var(--blanco);background:rgba(255,255,255,.1)}
+  /* FOOTER AZUL ESTRELLADO */
+  .footer{background:var(--azul-oscuro);color:rgba(255,255,255,.7);padding:60px 40px 0;position:relative;overflow:hidden}
+  .footer::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(255,255,255,.2) 1px,transparent 1px);background-size:38px 38px;pointer-events:none;z-index:0}
+  .footer::after{content:'';position:absolute;top:-100px;right:-100px;width:400px;height:400px;background:rgba(255,255,255,.04);border-radius:50%;pointer-events:none}
+  .footer-container{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:2fr 1fr 1fr 1.5fr;gap:40px;padding-bottom:48px;border-bottom:1px solid rgba(255,255,255,.15);position:relative;z-index:1}
+  .footer-col h3{font-family:'Montserrat',sans-serif;font-size:.85rem;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--blanco);margin-bottom:16px}
+  .footer-col p{font-size:.88rem;line-height:1.8;color:rgba(255,255,255,.65)}
+  .footer-col ul{list-style:none}
+  .footer-col ul li{font-size:.88rem;margin-bottom:8px}
+  .footer-col ul li a{color:rgba(255,255,255,.65);text-decoration:none;transition:color .2s}
+  .footer-col ul li a:hover{color:var(--naranja-claro)}
+  .social{display:flex;gap:10px;margin-top:16px}
+  .social span{width:34px;height:34px;background:rgba(255,255,255,.12);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.85rem;cursor:pointer;transition:all .2s;color:rgba(255,255,255,.8)}
+  .social span:hover{background:var(--naranja);color:var(--blanco)}
+  .footer-bottom{max-width:1200px;margin:0 auto;padding:20px 0;font-size:.82rem;color:rgba(255,255,255,.4);text-align:center;position:relative;z-index:1}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
+  .reveal.visible{opacity:1;transform:translateY(0)}
+  @media(max-width:900px){.stats-inner{grid-template-columns:repeat(2,1fr)}.app-content{flex-direction:column;text-align:center}.footer-container{grid-template-columns:1fr 1fr}header{padding:0 20px}nav a{padding:6px 10px;font-size:.78rem}}
+  @media(max-width:600px){.stats-inner{grid-template-columns:1fr 1fr}.footer-container{grid-template-columns:1fr}.logo-area h1{font-size:1rem}}
+</style>
+</head>
+<body>
+
+<header>
+  <a href="rbe.html" class="logo-area"><img src="Logo RBE moderno.png" alt="RBE Logo"><h1>Rutas Baja Express</h1></a>
+  <nav>
+    <a href="rbe.html" class="active">Inicio</a>
+    <a href="nosotros.html">Nosotros</a>
+    <a href="terminales.html">Terminales</a>
+    <a href="app.html">App</a>
+    <a href="contacto.html">Contacto</a>
+  </nav>
+</header>
+
+<section class="slider">
+  <input type="radio" name="slider" id="s1" checked>
+  <input type="radio" name="slider" id="s2">
+  <input type="radio" name="slider" id="s3">
+  <input type="radio" name="slider" id="s4">
+  <div class="slides">
+    <div class="slide"><img src="transporteRBE.png" alt="Bus RBE"><div class="slide-overlay"><span class="hero-badge">RBE Express</span><h2>Viaja Seguro <span>y Cómodo</span></h2><p>Conectando Baja California todos los días con el mejor servicio.</p></div></div>
+    <div class="slide"><img src="celularRBE.png" alt="App RBE"><div class="slide-overlay"><span class="hero-badge">Digital</span><h2>Compra desde <span>Nuestra App</span></h2><p>Boletos digitales rápidos, seguros y sin filas.</p></div></div>
+    <div class="slide"><img src="taquilleroAtendiendo.png" alt="Atención RBE"><div class="slide-overlay"><span class="hero-badge">Servicio al Cliente</span><h2>¿Tienes dudas <span>para viajar?</span></h2><p>Nuestros taquilleros te ayudarán en cada paso de tu viaje.</p></div></div>
+    <div class="slide"><img src="familiaBus2.png" alt="Familia RBE"><div class="slide-overlay"><span class="hero-badge">Experiencia</span><h2>Viaja en <span>Familia</span></h2><p>Comodidad, espacio y seguridad garantizada para los tuyos.</p></div></div>
+  </div>
+  <div class="navigation">
+    <label for="s4" class="prev s1">&#10094;</label><label for="s2" class="next s1">&#10095;</label>
+    <label for="s1" class="prev s2">&#10094;</label><label for="s3" class="next s2">&#10095;</label>
+    <label for="s2" class="prev s3">&#10094;</label><label for="s4" class="next s3">&#10095;</label>
+    <label for="s3" class="prev s4">&#10094;</label><label for="s1" class="next s4">&#10095;</label>
+  </div>
+</section>
+
+<div class="stats-band">
+  <div class="stats-inner">
+    <div class="stat-item reveal"><div class="num">7</div><div class="label">Ciudades conectadas</div></div>
+    <div class="stat-item reveal"><div class="num">100%</div><div class="label">Boletos digitales</div></div>
+    <div class="stat-item reveal"><div class="num">24/7</div><div class="label">Disponibilidad en app</div></div>
+    <div class="stat-item reveal"><div class="num">0</div><div class="label">Filas en taquilla</div></div>
+  </div>
+</div>
+
+<section class="seccion-base">
+  <span class="seccion-badge">Sobre Nosotros</span>
+  <h2 class="seccion-titulo">Conectando <span>Baja California</span></h2>
+  <p class="seccion-texto">Rutas Baja Express es una empresa regional comprometida con brindar transporte seguro, puntual y confortable. Operamos en 7 ciudades de Baja California con una flota moderna y un servicio al cliente excepcional, apoyados en tecnología que hace tu viaje más fácil desde el primer clic.</p>
+  <div class="cta-btns" style="justify-content:center">
+    <a href="nosotros.html" class="btn-primary" style="background:var(--azul);color:var(--blanco)">Conoce nuestra historia</a>
+    <a href="contacto.html" class="btn-secondary" style="border-color:var(--gris-medio);color:var(--gris-texto)">Contáctanos</a>
+  </div>
+</section>
+
+<section class="seccion-base" style="padding-top:0">
+  <div class="mapa-contenedor">
+    <h2 class="seccion-titulo" style="font-size:1.8rem">Nuestras <span>7 Terminales</span></h2>
+    <p class="seccion-texto" style="margin-bottom:36px">Cobertura en toda la península. Haz clic en una terminal del mapa para ir directo a su información.</p>
+
+    <div class="mapa-svg-wrap">
+      <svg viewBox="0 0 520 520" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+        <defs>
+          <filter id="pinShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.4)"/>
+          </filter>
+        </defs>
+        <!-- Imagen real del mapa de Baja California -->
+        <image href="bajaCaliforniaMapa2.jpg" x="0" y="0" width="520" height="520" preserveAspectRatio="xMidYMid meet"/>
+        <!-- Rutas (coordenadas ajustadas al mapa real) -->
+        <!-- Tijuana(155,80) - Tecate(230,88) - Mexicali(340,72) -->
+        <line x1="170" y1="65" x2="200" y2="70" class="ruta-line"/>
+        <line x1="210" y1="70" x2="250" y2="85" class="ruta-line"/>
+        <!-- Tijuana - Rosarito -->
+        <line x1="155" y1="70" x2="160" y2="100" class="ruta-line"/>
+        <!-- Rosarito - Ensenada -->
+        <line x1="170" y1="105" x2="240" y2="176" class="ruta-line"/>
+        <!-- Ensenada - San Quintín -->
+        <line x1="230" y1="165" x2="270" y2="270" class="ruta-line"/>
+        <!-- Mexicali - San Felipe -->
+        <line x1="260" y1="90" x2="320" y2="248" class="ruta-line"/>
+        <!-- Tijuana -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#tijuana'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="155" cy="60" r="10"/>
+          <circle cx="155" cy="60" r="4" fill="white"/>
+          <text x="130" y="40" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">Tijuana</text>
+        </g>
+        <!-- Tecate -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#tecate'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="210" cy="65" r="10"/>
+          <circle cx="210" cy="65" r="4" fill="white"/>
+          <text x="210" y="50" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">Tecate</text>
+        </g>
+        <!-- Mexicali -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#mexicali'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="260" cy="90" r="10"/>
+          <circle cx="260" cy="90" r="4" fill="white"/>
+          <text x="260" y="75" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">Mexicali</text>
+        </g>
+        <!-- Rosarito -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#rosarito'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="160" cy="95" r="10"/>
+          <circle cx="160" cy="95" r="4" fill="white"/>
+          <text x="143" y="116" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">Rosarito</text>
+        </g>
+        <!-- Ensenada -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#ensenada'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="230" cy="170" r="10"/>
+          <circle cx="230" cy="170" r="4" fill="white"/>
+          <text x="200" y="150" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">Ensenada</text>
+        </g>
+        <!-- San Felipe -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#sanfelipe'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="320" cy="248" r="10"/>
+          <circle cx="320" cy="248" r="4" fill="white"/>
+          <text x="333" y="244" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">San Felipe</text>
+        </g>
+        <!-- San Quintín -->
+        <g class="terminal-pin" onclick="location.href='terminales.html#sanquintin'" filter="url(#pinShadow)">
+          <circle class="pin-circle" cx="270" cy="270" r="10"/>
+          <circle cx="270" cy="270" r="4" fill="white"/>
+          <text x="235" y="300" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">San Quintín</text>
+        </g>
+        <!-- Leyenda -->
+        <rect x="8" y="480" width="164" height="42" rx="8" fill="white" fill-opacity="0.92" stroke="#c8dcea" stroke-width="1"/>
+        <circle cx="26" cy="493" r="6" fill="#E96F2E" stroke="white" stroke-width="2"/>
+        <text x="38" y="497" font-size="10" font-family="Montserrat,sans-serif" fill="#4a4a4a" font-weight="700">Terminal RBE</text>
+        <line x1="18" y1="510" x2="36" y2="510" stroke="#1F77A8" stroke-width="2" stroke-dasharray="4 2"/>
+        <text x="40" y="514" font-size="10" font-family="Montserrat,sans-serif" fill="#4a4a4a">Ruta activa</text>
+      </svg>
+    </div>
+
+    <div class="terminales-grid">
+      <div class="card-terminal"><div class="terminal-overlay"><h3>Tijuana</h3><p>Terminal principal</p></div></div>
+      <div class="card-terminal"><div class="terminal-overlay"><h3>Rosarito</h3><p>Ubicación turística</p></div></div>
+      <div class="card-terminal"><div class="terminal-overlay"><h3>Tecate</h3><p>Conexión regional</p></div></div>
+      <div class="card-terminal"><div class="terminal-overlay"><h3>Mexicali</h3><p>Rutas extendidas</p></div></div>
+      <div class="card-terminal"><div class="terminal-overlay"><h3>Ensenada</h3><p>Acceso costero</p></div></div>
+      <div class="card-terminal"><div class="terminal-overlay"><h3>San Felipe</h3><p>Costa del Golfo</p></div></div>
+      <div class="card-terminal"><div class="terminal-overlay"><h3>San Quintín</h3><p>Valle agrícola</p></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="app-section">
+  <div class="app-content">
+    <div class="app-text reveal">
+      <span class="seccion-badge">Descarga Gratis</span>
+      <h2>Lleva a RBE en <span>tu bolsillo</span></h2>
+      <p>Compra tus boletos fácil y rápido desde tu celular. Gestiona tus viajes, elige tu asiento y olvídate de las filas. Tu pase de abordar va directo en tu pantalla.</p>
+      <img src="PlayStoreButton.png" alt="Descargar en Play Store" class="btn-store">
+    </div>
+    <div class="app-img reveal"><img src="rbeMovil.png" alt="App Rutas Baja Express"></div>
+  </div>
+</section>
+
+<section class="cta">
+  <h2>¿Listo para tu próximo viaje?</h2>
+  <p>Compra tu boleto en menos de dos minutos desde cualquier lugar de Baja California.</p>
+  <div class="cta-btns">
+    <a href="app.html" class="btn-primary">Descargar App</a>
+    <a href="terminales.html" class="btn-secondary">Ver Terminales</a>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-container">
+    <div class="footer-col"><h3>RBE Express</h3><p>Transporte regional en Baja California. Seguridad, puntualidad y comodidad en cada viaje que realizas con nosotros.</p></div>
+    <div class="footer-col"><h3>Enlaces</h3><ul><li><a href="rbe.html">Inicio</a></li><li><a href="nosotros.html">Nosotros</a></li><li><a href="terminales.html">Terminales</a></li><li><a href="app.html">App Oficial</a></li><li><a href="contacto.html">Contacto</a></li></ul></div>
+    <div class="footer-col"><h3>Terminales</h3><ul><li><a href="terminales.html#tijuana">Tijuana</a></li><li><a href="terminales.html#rosarito">Rosarito</a></li><li><a href="terminales.html#tecate">Tecate</a></li><li><a href="terminales.html#mexicali">Mexicali</a></li><li><a href="terminales.html#ensenada">Ensenada</a></li><li><a href="terminales.html#sanfelipe">San Felipe</a></li><li><a href="terminales.html#sanquintin">San Quintín</a></li></ul></div>
+    <div class="footer-col"><h3>Contacto</h3><p>📞 +52-664-256-2895</p><p>📧 contacto@rbe.com</p><div class="social"><span>f</span><span>X</span><span>📷</span></div></div>
+  </div>
+  <div class="footer-bottom">© 2026 Rutas Baja Express | Todos los derechos reservados.</div>
+</footer>
+<script>
+  document.querySelectorAll(".card-terminal").forEach(card => {
+    card.addEventListener("mousemove", e => {
+      const r = card.getBoundingClientRect();
+      card.style.transform = `rotateX(${-(e.clientY-r.top-r.height/2)/10}deg) rotateY(${(e.clientX-r.left-r.width/2)/10}deg) scale(1.05)`;
+    });
+    card.addEventListener("mouseleave", () => card.style.transform = "");
+  });
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((e,i) => { if(e.isIntersecting){setTimeout(()=>e.target.classList.add('visible'),i*80);obs.unobserve(e.target);} });
+  },{threshold:.1});
+  document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+</script>
+</body>
+</html>
