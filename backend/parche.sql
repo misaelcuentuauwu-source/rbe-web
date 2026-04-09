@@ -173,6 +173,7 @@ CREATE TABLE taquillero (
     usuario VARCHAR(20) NOT NULL,
     contrasena VARCHAR(20) NOT NULL,
     terminal INT NOT NULL,
+    foto  VARCHAR(200),  
     supervisa BOOLEAN,
     FOREIGN KEY (terminal) REFERENCES terminal(numero)
 );
@@ -953,3 +954,7 @@ WHERE va.viaje IN (47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,6
 SELECT * FROM viaje_asiento WHERE viaje = 62 AND ocupado = 1;
 
 SELECT * FROM cuenta_pasajero ORDER BY pasajero_num DESC LIMIT 5;
+SELECT * FROM edo_viaje;
+
+ALTER TABLE ticket 
+ADD COLUMN etiqueta_asiento VARCHAR(10);

@@ -1,7 +1,9 @@
+import '../../utils/transitions.dart';
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
 import '../../config.dart';
 import 'resultados_screen.dart';
 
@@ -9,12 +11,16 @@ class InicioScreen extends StatefulWidget {
   final int? vendedorId;
   final int? clienteId;
   final String? correoCliente;
+  final String tipoUsuario;
+  final Map<String, dynamic>? datosUsuario;
 
   const InicioScreen({
     super.key,
     this.vendedorId,
     this.clienteId,
     this.correoCliente,
+    this.tipoUsuario = 'invitado',
+    this.datosUsuario,
   });
 
   @override
@@ -28,9 +34,16 @@ class _InicioScreenState extends State<InicioScreen> {
   static const textoPrincipal = Color(0xFF1C2D3A);
   static const textoSecundario = Color(0xFF6B8FA8);
 
+  Color get colorPrimario =>
+      widget.tipoUsuario == 'taquillero' ? naranja : azul;
+  Color get colorSecundario =>
+      widget.tipoUsuario == 'taquillero' ? azul : naranja;
+
   String? origenSeleccionado;
+  // null = "Todas las ciudades"
   String? destinoSeleccionado;
-  DateTime? fechaSeleccionada;
+  // Fecha default = hoy
+  DateTime fechaSeleccionada = DateTime.now();
 
   int adultos = 1;
   int estudiantes = 0;
@@ -41,6 +54,19 @@ class _InicioScreenState extends State<InicioScreen> {
 
   List<Map<String, dynamic>> terminales = [];
   bool cargandoTerminales = true;
+  bool detectandoUbicacion = false;
+
+  // Coordenadas aproximadas de cada ciudad en Baja California
+  // Clave: clave de ciudad en BD, Valor: [lat, lng]
+  static const Map<String, List<double>> _coordsCiudades = {
+    'TJ':  [32.5149, -117.0382], // Tijuana
+    'MXL': [32.6245, -115.4523], // Mexicali
+    'ENS': [31.8667, -116.5963], // Ensenada
+    'TEC': [32.5728, -116.6275], // Tecate
+    'RSO': [32.3333, -117.0500], // Rosarito
+    'SQN': [30.5333, -115.9500], // San Quintín
+    'SFE': [31.0231, -114.8260], // San Felipe
+  };
 
   @override
   void initState() {
@@ -59,6 +85,8 @@ class _InicioScreenState extends State<InicioScreen> {
           terminales = data.map((t) => Map<String, dynamic>.from(t)).toList();
           cargandoTerminales = false;
         });
+        // Una vez que tenemos terminales, detectar ubicación
+        _detectarOrigenPorGPS();
       } else {
         setState(() => cargandoTerminales = false);
       }
@@ -68,18 +96,77 @@ class _InicioScreenState extends State<InicioScreen> {
     }
   }
 
+  // ── GPS: detectar ciudad más cercana ──────────────────────────
+  Future<void> _detectarOrigenPorGPS() async {
+    setState(() => detectandoUbicacion = true);
+
+    try {
+      // Verificar permisos
+      LocationPermission permiso = await Geolocator.checkPermission();
+      if (permiso == LocationPermission.denied) {
+        permiso = await Geolocator.requestPermission();
+      }
+      if (permiso == LocationPermission.denied ||
+          permiso == LocationPermission.deniedForever) {
+        // Sin permiso: no asignamos origen, el usuario lo elige manualmente
+        setState(() => detectandoUbicacion = false);
+        return;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.medium,
+      ).timeout(const Duration(seconds: 8));
+
+      // Buscar la ciudad más cercana comparando distancia
+      String? ciudadMasCercana;
+      double menorDistancia = double.infinity;
+
+      _coordsCiudades.forEach((clave, coords) {
+        final distancia = Geolocator.distanceBetween(
+          pos.latitude,
+          pos.longitude,
+          coords[0],
+          coords[1],
+        );
+        if (distancia < menorDistancia) {
+          menorDistancia = distancia;
+          ciudadMasCercana = clave;
+        }
+      });
+
+      if (ciudadMasCercana != null) {
+        // Buscar la terminal que corresponde a esa ciudad
+        final terminal = terminales.firstWhere(
+          (t) => t['ciudad']['clave'] == ciudadMasCercana,
+          orElse: () => {},
+        );
+        if (terminal.isNotEmpty && mounted) {
+          setState(() {
+            origenSeleccionado = terminal['numero'].toString();
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error detectando ubicación: $e');
+      // Silencioso: si falla GPS el usuario elige manualmente
+    } finally {
+      if (mounted) setState(() => detectandoUbicacion = false);
+    }
+  }
+
   Future<void> _seleccionarFecha() async {
+    final hoy = DateTime.now();
     final fecha = await showDatePicker(
       context: context,
-      initialDate: DateTime(2026, 2, 1),
-      firstDate: DateTime(2026, 1, 1),
-      lastDate: DateTime(2026, 12, 31),
+      initialDate: fechaSeleccionada,
+      firstDate: DateTime(hoy.year, hoy.month, hoy.day), // desde hoy
+      lastDate: DateTime(2027, 12, 31),
       locale: const Locale('es'),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: azul,
+            colorScheme: ColorScheme.light(
+              primary: colorPrimario,
               onPrimary: Colors.white,
               surface: Colors.white,
               onSurface: textoPrincipal,
@@ -120,16 +207,10 @@ class _InicioScreenState extends State<InicioScreen> {
       _mostrarError('Selecciona un origen');
       return;
     }
-    if (destinoSeleccionado == null) {
-      _mostrarError('Selecciona un destino');
-      return;
-    }
-    if (origenSeleccionado == destinoSeleccionado) {
+    // destinoSeleccionado == null significa "Todas"
+    if (destinoSeleccionado != null &&
+        origenSeleccionado == destinoSeleccionado) {
       _mostrarError('El origen y destino no pueden ser iguales');
-      return;
-    }
-    if (fechaSeleccionada == null) {
-      _mostrarError('Selecciona una fecha');
       return;
     }
     if (totalPasajeros == 0) {
@@ -140,29 +221,33 @@ class _InicioScreenState extends State<InicioScreen> {
     final origenNombre = terminales.firstWhere(
       (t) => t['numero'].toString() == origenSeleccionado,
     )['ciudad']['nombre'];
-    final destinoNombre = terminales.firstWhere(
-      (t) => t['numero'].toString() == destinoSeleccionado,
-    )['ciudad']['nombre'];
+
+    final destinoNombre = destinoSeleccionado == null
+        ? 'Todas'
+        : terminales.firstWhere(
+            (t) => t['numero'].toString() == destinoSeleccionado,
+          )['ciudad']['nombre'];
 
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ResultadosScreen(
-          origen: origenSeleccionado!,
-          destino: destinoSeleccionado!,
-          origenNombre: origenNombre,
-          destinoNombre: destinoNombre,
-          fecha: fechaSeleccionada!,
-          pasajeros: {
-            'adultos': adultos,
-            'estudiantes': estudiantes,
-            'inapam': inapam,
-            'discapacidad': discapacidad,
-          },
-          vendedorId: widget.vendedorId ?? widget.clienteId ?? 0,
-          correoCliente: widget.correoCliente,
-        ),
-      ),
+      AppRoutes.slideLeft(ResultadosScreen(
+        origen: origenSeleccionado!,
+        destino: destinoSeleccionado ?? 'todas',
+        origenNombre: origenNombre,
+        destinoNombre: destinoNombre,
+        fecha: fechaSeleccionada,
+        pasajeros: {
+          'adultos': adultos,
+          'estudiantes': estudiantes,
+          'inapam': inapam,
+          'discapacidad': discapacidad,
+        },
+        vendedorId: widget.vendedorId ?? widget.clienteId ?? 0,
+        correoCliente: widget.correoCliente,
+        tipoUsuario: widget.tipoUsuario,
+        buscarCercanos: true,
+        datosUsuario: widget.datosUsuario,
+      )),
     );
   }
 
@@ -254,7 +339,7 @@ class _InicioScreenState extends State<InicioScreen> {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       decoration: BoxDecoration(
-        color: azul,
+        color: colorPrimario,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.08),
@@ -278,24 +363,51 @@ class _InicioScreenState extends State<InicioScreen> {
             ),
           ),
           const SizedBox(width: 14),
-          const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Rutas Baja Express',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.3,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Rutas Baja Express',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.3,
+                  ),
                 ),
+                const SizedBox(height: 2),
+                const Text(
+                  '¿A dónde viajas hoy?',
+                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              ],
+            ),
+          ),
+          // Botón para re-detectar ubicación
+          GestureDetector(
+            onTap: detectandoUbicacion ? null : _detectarOrigenPorGPS,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(10),
               ),
-              SizedBox(height: 2),
-              Text(
-                '¿A dónde viajas hoy?',
-                style: TextStyle(color: Colors.white70, fontSize: 13),
-              ),
-            ],
+              child: detectandoUbicacion
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(
+                      Icons.my_location_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+            ),
           ),
         ],
       ),
@@ -317,10 +429,19 @@ class _InicioScreenState extends State<InicioScreen> {
         ],
       ),
       child: cargandoTerminales
-          ? const Center(
+          ? Center(
               child: Padding(
-                padding: EdgeInsets.all(20),
-                child: CircularProgressIndicator(color: azul),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(color: colorPrimario),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Cargando terminales...',
+                      style: TextStyle(color: textoSecundario, fontSize: 13),
+                    ),
+                  ],
+                ),
               ),
             )
           : Column(
@@ -332,7 +453,7 @@ class _InicioScreenState extends State<InicioScreen> {
                       width: 4,
                       height: 18,
                       decoration: BoxDecoration(
-                        color: azul,
+                        color: colorPrimario,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -345,37 +466,52 @@ class _InicioScreenState extends State<InicioScreen> {
                         color: textoPrincipal,
                       ),
                     ),
+                    const Spacer(),
+                    // Indicador GPS si está detectando
+                    if (detectandoUbicacion)
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              color: colorPrimario,
+                              strokeWidth: 1.5,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            'Detectando ubicación...',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: textoSecundario,
+                            ),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
                 const SizedBox(height: 14),
-                _buildDropdown(
-                  valor: origenSeleccionado,
-                  hint: 'Origen',
-                  icono: Icons.trip_origin_rounded,
-                  onChanged: (val) => setState(() => origenSeleccionado = val),
-                ),
+                // ── Origen (con GPS) ──
+                _buildDropdownOrigen(),
                 const SizedBox(height: 10),
                 Center(
                   child: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: azul.withOpacity(0.08),
+                      color: colorPrimario.withOpacity(0.08),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.swap_vert_rounded,
-                      color: azul,
+                      color: colorPrimario,
                       size: 20,
                     ),
                   ),
                 ),
                 const SizedBox(height: 10),
-                _buildDropdown(
-                  valor: destinoSeleccionado,
-                  hint: 'Destino',
-                  icono: Icons.location_on_rounded,
-                  onChanged: (val) => setState(() => destinoSeleccionado = val),
-                ),
+                // ── Destino (con opción "Todas") ──
+                _buildDropdownDestino(),
                 const SizedBox(height: 18),
                 Divider(color: Colors.grey.shade100, height: 1),
                 const SizedBox(height: 14),
@@ -385,7 +521,7 @@ class _InicioScreenState extends State<InicioScreen> {
                       width: 4,
                       height: 18,
                       decoration: BoxDecoration(
-                        color: naranja,
+                        color: colorSecundario,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -401,6 +537,7 @@ class _InicioScreenState extends State<InicioScreen> {
                   ],
                 ),
                 const SizedBox(height: 12),
+                // ── Selector de fecha (default: hoy) ──
                 GestureDetector(
                   onTap: _seleccionarFecha,
                   child: Container(
@@ -410,50 +547,82 @@ class _InicioScreenState extends State<InicioScreen> {
                     ),
                     decoration: BoxDecoration(
                       border: Border.all(
-                        color: fechaSeleccionada != null
-                            ? azul
-                            : Colors.grey.shade200,
-                        width: fechaSeleccionada != null ? 1.5 : 1,
+                        color: colorPrimario,
+                        width: 1.5,
                       ),
                       borderRadius: BorderRadius.circular(12),
-                      color: fechaSeleccionada != null
-                          ? azul.withOpacity(0.04)
-                          : Colors.grey.shade50,
+                      color: colorPrimario.withOpacity(0.04),
                     ),
                     child: Row(
                       children: [
                         Icon(
                           Icons.calendar_month_rounded,
-                          color: fechaSeleccionada != null
-                              ? azul
-                              : textoSecundario,
+                          color: colorPrimario,
                           size: 20,
                         ),
                         const SizedBox(width: 12),
-                        Text(
-                          fechaSeleccionada != null
-                              ? '${fechaSeleccionada!.day}/${fechaSeleccionada!.month}/${fechaSeleccionada!.year}'
-                              : 'Seleccionar fecha',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: fechaSeleccionada != null
-                                ? textoPrincipal
-                                : textoSecundario,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _formatearFecha(fechaSeleccionada),
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: textoPrincipal,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              if (_esHoy(fechaSeleccionada))
+                                Text(
+                                  'Hoy',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: colorPrimario,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                        const Spacer(),
-                        if (fechaSeleccionada != null)
-                          GestureDetector(
-                            onTap: () =>
-                                setState(() => fechaSeleccionada = null),
-                            child: Icon(
-                              Icons.close_rounded,
-                              color: Colors.grey.shade400,
-                              size: 18,
-                            ),
-                          ),
+                        Icon(
+                          Icons.edit_calendar_rounded,
+                          color: colorPrimario.withOpacity(0.6),
+                          size: 18,
+                        ),
                       ],
                     ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                // Nota sobre viajes cercanos
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: colorSecundario.withOpacity(0.07),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 15,
+                        color: colorSecundario,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Si no hay viajes en esta fecha, te mostramos los más cercanos disponibles',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: colorSecundario,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
@@ -461,18 +630,18 @@ class _InicioScreenState extends State<InicioScreen> {
     );
   }
 
-  Widget _buildDropdown({
-    required String? valor,
-    required String hint,
-    required IconData icono,
-    required Function(String?) onChanged,
-  }) {
+  // ── Dropdown de origen (sin opción "Todas") ───────────────────
+  Widget _buildDropdownOrigen() {
     return DropdownButtonFormField<String>(
-      value: valor,
+      value: origenSeleccionado,
       decoration: InputDecoration(
-        hintText: hint,
+        hintText: detectandoUbicacion ? 'Detectando ubicación...' : 'Origen',
         hintStyle: TextStyle(color: textoSecundario, fontSize: 14),
-        prefixIcon: Icon(icono, color: azul, size: 20),
+        prefixIcon: Icon(
+          Icons.trip_origin_rounded,
+          color: colorPrimario,
+          size: 20,
+        ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 14,
@@ -487,7 +656,7 @@ class _InicioScreenState extends State<InicioScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: azul, width: 1.5),
+          borderSide: BorderSide(color: colorPrimario, width: 1.5),
         ),
         filled: true,
         fillColor: Colors.grey.shade50,
@@ -503,9 +672,89 @@ class _InicioScreenState extends State<InicioScreen> {
             ),
           )
           .toList(),
-      onChanged: onChanged,
-      hint: Text(hint, style: TextStyle(color: textoSecundario, fontSize: 14)),
+      onChanged: (val) => setState(() => origenSeleccionado = val),
     );
+  }
+
+  // ── Dropdown de destino (con opción "Todas las ciudades") ──────
+  Widget _buildDropdownDestino() {
+    return DropdownButtonFormField<String>(
+      value: destinoSeleccionado,
+      decoration: InputDecoration(
+        hintText: 'Destino',
+        hintStyle: TextStyle(color: textoSecundario, fontSize: 14),
+        prefixIcon: Icon(
+          Icons.location_on_rounded,
+          color: colorPrimario,
+          size: 20,
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 14,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: colorPrimario, width: 1.5),
+        ),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+      ),
+      items: [
+        // Opción especial "Todas"
+        DropdownMenuItem<String>(
+          value: null,
+          child: Row(
+            children: [
+              Icon(Icons.public_rounded, color: colorPrimario, size: 16),
+              const SizedBox(width: 8),
+              const Text(
+                'Todas las ciudades',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: textoPrincipal,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        ...terminales.map(
+          (t) => DropdownMenuItem<String>(
+            value: t['numero'].toString(),
+            child: Text(
+              t['ciudad']['nombre'],
+              style: const TextStyle(fontSize: 14, color: textoPrincipal),
+            ),
+          ),
+        ),
+      ],
+      onChanged: (val) => setState(() => destinoSeleccionado = val),
+    );
+  }
+
+  // ── Helpers de fecha ──────────────────────────────────────────
+  String _formatearFecha(DateTime fecha) {
+    const meses = [
+      '', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
+      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
+    ];
+    const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    return '${dias[fecha.weekday - 1]} ${fecha.day} ${meses[fecha.month]} ${fecha.year}';
+  }
+
+  bool _esHoy(DateTime fecha) {
+    final hoy = DateTime.now();
+    return fecha.year == hoy.year &&
+        fecha.month == hoy.month &&
+        fecha.day == hoy.day;
   }
 
   Widget _buildPasajerosCard() {
@@ -531,7 +780,7 @@ class _InicioScreenState extends State<InicioScreen> {
                 width: 4,
                 height: 18,
                 decoration: BoxDecoration(
-                  color: azul,
+                  color: colorPrimario,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -553,7 +802,7 @@ class _InicioScreenState extends State<InicioScreen> {
                 decoration: BoxDecoration(
                   color: totalPasajeros >= 5
                       ? Colors.red.shade50
-                      : azul.withOpacity(0.08),
+                      : colorPrimario.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
@@ -561,7 +810,9 @@ class _InicioScreenState extends State<InicioScreen> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: totalPasajeros >= 5 ? Colors.red.shade700 : azul,
+                    color: totalPasajeros >= 5
+                        ? Colors.red.shade700
+                        : colorPrimario,
                   ),
                 ),
               ),
@@ -606,10 +857,10 @@ class _InicioScreenState extends State<InicioScreen> {
         Container(
           padding: const EdgeInsets.all(7),
           decoration: BoxDecoration(
-            color: azul.withOpacity(0.08),
+            color: colorPrimario.withOpacity(0.08),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(icono, color: azul, size: 18),
+          child: Icon(icono, color: colorPrimario, size: 18),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -641,14 +892,16 @@ class _InicioScreenState extends State<InicioScreen> {
                 height: 32,
                 decoration: BoxDecoration(
                   color: puedeDecrementar
-                      ? azul.withOpacity(0.08)
+                      ? colorPrimario.withOpacity(0.08)
                       : Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.remove_rounded,
                   size: 18,
-                  color: puedeDecrementar ? azul : Colors.grey.shade300,
+                  color: puedeDecrementar
+                      ? colorPrimario
+                      : Colors.grey.shade300,
                 ),
               ),
             ),
@@ -671,14 +924,16 @@ class _InicioScreenState extends State<InicioScreen> {
                 height: 32,
                 decoration: BoxDecoration(
                   color: puedeIncrementar
-                      ? azul.withOpacity(0.08)
+                      ? colorPrimario.withOpacity(0.08)
                       : Colors.grey.shade100,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   Icons.add_rounded,
                   size: 18,
-                  color: puedeIncrementar ? azul : Colors.grey.shade300,
+                  color: puedeIncrementar
+                      ? colorPrimario
+                      : Colors.grey.shade300,
                 ),
               ),
             ),
@@ -694,14 +949,14 @@ class _InicioScreenState extends State<InicioScreen> {
       child: ElevatedButton(
         onPressed: _buscar,
         style: ElevatedButton.styleFrom(
-          backgroundColor: naranja,
+          backgroundColor: colorPrimario,
           foregroundColor: Colors.white,
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
           elevation: 3,
-          shadowColor: naranja.withOpacity(0.3),
+          shadowColor: colorPrimario.withOpacity(0.3),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,

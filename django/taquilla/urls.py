@@ -1,8 +1,11 @@
-from django.urls import path
-from django.views.generic import RedirectView 
+from django.urls import path, include
+from django.views.generic import RedirectView
+from django.conf import settings
+from django.conf.urls.static import static
 from . import views
 
 urlpatterns = [
+
     path('elipse/',       views.elipse_view, name='elipse'),
     path('elipse/chat/',  views.elipse_chat, name='elipse_chat'),
     path('ok/', views.ok_view, name='ok'),
@@ -11,6 +14,7 @@ urlpatterns = [
     path('login/',         views.login_view,             name='login'),
     path('registro/',      views.registro_view,          name='registro'),
     path('logout/',        views.logout_view,            name='logout'),
+    path('api/cliente/verificar-pasajero/', views.api_verificar_pasajero, name='api_verificar_pasajero'),
     # NUEVO: verificación de clave maestra vía AJAX
     path('api/verificar-clave/', views.verificar_clave_maestra, name='verificar_clave'),
     # Vistas generales
@@ -27,9 +31,11 @@ urlpatterns = [
     path('api/crud/<str:tabla>/insertar/',   views.crud_insertar,   name='crud_insertar'),
     path('api/crud/<str:tabla>/actualizar/', views.crud_actualizar, name='crud_actualizar'),
     path('api/crud/<str:tabla>/eliminar/',   views.crud_eliminar,   name='crud_eliminar'),
+    # API móvil (taquilla) — debe ir ANTES de las rutas api/ individuales
+    path('api/', include('taquilla.api_urls')),
     # Salidas / viajes
     path('api/salidas/',             views.salidas_json,           name='salidas_json'),
-    path('api/historial/',           views.historial_json,         name='historial_json'),  # NUEVO
+    path('api/historial/',           views.historial_json,         name='historial_json'),
     path('api/viaje/opciones/',      views.agregar_viaje_opciones, name='viaje_opciones'),
     path('api/viaje/agregar/',       views.agregar_viaje,          name='agregar_viaje'),
     # KPIs
@@ -40,7 +46,13 @@ urlpatterns = [
     path('api/viajes/',              views.api_viajes,             name='api_viajes'),
     path('api/viajes/<int:id>/',     views.api_viaje_detalle,      name='api_viaje_detalle'),
     path('api/terminales/',          views.api_terminales,         name='api_terminales'),
+    path('api/cliente/registro/',      views.api_cliente_registro,   name='api_cliente_registro'),
+    path('api/cliente/google-login/',  views.api_cliente_google_login, name='api_cliente_google_login'),
+    path('api/cliente/login/', views.api_cliente_login_email, name='api_cliente_login_email'),
     # Detalle autobus y pasajeros (usados desde panel_admin.html)
     path('api/autobus/detalle/<int:bus_id>/',   views.autobus_detalle, name='autobus_detalle'),
     path('api/viaje/pasajeros/<int:viaje_id>/', views.viaje_pasajeros, name='viaje_pasajeros'),
+    path('api/boleto/<int:pago_id>/adjuntar_pdf/', views.api_enviar_boleto_correo, name='api_adjuntar_pdf'),
 ]
+
+urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -840,7 +840,9 @@ tbody td { padding: 9px 12px; }
   #sidebar .btn-logout::after, #sidebar.collapsed .btn-logout::after { display: none !important; }
   #sidebar .gestion-sub { display: block; }
 
-  #main, #sidebar.collapsed ~ #main { margin-left: 0 !important; height: 100vh; overflow: hidden; }
+  #main, #sidebar.collapsed ~ #main { margin-left: 0 !important; width: 100% !important; height: 100vh; overflow: hidden; }
+  #sidebar-overlay.active ~ #main,
+#sidebar.mobile-open ~ #main { margin-left: 0 !important; }
 
   #topbar       { padding: 0 10px; height: 50px; gap: 8px; }
   #topbar-title { font-size: 16px; }
@@ -966,4 +968,205 @@ tbody td { padding: 9px 12px; }
   #content      { padding: 22px 30px; }
   .kpi-grid     { grid-template-columns: repeat(5, 1fr); }
   .charts-grid  { grid-template-columns: repeat(3, 1fr); }
+}
+/* ── Foto de perfil en Configuración ── */
+.cfg-foto-section { margin-bottom: 16px; }
+.cfg-foto-wrap {
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+.cfg-avatar {
+  width: 90px;
+  height: 90px;
+  min-width: 90px;
+  max-width: 90px;
+  max-height: 90px;        /* ← esto es lo que faltaba */
+  border-radius: 50%;
+  background: var(--bg2, #e8f0f7);
+  border: 3px solid var(--azul, #1181c3);
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.cfg-avatar img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  display: block !important;
+  border-radius: 50%;
+}
+.cfg-avatar-ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--muted, #6b8fa8);
+}
+.cfg-foto-info { flex: 1; min-width: 180px; }
+    /* ── Imagen en tabla de Gestión ── */
+    #gestion-tbody img { transition: transform .15s; }
+    #gestion-tbody img:hover { transform: scale(1.1); }
+
+.page-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+/* ════════════════════════════════════════════════════════════
+   PATCH RESPONSIVIDAD — Sidebar vertical móvil
+   Problema: sidebar fijo + gestion-sub expandida generaba
+   espacio en blanco bajo el menú en orientación vertical.
+   Se corrige con scroll interno en sb-scroll y ajustes
+   de overflow para que el #main ocupe correctamente el 100%.
+   ════════════════════════════════════════════════════════════ */
+
+/* --- SIDEBAR: asegurar que el scroll sea interno siempre --- */
+#sidebar {
+  overflow: hidden; /* ya estaba, lo reforzamos */
+}
+#sidebar .sb-scroll {
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex: 1;           /* ocupa el espacio restante entre brand y footer */
+  min-height: 0;     /* necesario para que flex + overflow-y funcione */
+}
+
+/* --- MAIN: en móvil el #content debe hacer scroll, no el body --- */
+@media (max-width: 767px) {
+  html, body {
+    overflow: hidden !important;
+    height: 100% !important;
+    min-height: 100% !important;
+  }
+  #main {
+    height: 100dvh !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  #content {
+    flex: 1 1 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    height: 0 !important; /* fuerza al flex a calcular bien la altura */
+  }
+
+  /* gestion-sub scrollable dentro del sidebar */
+  .gestion-sub.open {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  /* Filtros en vertical: 1 columna en pantallas muy angostas */
+  @media (max-width: 380px) {
+    .filtros-row {
+      grid-template-columns: 1fr !important;
+    }
+    .kg-view-toggle {
+      flex-wrap: wrap;
+    }
+    .kg-view-btn {
+      flex: 1 1 30%;
+    }
+  }
+
+  /* KPI header row (título + botón) wrap correcto */
+  .page-header-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .page-header-row .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Gestión header: wrap limpio */
+  .gestion-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .gestion-header-btns {
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 6px;
+  }
+  .gestion-header-btns .btn,
+  .gestion-header-btns .db-toggle-wrap,
+  .gestion-header-btns .gestion-view-toggle {
+    flex: 1 1 auto;
+  }
+
+  /* Tablas: scroll horizontal limpio */
+  .tbl-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 8px;
+  }
+
+  /* Tarjetas gestión: 1 columna siempre en móvil */
+  .gestion-cards-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* eco-stats siempre 1 col en móvil pequeño */
+  .eco-stats-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Top bar title recortado bonito */
+  #topbar-title {
+    max-width: calc(100vw - 120px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* --- TABLET 768-1023: sidebar colapsado no crea espacio blanco --- */
+@media (min-width: 768px) and (max-width: 1023px) {
+  #sidebar {
+    width: var(--sidebar-w-collapsed) !important;
+  }
+  #main {
+    margin-left: var(--sidebar-w-collapsed) !important;
+  }
+  /* gestion-sub oculta cuando sidebar colapsado */
+  #sidebar.collapsed .gestion-sub {
+    display: none !important;
+  }
+  /* filtros-row: scroll horizontal en vez de wrap descontrolado */
+  .filtros-row {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px; /* espacio para el scrollbar */
+  }
+  /* eco-stats: 2 columnas en tablet */
+  .eco-stats-row {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
+/* --- RANGO 480–767px: layout óptimo intermedio --- */
+@media (min-width: 480px) and (max-width: 767px) {
+  .filtros-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .eco-stats-row {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .gestion-cards-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
 }

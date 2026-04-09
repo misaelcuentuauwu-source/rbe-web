@@ -130,6 +130,7 @@ class Taquillero(models.Model):
     contrasena = models.CharField(max_length=20)
     terminal = models.ForeignKey('Terminal', models.DO_NOTHING, db_column='terminal')
     supervisa = models.IntegerField(blank=True, null=True)
+    foto = models.CharField(max_length=200, blank=True, null=True) 
 
     class Meta:
         managed = False
@@ -159,6 +160,7 @@ class Ticket(models.Model):
     pasajero = models.ForeignKey(Pasajero, models.DO_NOTHING, db_column='pasajero')
     tipopasajero = models.ForeignKey('TipoPasajero', models.DO_NOTHING, db_column='tipopasajero')
     pago = models.ForeignKey(Pago, models.DO_NOTHING, db_column='pago')
+    etiqueta_asiento = models.CharField(max_length=10, null=True, blank=True)
 
     class Meta:
         managed = False

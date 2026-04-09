@@ -1,15 +1,27 @@
+import '../../utils/transitions.dart';
 import 'package:flutter/material.dart';
+import 'dart:convert'; // se usa en _buildExito para el correo
+import 'package:printing/printing.dart'; // se usa en _imprimirBoleto
 import '../taquillero/home_screen.dart';
+import '../cliente/home_screen.dart';
+import '../invitado/home_screen.dart';
 import '../../main.dart';
+import '../../config.dart';
+import '../../utils/pdf_boleto.dart';
+import 'dart:typed_data';
 
-class ResumenCompraScreen extends StatelessWidget {
+class ResumenCompraScreen extends StatefulWidget {
   final int pagoId;
   final String origenNombre;
   final String destinoNombre;
   final String horaSalida;
+  final String horaLlegada;
+  final String fechaViaje;
   final double montoTotal;
   final List<Map<String, dynamic>> pasajeros;
   final int metodoPago;
+  final String tipoUsuario;
+  final Map<String, dynamic>? datosUsuario;
 
   const ResumenCompraScreen({
     super.key,
@@ -17,14 +29,74 @@ class ResumenCompraScreen extends StatelessWidget {
     required this.origenNombre,
     required this.destinoNombre,
     required this.horaSalida,
+    this.horaLlegada = '',
+    this.fechaViaje = '',
     required this.montoTotal,
     required this.pasajeros,
     required this.metodoPago,
+    this.tipoUsuario = 'taquillero',
+    this.datosUsuario,
   });
 
+  @override
+  State<ResumenCompraScreen> createState() => _ResumenCompraScreenState();
+}
+
+class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
   static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
-  static const fondo = Color(0xFF008FD4);
+  static const fondo = Color(0xFFF4F6F9);
+  static const textoPrincipal = Color(0xFF1C2D3A);
+  static const textoSecundario = Color(0xFF6B8FA8);
+
+  static const Map<String, int> _descuentos = {
+    'Adulto': 0,
+    'Estudiante': 25,
+    'INAPAM': 30,
+    'Discapacidad': 15,
+  };
+
+  bool _imprimiendo = false;
+
+  Future<Uint8List> _generarPdf() async {
+    return PdfBoleto.generar(
+      pagoId: widget.pagoId,
+      origenNombre: widget.origenNombre,
+      destinoNombre: widget.destinoNombre,
+      horaSalida: widget.horaSalida,
+      horaLlegada: widget.horaLlegada,
+      fechaViaje: widget.fechaViaje,
+      montoTotal: widget.montoTotal,
+      pasajeros: widget.pasajeros,
+      metodoPago: widget.metodoPago,
+    );
+  }
+
+  Future<void> _imprimirBoleto() async {
+    setState(() => _imprimiendo = true);
+    try {
+      final pdfBytes = await _generarPdf();
+      await Printing.layoutPdf(
+        onLayout: (_) async => pdfBytes,
+        name: 'Boleto_Folio_${widget.pagoId}.pdf',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al generar PDF: $e'),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _imprimiendo = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +105,7 @@ class ResumenCompraScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            _buildHeader(context),
+            _buildHeader(),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
@@ -59,17 +131,35 @@ class ResumenCompraScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+      decoration: BoxDecoration(
+        color: azul,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          const Icon(
-            Icons.confirmation_number_rounded,
-            color: Colors.white,
-            size: 26,
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: const Icon(
+              Icons.confirmation_number_rounded,
+              color: Colors.white,
+              size: 26,
+            ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -77,13 +167,15 @@ class ResumenCompraScreen extends StatelessWidget {
                 'Compra confirmada',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 18,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
+                  letterSpacing: 0.3,
                 ),
               ),
+              SizedBox(height: 2),
               Text(
                 'Tu boleto ha sido generado',
-                style: TextStyle(color: Colors.white70, fontSize: 12),
+                style: TextStyle(color: Colors.white70, fontSize: 13),
               ),
             ],
           ),
@@ -93,11 +185,24 @@ class ResumenCompraScreen extends StatelessWidget {
   }
 
   Widget _buildExito() {
+    final contacto = widget.pasajeros.firstWhere(
+      (p) => p['esContacto'] == true,
+      orElse: () => {},
+    );
+    final correo = contacto['correo']?.toString() ?? '';
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
@@ -119,14 +224,41 @@ class ResumenCompraScreen extends StatelessWidget {
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: textoPrincipal,
             ),
           ),
           const SizedBox(height: 6),
           Text(
-            'Folio de compra #$pagoId',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            'Folio de compra #${widget.pagoId}',
+            style: TextStyle(fontSize: 13, color: textoSecundario),
           ),
+          if (correo.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: azul.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.mark_email_read_rounded, color: azul, size: 18),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'Boleto enviado a $correo',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: azul,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -137,14 +269,38 @@ class ResumenCompraScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Detalles del viaje',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: azul,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Detalles del viaje',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: textoPrincipal,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
           Row(
@@ -176,35 +332,32 @@ class ResumenCompraScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      origenNombre,
+                      widget.origenNombre,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
+                        color: textoPrincipal,
                       ),
                     ),
                     const SizedBox(height: 18),
                     Text(
-                      destinoNombre,
+                      widget.destinoNombre,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
+                        color: textoPrincipal,
                       ),
                     ),
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    horaSalida,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: azul,
-                    ),
-                  ),
-                ],
+              Text(
+                widget.horaSalida,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: azul,
+                ),
               ),
             ],
           ),
@@ -218,29 +371,54 @@ class ResumenCompraScreen extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Container(
+                width: 4,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: azul,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
               const Text(
                 'Pasajeros',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: textoPrincipal,
+                ),
               ),
               const Spacer(),
               Text(
-                '${pasajeros.length} boleto(s)',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                '${widget.pasajeros.length} boleto(s)',
+                style: TextStyle(fontSize: 12, color: textoSecundario),
               ),
             ],
           ),
           const SizedBox(height: 12),
-          ...pasajeros.asMap().entries.map((entry) {
+          ...widget.pasajeros.asMap().entries.map((entry) {
             final index = entry.key;
             final p = entry.value;
             final esContacto = p['esContacto'] as bool? ?? false;
+            final tipo = p['tipo'] as String? ?? 'Adulto';
+            final descuento =
+                p['descuento'] as int? ?? (_descuentos[tipo] ?? 0);
+            final precioUnitario = p['precio_unitario'] as double?;
+
             return Container(
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
@@ -281,6 +459,7 @@ class ResumenCompraScreen extends StatelessWidget {
                               style: const TextStyle(
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
+                                color: textoPrincipal,
                               ),
                             ),
                             if (esContacto) ...[
@@ -308,15 +487,49 @@ class ResumenCompraScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          '${p['tipo']} · Asiento ${p['asiento_id']}',
+                          '$tipo · Asiento ${p['asiento_etiqueta'] ?? p['asiento_id']}',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.grey.shade500,
+                            color: textoSecundario,
                           ),
                         ),
                       ],
                     ),
                   ),
+                  if (precioUnitario != null)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        if (descuento > 0)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '-$descuento%',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.green.shade700,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '\$${precioUnitario.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: naranja,
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             );
@@ -327,24 +540,67 @@ class ResumenCompraScreen extends StatelessWidget {
   }
 
   Widget _buildResumenPago() {
+    double subtotalSinDescuento = 0;
+    double totalConDescuento = 0;
+
+    for (final p in widget.pasajeros) {
+      final precioUnitario = p['precio_unitario'] as double?;
+      final descuento = p['descuento'] as int? ?? 0;
+      if (precioUnitario != null) {
+        totalConDescuento += precioUnitario;
+        if (descuento > 0) {
+          subtotalSinDescuento += precioUnitario / (1 - descuento / 100);
+        } else {
+          subtotalSinDescuento += precioUnitario;
+        }
+      }
+    }
+
+    final ahorro = subtotalSinDescuento - totalConDescuento;
+    final hayDescuentos = ahorro > 0;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Resumen de pago',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          Row(
+            children: [
+              Container(
+                width: 4,
+                height: 18,
+                decoration: BoxDecoration(
+                  color: naranja,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Resumen de pago',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: textoPrincipal,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
               Icon(
-                metodoPago == 2
+                widget.metodoPago == 2
                     ? Icons.credit_card_rounded
                     : Icons.payments_rounded,
                 color: azul,
@@ -352,25 +608,69 @@ class ResumenCompraScreen extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                metodoPago == 2
+                widget.metodoPago == 2
                     ? 'Tarjeta de crédito/débito'
                     : 'Efectivo en taquilla',
-                style: const TextStyle(fontSize: 13),
+                style: const TextStyle(fontSize: 13, color: textoPrincipal),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          const Divider(),
+          Divider(color: Colors.grey.shade100),
           const SizedBox(height: 10),
+          if (hayDescuentos) ...[
+            Row(
+              children: [
+                Text(
+                  'Subtotal:',
+                  style: TextStyle(fontSize: 13, color: textoSecundario),
+                ),
+                const Spacer(),
+                Text(
+                  '\$${subtotalSinDescuento.toStringAsFixed(2)} MXN',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: textoSecundario,
+                    decoration: TextDecoration.lineThrough,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Text(
+                  'Descuentos aplicados:',
+                  style: TextStyle(fontSize: 13, color: Colors.green.shade600),
+                ),
+                const Spacer(),
+                Text(
+                  '- \$${ahorro.toStringAsFixed(2)} MXN',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green.shade600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Divider(color: Colors.grey.shade100),
+            const SizedBox(height: 10),
+          ],
           Row(
             children: [
               const Text(
                 'Total pagado:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                  color: textoPrincipal,
+                ),
               ),
               const Spacer(),
               Text(
-                '\$${montoTotal.toStringAsFixed(2)} MXN',
+                '\$${widget.montoTotal.toStringAsFixed(2)} MXN',
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -379,6 +679,37 @@ class ResumenCompraScreen extends StatelessWidget {
               ),
             ],
           ),
+          if (hayDescuentos) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.savings_rounded,
+                    size: 16,
+                    color: Colors.green.shade600,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    '¡Ahorraste \$${ahorro.toStringAsFixed(2)} MXN con descuentos!',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -387,46 +718,62 @@ class ResumenCompraScreen extends StatelessWidget {
   Widget _buildBotones(BuildContext context) {
     return Column(
       children: [
-        // Botón descargar (por ahora solo muestra mensaje)
         SizedBox(
           width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: const Text('Próximamente: descarga de boletos'),
-                  backgroundColor: azul,
-                  behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              );
-            },
-            style: OutlinedButton.styleFrom(
+          height: 52,
+          child: ElevatedButton.icon(
+            onPressed: _imprimiendo ? null : _imprimirBoleto,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: azul,
               foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white, width: 1.5),
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              disabledBackgroundColor: Colors.grey.shade300,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
+              elevation: 3,
+              shadowColor: azul.withOpacity(0.35),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
             ),
-            icon: const Icon(Icons.download_rounded),
-            label: const Text(
-              'Descargar boletos',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+            icon: _imprimiendo
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Icon(Icons.picture_as_pdf_rounded, size: 22),
+            label: Text(
+              _imprimiendo ? 'Generando PDF...' : 'Imprimir / Guardar PDF',
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.3,
+              ),
             ),
           ),
         ),
         const SizedBox(height: 12),
-        // Botón volver al inicio
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
             onPressed: () {
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (_) => const HomeScreen()),
+                AppRoutes.fadeSlideUp(() {
+                  if (widget.tipoUsuario == 'taquillero' &&
+                      widget.datosUsuario != null) {
+                    return HomeNavigationScreen(
+                      taquillero: widget.datosUsuario!,
+                    );
+                  } else if (widget.tipoUsuario == 'cliente' &&
+                      widget.datosUsuario != null) {
+                    return HomeClienteScreen(cliente: widget.datosUsuario!);
+                  } else {
+                    return const HomeInvitadoScreen();
+                  }
+                }()),
                 (route) => false,
               );
             },
@@ -437,7 +784,7 @@ class ResumenCompraScreen extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(14),
               ),
-              elevation: 4,
+              elevation: 3,
               shadowColor: naranja.withOpacity(0.4),
             ),
             icon: const Icon(Icons.home_rounded),

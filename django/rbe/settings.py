@@ -8,9 +8,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-p&co780gt&ojpgq0er7-9q%t^arrei=qtfp=3&j9+%6dt=r_=q'
 
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = ['*']
+CSRF_TRUSTED_ORIGINS = ['https://rbe-web-production.up.railway.app']
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -25,6 +26,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -81,8 +83,6 @@ USE_TZ = False
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     BASE_DIR / 'static',
-    BASE_DIR.parent / 'css',
-    BASE_DIR.parent / 'imagenes',
 ]
 
 # ── Redirecciones de login ─────────────────────────────────────
@@ -93,7 +93,7 @@ LOGOUT_REDIRECT_URL = '/login/'
 # Fuerza recarga del CSS al cambiar este número
 STATIC_VERSION = '2'
 
-# ── Correo electrónico ─────────────────────────────────────────
+# Configuración de correo (ejemplo con Gmail)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
@@ -102,3 +102,9 @@ EMAIL_HOST_USER = 'rutasbajaexpress@gmail.com'
 EMAIL_HOST_PASSWORD = 'sxtuspevydckddbl'
 DEFAULT_FROM_EMAIL = 'Rutas Baja Express <rutasbajaexpress@gmail.com>'
 
+# foto
+MEDIA_URL  = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
