@@ -31,9 +31,7 @@ urlpatterns = [
     path('api/crud/<str:tabla>/insertar/',   views.crud_insertar,   name='crud_insertar'),
     path('api/crud/<str:tabla>/actualizar/', views.crud_actualizar, name='crud_actualizar'),
     path('api/crud/<str:tabla>/eliminar/',   views.crud_eliminar,   name='crud_eliminar'),
-    # API móvil (taquilla) — debe ir ANTES de las rutas api/ individuales
-    path('api/', include('taquilla.api_urls')),
-    # Salidas / viajes
+    # Salidas / viajes (panel admin — deben ir ANTES del include api/)
     path('api/salidas/',             views.salidas_json,           name='salidas_json'),
     path('api/historial/',           views.historial_json,         name='historial_json'),
     path('api/viaje/opciones/',      views.agregar_viaje_opciones, name='viaje_opciones'),
@@ -42,17 +40,12 @@ urlpatterns = [
     path('api/kpi/generales/',       views.kpi_generales,          name='kpi_generales'),
     path('api/kpi/especificos/',     views.kpi_especificos,        name='kpi_especificos'),
     path('api/kpi/filtros/',         views.kpi_filtros_opciones,   name='kpi_filtros'),
-    # API REST
-    path('api/viajes/',              views.api_viajes,             name='api_viajes'),
-    path('api/viajes/<int:id>/',     views.api_viaje_detalle,      name='api_viaje_detalle'),
-    path('api/terminales/',          views.api_terminales,         name='api_terminales'),
-    path('api/cliente/registro/',      views.api_cliente_registro,   name='api_cliente_registro'),
-    path('api/cliente/google-login/',  views.api_cliente_google_login, name='api_cliente_google_login'),
-    path('api/cliente/login/', views.api_cliente_login_email, name='api_cliente_login_email'),
     # Detalle autobus y pasajeros (usados desde panel_admin.html)
     path('api/autobus/detalle/<int:bus_id>/',   views.autobus_detalle, name='autobus_detalle'),
     path('api/viaje/pasajeros/<int:viaje_id>/', views.viaje_pasajeros, name='viaje_pasajeros'),
     path('api/boleto/<int:pago_id>/adjuntar_pdf/', views.api_enviar_boleto_correo, name='api_adjuntar_pdf'),
+    # API móvil (taquilla) — al final para no interceptar rutas del panel
+    path('api/', include('taquilla.api_urls')),
 ]
 
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
