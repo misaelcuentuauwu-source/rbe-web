@@ -35,9 +35,16 @@ def login_requerido(view_func):
 
 def admin_requerido(view_func):
     def wrapper(request, *args, **kwargs):
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest' \
+                  or 'application/json' in request.headers.get('Accept', '') \
+                  or request.path.startswith('/api/')
         if not request.session.get('usuario_id'):
+            if is_ajax:
+                return JsonResponse({'error': 'no_sesion'}, status=401)
             return redirect('login')
         if not request.session.get('supervisa'):
+            if is_ajax:
+                return JsonResponse({'error': 'sin_permiso'}, status=403)
             return redirect('panel_principal')
         return view_func(request, *args, **kwargs)
     return wrapper

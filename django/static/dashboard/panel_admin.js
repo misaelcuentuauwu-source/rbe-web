@@ -667,17 +667,38 @@ async function submitViaje() {
 async function cargarHistorial() {
   document.getElementById('hist-cards-container').innerHTML =
     '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
-  const d = await fetch('/api/historial/').then(r=>r.json());
-  historialData = d.rows;
-  historialBase = d.rows;
-  const uniq = fn => [...new Set(d.rows.map(fn).filter(Boolean))].sort();
-  const opt  = v  => `<option value="${v}">${v}</option>`;
-  document.getElementById('hist-estado').innerHTML  = '<option value="">Todos</option>'       + uniq(r=>r.estado).map(opt).join('');
-  document.getElementById('hist-origen').innerHTML  = '<option value="">-- Todas --</option>' + uniq(r=>r.origen_ciudad).map(opt).join('');
-  document.getElementById('hist-destino').innerHTML = '<option value="">-- Todas --</option>' + uniq(r=>r.destino_ciudad).map(opt).join('');
-  initPrecisionToggle('hist-precision','hist-precision-track','hist-precision-text','hist-precision-label');
-  document.getElementById('hist-fecha').value = '';
-  filtrarHistorial();
+  try {
+    const res = await fetch('/api/historial/panel/', { headers: { 'Accept': 'application/json' } });
+    if (res.status === 401) {
+      document.getElementById('hist-cards-container').innerHTML =
+        '<div class="empty-state"><p>Sesi\u00f3n expirada. <a href="/login/">Vuelve a iniciar sesi\u00f3n</a>.</p></div>';
+      return;
+    }
+    if (!res.ok) {
+      document.getElementById('hist-cards-container').innerHTML =
+        `<div class="empty-state"><p>Error del servidor (${res.status}). Intenta recargar la p\u00e1gina.</p></div>`;
+      return;
+    }
+    const d = await res.json();
+    if (!d.rows) {
+      document.getElementById('hist-cards-container').innerHTML =
+        '<div class="empty-state"><p>Respuesta inesperada del servidor.</p></div>';
+      return;
+    }
+    historialData = d.rows;
+    historialBase = d.rows;
+    const uniq = fn => [...new Set(d.rows.map(fn).filter(Boolean))].sort();
+    const opt  = v  => `<option value="${v}">${v}</option>`;
+    document.getElementById('hist-estado').innerHTML  = '<option value="">Todos</option>'       + uniq(r=>r.estado).map(opt).join('');
+    document.getElementById('hist-origen').innerHTML  = '<option value="">-- Todas --</option>' + uniq(r=>r.origen_ciudad).map(opt).join('');
+    document.getElementById('hist-destino').innerHTML = '<option value="">-- Todas --</option>' + uniq(r=>r.destino_ciudad).map(opt).join('');
+    initPrecisionToggle('hist-precision','hist-precision-track','hist-precision-text','hist-precision-label');
+    document.getElementById('hist-fecha').value = '';
+    filtrarHistorial();
+  } catch(e) {
+    document.getElementById('hist-cards-container').innerHTML =
+      `<div class="empty-state"><p>No se pudo cargar el historial: ${e.message}</p></div>`;
+  }
 }
 
 function filtrarHistorial() {
