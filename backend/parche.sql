@@ -1,4 +1,4 @@
--- Active: 1760978807635@@127.0.0.1@3306@mysql
+-- Active: 1760978807635@@127.0.0.1@3306@rbe
 -- ============================================================
 -- RBE - Rutas Baja Express
 -- Script completo: schema + datos
@@ -958,3 +958,5 @@ SELECT * FROM edo_viaje;
 
 ALTER TABLE ticket 
 ADD COLUMN etiqueta_asiento VARCHAR(10);
+
+ALTER TABLE taquillero MODIFY contrasena VARCHAR(255) NOT NULL;

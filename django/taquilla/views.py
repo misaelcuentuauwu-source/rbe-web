@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect
+from django.contrib.auth.hashers import check_password, make_password
 from django.http import JsonResponse
 from django.contrib import messages
 from django.utils import timezone
@@ -46,15 +47,18 @@ def login_view(request):
         usuario = request.POST.get('usuario', '').strip()
         contrasena = request.POST.get('contrasena', '').strip()
         try:
-            taquillero = Taquillero.objects.get(usuario=usuario, contrasena=contrasena)
-            request.session['usuario_id']       = taquillero.registro
-            request.session['usuario_nombre']   = taquillero.taqnombre
-            request.session['usuario_apellido'] = taquillero.taqprimerapell
-            request.session['supervisa']        = bool(taquillero.supervisa)
-            if taquillero.supervisa:
-                return redirect('panel_admin')
+            taquillero = Taquillero.objects.get(usuario=usuario)
+            if check_password(contrasena, taquillero.contrasena):
+                request.session['usuario_id']       = taquillero.registro
+                request.session['usuario_nombre']   = taquillero.taqnombre
+                request.session['usuario_apellido'] = taquillero.taqprimerapell
+                request.session['supervisa']        = bool(taquillero.supervisa)
+                if taquillero.supervisa:
+                    return redirect('panel_admin')
+                else:
+                    return redirect('panel_principal')
             else:
-                return redirect('panel_principal')
+                messages.error(request, 'Usuario o contraseña incorrectos')
         except Taquillero.DoesNotExist:
             messages.error(request, 'Usuario o contraseña incorrectos')
     terminales = Terminal.objects.all()
@@ -78,7 +82,7 @@ def registro_view(request):
             return redirect('login')
         Taquillero.objects.create(
             taqnombre=nombre, taqprimerapell=ap1, taqsegundoapell=ap2,
-            fechacontrato=date.today(), usuario=usuario, contrasena=contrasena,
+            fechacontrato=date.today(), usuario=usuario, contrasena=make_password(contrasena),
             terminal_id=terminal_id, supervisa=supervisa
         )
         messages.success(request, 'Taquillero registrado correctamente')
@@ -137,7 +141,7 @@ def actualizar_config(request):
         taq.taqprimerapell  = ap1
         taq.taqsegundoapell = ap2
         taq.usuario         = usuario
-        taq.contrasena      = contrasena
+        taq.contrasena      = make_password(contrasena)
         taq.save()
         request.session['usuario_nombre']   = nombre
         request.session['usuario_apellido'] = ap1
@@ -1082,7 +1086,9 @@ def api_login(request):
     usuario = request.data.get('usuario')
     contrasena = request.data.get('contrasena')
     try:
-        taquillero = Taquillero.objects.get(usuario=usuario, contrasena=contrasena)
+        taquillero = Taquillero.objects.get(usuario=usuario)
+        if not check_password(contrasena, taquillero.contrasena):
+            return Response({'error': 'Credenciales incorrectas'}, status=401)
         return Response({
             'tipo': 'taquillero',
             'registro': taquillero.registro,

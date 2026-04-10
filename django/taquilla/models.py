@@ -127,7 +127,7 @@ class Taquillero(models.Model):
     taqsegundoapell = models.CharField(db_column='taqSegundoApell', max_length=30, blank=True, null=True)  # Field name made lowercase.
     fechacontrato = models.DateField(db_column='fechaContrato')  # Field name made lowercase.
     usuario = models.CharField(max_length=20)
-    contrasena = models.CharField(max_length=20)
+    contrasena = models.CharField(max_length=255)
     terminal = models.ForeignKey('Terminal', models.DO_NOTHING, db_column='terminal')
     supervisa = models.IntegerField(blank=True, null=True)
     foto = models.CharField(max_length=200, blank=True, null=True) 
