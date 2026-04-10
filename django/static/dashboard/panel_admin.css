@@ -542,6 +542,62 @@ tbody td { padding: 9px 12px; }
   background: var(--surface); padding: 14px 18px;
   border-radius: 12px; border: 1px solid var(--border); margin-bottom: 16px;
 }
+.sal-tabla-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  margin-top: 4px;
+}
+.sal-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+.sal-tabla thead tr {
+  background: var(--naranja, #ed7237);
+  color: #fff;
+}
+.sal-tabla thead th {
+  padding: 11px 14px;
+  text-align: left;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: none;
+}
+.sal-tabla thead th:first-child { border-radius: 12px 0 0 0; }
+.sal-tabla thead th:last-child  { border-radius: 0 12px 0 0; }
+.sal-tabla tbody tr {
+  border-bottom: 1px solid var(--border);
+  transition: background .15s;
+}
+.sal-tabla tbody tr:last-child { border-bottom: none; }
+.sal-tabla tbody tr:hover { background: rgba(237,114,55,.06); }
+.sal-tabla tbody td {
+  padding: 10px 14px;
+  color: var(--text);
+  vertical-align: middle;
+  white-space: nowrap;
+}
+.sal-tabla tbody td strong { color: var(--azul); font-size: 15px; }
+
+.sal-origen-header {
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 14px;
+  padding: 10px 16px;
+  background: var(--card-bg);
+  border-radius: 8px;
+  border-left: 4px solid var(--naranja);
+}
+.sal-origen-header strong {
+  font-size: 17px;
+  font-weight: 900;
+  color: var(--naranja);
+}
+
 .salidas-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -566,6 +622,7 @@ tbody td { padding: 9px 12px; }
 }
 .sc-viaje-num  { font-size: 13px; font-weight: 700; color: var(--azul); margin-bottom: 8px; }
 .sc-ruta       { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 10px; word-break: break-word; }
+.sc-horario-big { font-size: 36px; font-weight: 900; color: var(--azul); margin: 6px 0 10px; letter-spacing: 1px; }
 .sc-meta       { font-size: 12.5px; color: var(--muted); line-height: 1.7; margin-top: auto; }
 .sc-meta b     { color: var(--text); }
 .sc-footer {
