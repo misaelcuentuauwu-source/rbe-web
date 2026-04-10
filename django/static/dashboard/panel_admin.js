@@ -780,11 +780,36 @@ async function cargarHistorial() {
     }
     historialData = d.rows;
     historialBase = d.rows;
+
     const uniq = fn => [...new Set(d.rows.map(fn).filter(Boolean))].sort();
-    const opt  = v  => `<option value="${v}">${v}</option>`;
-    document.getElementById('hist-estado').innerHTML  = '<option value="">Todos</option>'       + uniq(r=>r.estado).map(opt).join('');
-    document.getElementById('hist-origen').innerHTML  = '<option value="">-- Todas --</option>' + uniq(r=>r.origen_ciudad).map(opt).join('');
-    document.getElementById('hist-destino').innerHTML = '<option value="">-- Todas --</option>' + uniq(r=>r.destino_ciudad).map(opt).join('');
+    const todasCiudades = [...new Set([
+      ...d.rows.map(r => r.origen_ciudad),
+      ...d.rows.map(r => r.destino_ciudad)
+    ].filter(Boolean))].sort();
+
+    document.getElementById('hist-estado').innerHTML =
+      '<option value="">Todos</option>' + uniq(r => r.estado).map(v => `<option value="${v}">${v}</option>`).join('');
+
+    // Poblar origen con todas las ciudades
+    const selOrig = document.getElementById('hist-origen');
+    selOrig.innerHTML = '<option value="">-- Todas --</option>' +
+      todasCiudades.map(c => `<option value="${c}">${c}</option>`).join('');
+
+    // Poblar destino (inicialmente todas)
+    const selDest = document.getElementById('hist-destino');
+    selDest.innerHTML = '<option value="">-- Todas --</option>' +
+      todasCiudades.map(c => `<option value="${c}">${c}</option>`).join('');
+
+    // Auto-seleccionar ciudad del taquillero en origen
+    if (TAQ_DATA.ciudad) {
+      const match = [...selOrig.options].find(o => o.value.toLowerCase() === TAQ_DATA.ciudad.toLowerCase());
+      if (match) {
+        selOrig.value = match.value;
+        // Excluir esa ciudad del destino
+        _actualizarDestinosHistorial(match.value, '');
+      }
+    }
+
     initPrecisionToggle('hist-precision','hist-precision-track','hist-precision-text','hist-precision-label');
     document.getElementById('hist-fecha').value = '';
     filtrarHistorial();
@@ -792,6 +817,34 @@ async function cargarHistorial() {
     document.getElementById('hist-cards-container').innerHTML =
       `<div class="empty-state"><p>No se pudo cargar el historial: ${e.message}</p></div>`;
   }
+}
+
+// Actualiza las opciones del select destino excluyendo la ciudad de origen seleccionada
+function _actualizarDestinosHistorial(origenVal, prevDest) {
+  const todasCiudades = [...new Set([
+    ...historialData.map(r => r.origen_ciudad),
+    ...historialData.map(r => r.destino_ciudad)
+  ].filter(Boolean))].sort();
+
+  const selDest = document.getElementById('hist-destino');
+  const opciones = origenVal
+    ? todasCiudades.filter(c => c.toLowerCase() !== origenVal.toLowerCase())
+    : todasCiudades;
+
+  selDest.innerHTML = '<option value="">-- Todas --</option>' +
+    opciones.map(c => `<option value="${c}">${c}</option>`).join('');
+
+  // Restaurar destino previo si sigue siendo válido
+  if (prevDest && prevDest.toLowerCase() !== origenVal.toLowerCase()) {
+    selDest.value = prevDest;
+  }
+}
+
+function onHistOrigenChange() {
+  const origenVal = document.getElementById('hist-origen').value;
+  const prevDest  = document.getElementById('hist-destino').value;
+  _actualizarDestinosHistorial(origenVal, prevDest);
+  filtrarHistorial();
 }
 
 function filtrarHistorial() {
@@ -837,7 +890,7 @@ function _renderHistInfoAndCards(rows, fechaHint) {
 }
 
 function limpiarFiltrosHistorial() {
-  ['hist-search','hist-estado','hist-origen','hist-destino','hist-fecha'].forEach(id=>{
+  ['hist-search','hist-estado','hist-fecha'].forEach(id=>{
     document.getElementById(id).value = '';
   });
   const cb    = document.getElementById('hist-precision');
@@ -846,9 +899,20 @@ function limpiarFiltrosHistorial() {
   if (cb)    cb.checked = false;
   if (track) track.classList.remove('active');
   if (txt)   txt.innerHTML = 'Precisión: <b>Cercana</b>';
+
+  // Restaurar origen a la ciudad del taquillero
+  const selOrig = document.getElementById('hist-origen');
+  selOrig.value = '';
+  if (TAQ_DATA.ciudad) {
+    const match = [...selOrig.options].find(o => o.value.toLowerCase() === TAQ_DATA.ciudad.toLowerCase());
+    if (match) selOrig.value = match.value;
+  }
+  // Actualizar destinos excluyendo el origen restaurado
+  _actualizarDestinosHistorial(selOrig.value, '');
+
   historialBase = historialData;
   historialFiltered = historialData;
-  _renderHistInfoAndCards(historialData, null);
+  filtrarHistorial();
 }
 
 function initPrecisionToggle(cbId, trackId, txtId, labelId) {

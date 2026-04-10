@@ -574,7 +574,6 @@ def salidas_json(request):
 @admin_requerido
 def historial_json(request):
     from django.db import connection
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with connection.cursor() as cur:
         cur.execute("""
             SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
@@ -596,12 +595,11 @@ def historial_json(request):
             LEFT JOIN autobus a   ON v.autobus = a.numero
             LEFT JOIN modelo mo   ON a.modelo = mo.numero
             LEFT JOIN ticket t    ON t.viaje = v.numero
-            WHERE v.fecHoraSalida < %s
-               OR LOWER(ev.nombre) IN ('finalizado','completado','cancelado','terminado')
+            WHERE LOWER(ev.nombre) IN ('en curso','completado','finalizado','cancelado','terminado')
             GROUP BY v.numero
             ORDER BY v.fecHoraSalida DESC
             LIMIT 500
-        """, [now])
+        """, [])
         cols = [d[0] for d in cur.description]
         rows = []
         for r in cur.fetchall():
