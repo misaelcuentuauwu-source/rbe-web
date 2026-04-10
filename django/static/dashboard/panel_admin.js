@@ -463,21 +463,61 @@ async function cargarSalidas() {
   document.getElementById('salidas-container').innerHTML = '<span class="spinner"></span>';
   const d  = await fetch('/api/salidas/').then(r=>r.json());
   salidasData = d.rows || [];
-  poblarFiltrosSalidas();
+  // Poblar selects con todas las ciudades que aparecen como origen O destino
+  const todasCiudades = [...new Set([
+    ...salidasData.map(r=>r.origen_ciudad),
+    ...salidasData.map(r=>r.destino_ciudad)
+  ].filter(Boolean))].sort();
+  const selOrig = document.getElementById('sal-origen');
+  const selDest = document.getElementById('sal-destino');
+  selOrig.innerHTML = '<option value="">-- Todas --</option>' + todasCiudades.map(c=>`<option value="${c}">${c}</option>`).join('');
+  selDest.innerHTML = '<option value="">-- Todas --</option>' + todasCiudades.map(c=>`<option value="${c}">${c}</option>`).join('');
   document.getElementById('sal-fecha').value = today();
-  renderSalidaCards(salidasData);
+  // Auto-seleccionar ciudad del taquillero en origen al primer cargue
+  if (TAQ_DATA.ciudad) {
+    const match = [...selOrig.options].find(o => o.value.toLowerCase() === TAQ_DATA.ciudad.toLowerCase());
+    if (match) selOrig.value = match.value;
+  }
+  aplicarFiltrosSalidas();
 }
 
 function poblarFiltrosSalidas() {
-  const origenes = [...new Set(salidasData.map(r=>r.origen_ciudad).filter(Boolean))].sort();
-  const destinos = [...new Set(salidasData.map(r=>r.destino_ciudad).filter(Boolean))].sort();
-  const selOrig  = document.getElementById('sal-origen');
-  const selDest  = document.getElementById('sal-destino');
-  const prevOrig = selOrig.value, prevDest = selDest.value;
-  selOrig.innerHTML = '<option value="">-- Todas --</option>' + origenes.map(o=>`<option value="${o}">${o}</option>`).join('');
-  selDest.innerHTML = '<option value="">-- Todas --</option>' + destinos.map(d=>`<option value="${d}">${d}</option>`).join('');
-  if (prevOrig) selOrig.value = prevOrig;
-  if (prevDest) selDest.value = prevDest;
+  // No-op: la población ahora se hace en cargarSalidas para no pisar el filtro activo
+}
+
+// Cuando cambia origen: excluir esa misma ciudad del destino
+function onSalOrigenChange() {
+  const origenVal = document.getElementById('sal-origen').value.toLowerCase();
+  const selDest   = document.getElementById('sal-destino');
+  const prevDest  = selDest.value;
+  const todasCiudades = [...new Set([
+    ...salidasData.map(r=>r.origen_ciudad),
+    ...salidasData.map(r=>r.destino_ciudad)
+  ].filter(Boolean))].sort();
+  // Excluir la ciudad seleccionada como origen
+  const opciones = origenVal
+    ? todasCiudades.filter(c => c.toLowerCase() !== origenVal)
+    : todasCiudades;
+  selDest.innerHTML = '<option value="">-- Todas --</option>' + opciones.map(c=>`<option value="${c}">${c}</option>`).join('');
+  // Restaurar destino previo si sigue siendo válido
+  if (prevDest && prevDest.toLowerCase() !== origenVal) selDest.value = prevDest;
+  aplicarFiltrosSalidas();
+}
+
+let salidasView = 'cards';
+
+function setSalidasView(v) {
+  salidasView = v;
+  document.getElementById('sal-vbtn-cards').classList.toggle('active', v === 'cards');
+  document.getElementById('sal-vbtn-tabla').classList.toggle('active', v === 'tabla');
+  // Re-render con los datos actuales
+  const trips = salidasData.filter(r => {
+    const origenSel = document.getElementById('sal-origen').value.trim().toLowerCase();
+    const destSel   = document.getElementById('sal-destino').value.trim().toLowerCase();
+    return (!origenSel || (r.origen_ciudad||'').toLowerCase() === origenSel)
+        && (!destSel   || (r.destino_ciudad||'').toLowerCase() === destSel);
+  });
+  aplicarFiltrosSalidas();
 }
 
 function aplicarFiltrosSalidas() {
@@ -519,23 +559,72 @@ function renderSalidaCards(trips, closestDate) {
   const cont = document.getElementById('salidas-container');
   const info = document.getElementById('sal-info');
   if (!trips.length) {
-    cont.innerHTML = `<div class="empty-state"><div class="empty-icon">🚌</div><p>No hay salidas para los filtros seleccionados.</p></div>`;
+    cont.innerHTML = '<div class="empty-state"><div class="empty-icon">🚌</div><p>No hay salidas para los filtros seleccionados.</p></div>';
     if (info) info.textContent = '';
     return;
   }
   if (info) info.textContent = `Mostrando ${trips.length} salida(s)${closestDate?' — más cercano al '+closestDate:''}`;
-  cont.innerHTML = `<div class="salidas-grid">${trips.map((r,idx)=>`
-    <div class="salida-card-trip" style="animation-delay:${Math.min(idx*.04,.4)}s">
-      <div class="sc-salida-title">Salida: ${fmt(r.fecHoraSalida)}</div>
-      <div class="sc-viaje-num">Viaje #${r.numero}</div>
-      <div class="sc-ruta">${r.origen_ciudad||'—'} → ${r.destino_ciudad||'—'}</div>
-      <div class="sc-meta">Autobús: ${r.autobus_placas?'#'+r.autobus_num+' ('+r.autobus_placas+')':'—'} &nbsp;|&nbsp; Conductor: ${r.conductor||'—'}</div>
-      <div class="sc-footer">
-        <span class="badge badge-info">${r.estado||'—'}</span>
-        <button class="btn btn-naranja btn-sm" onclick='verDetalleSalida(${JSON.stringify(r)})'>Detalles</button>
-      </div>
-    </div>`).join('')}</div>`;
+
+  const origenes      = [...new Set(trips.map(r=>r.origen_ciudad).filter(Boolean))];
+  const destinos      = [...new Set(trips.map(r=>r.destino_ciudad).filter(Boolean))];
+  const soloUnOrigen  = origenes.length === 1;
+  const soloUnDestino = destinos.length === 1;
+
+  const headerHtml = soloUnOrigen && soloUnDestino
+    ? `<div class="sal-origen-header">Salidas desde: <strong>${origenes[0]}</strong> &nbsp;→&nbsp; <strong>${destinos[0]}</strong></div>`
+    : soloUnOrigen
+      ? `<div class="sal-origen-header">Salidas desde: <strong>${origenes[0]}</strong></div>`
+      : '';
+
+  if (salidasView === 'tabla') {
+    // Ocultar columna Origen siempre que haya un solo origen (ya se muestra arriba en el header)
+    // Ocultar columna Destino cuando hay un solo destino (filtro activo o solo uno)
+    const mostrarOrigen  = !soloUnOrigen;
+    const mostrarDestino = !soloUnDestino;
+
+    const filas = trips.map(r => `
+      <tr>
+        <td>${r.numero}</td>
+        <td><strong>${(r.fecHoraSalida||'').substring(11,16)||'—'}</strong></td>
+        ${mostrarOrigen  ? `<td>${r.origen_ciudad||'—'}</td>` : ''}
+        ${mostrarDestino ? `<td>${r.destino_ciudad||'—'}</td>` : ''}
+        <td>${r.autobus_placas?'#'+r.autobus_num+' ('+r.autobus_placas+')':'—'}</td>
+        <td>${r.conductor||'—'}</td>
+        <td><span class="badge badge-info">${r.estado||'—'}</span></td>
+        <td><button class="btn btn-naranja btn-sm" onclick='verDetalleSalida(${JSON.stringify(r)})'>Detalles</button></td>
+      </tr>`).join('');
+    cont.innerHTML = headerHtml + `
+      <div class="tbl-wrap sal-tabla-wrap">
+        <table class="sal-tabla">
+          <thead>
+            <tr>
+              <th>#Viaje</th><th>Horario</th>
+              ${mostrarOrigen  ? '<th>Origen</th>'  : ''}
+              ${mostrarDestino ? '<th>Destino</th>' : ''}
+              <th>Autobús</th><th>Conductor</th><th>Estado</th><th></th>
+            </tr>
+          </thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>`;
+  } else {
+    cont.innerHTML = headerHtml + `<div class="salidas-grid">${trips.map((r,idx)=>`
+      <div class="salida-card-trip" style="animation-delay:${Math.min(idx*.04,.4)}s">
+        <div class="sc-salida-title">Salida: ${fmt(r.fecHoraSalida)}</div>
+        <div class="sc-viaje-num">Viaje #${r.numero}</div>
+        ${soloUnOrigen && soloUnDestino
+          ? `<div class="sc-horario-big">${(r.fecHoraSalida||'').substring(11,16)||'—'}</div>`
+          : `<div class="sc-ruta">${soloUnOrigen?('→ '+(r.destino_ciudad||'—')):((r.origen_ciudad||'—')+' → '+(r.destino_ciudad||'—'))}</div>`
+        }
+        <div class="sc-meta">Autobús: ${r.autobus_placas?'#'+r.autobus_num+' ('+r.autobus_placas+')':'—'} &nbsp;|&nbsp; Conductor: ${r.conductor||'—'}</div>
+        <div class="sc-footer">
+          <span class="badge badge-info">${r.estado||'—'}</span>
+          <button class="btn btn-naranja btn-sm" onclick='verDetalleSalida(${JSON.stringify(r)})'>Detalles</button>
+        </div>
+      </div>`).join('')}</div>`;
+  }
 }
+
 
 function verDetalleSalida(r) {
   document.getElementById('modal-det-salida-body').innerHTML = `
@@ -552,10 +641,14 @@ function verDetalleSalida(r) {
         <div style="margin-top:10px;"><div class="det-label">Terminal de llegada</div><div class="det-value">${r.destino_terminal||'—'}</div></div>
       </div>
       <div style="margin-bottom:14px;"><div class="det-label">Nombre completo del operador</div><div class="det-value">${r.conductor||'Sin asignar'}</div></div>
-      <div class="det-grid2">
+      <div class="det-grid2" style="margin-bottom:14px;">
         <div><div class="det-label">Número del autobús</div><div class="det-value">${r.autobus_num?'#'+r.autobus_num:'—'}</div></div>
         <div><div class="det-label">Matrícula</div><div class="det-value">${r.autobus_placas||'—'}</div></div>
       </div>
+      ${r.precio_ruta!=null?`<div style="display:flex;align-items:center;gap:10px;background:rgba(17,129,195,.07);border:1px solid rgba(17,129,195,.18);border-radius:10px;padding:10px 16px;">
+        <span style="font-size:20px;">🎟️</span>
+        <div><div class="det-label" style="margin-bottom:2px;">Precio del viaje</div><div class="det-value" style="font-size:20px;font-weight:900;color:var(--azul);">$${parseFloat(r.precio_ruta).toFixed(2)} MXN</div></div>
+      </div>`:''}
     </div>`;
   abrirModal('modal-det-salida');
 }

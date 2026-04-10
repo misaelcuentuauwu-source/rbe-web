@@ -543,9 +543,10 @@ def salidas_json(request):
             SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
                    corig.nombre AS origen_ciudad, cdest.nombre AS destino_ciudad,
                    tor.nombre AS origen_terminal, tdes.nombre AS destino_terminal,
-                   ev.nombre AS estado,
+                   ev.nombre AS estado, v.ruta,
                    CONCAT(c.conNombre,' ',c.conPrimerApell) AS conductor,
-                   a.placas AS autobus_placas, a.numero AS autobus_num
+                   a.placas AS autobus_placas, a.numero AS autobus_num,
+                   r.precio AS precio_ruta
             FROM viaje v
             JOIN ruta r       ON v.ruta = r.codigo
             JOIN terminal tor ON r.origen = tor.numero
