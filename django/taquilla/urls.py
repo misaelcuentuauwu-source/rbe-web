@@ -33,7 +33,7 @@ urlpatterns = [
     path('api/crud/<str:tabla>/eliminar/',   views.crud_eliminar,   name='crud_eliminar'),
     # Salidas / viajes (panel admin — deben ir ANTES del include api/)
     path('api/salidas/',             views.salidas_json,           name='salidas_json'),
-    path('api/historial/',           views.historial_json,         name='historial_json'),
+    path('api/historial/panel/',      views.historial_json,         name='historial_json'),  # panel web — no solapar con API móvil
     path('api/viaje/opciones/',      views.agregar_viaje_opciones, name='viaje_opciones'),
     path('api/viaje/agregar/',       views.agregar_viaje,          name='agregar_viaje'),
     # KPIs

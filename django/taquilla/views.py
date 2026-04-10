@@ -1267,6 +1267,10 @@ def api_comprar(request):
         monto_total     = data.get('monto_total')
         vendedor_id     = data.get('vendedor_id')
         correo_contacto = data.get('correo_contacto', '')
+        # BUG 2 FIX: cliente_id viene de la app móvil cuando el comprador es cliente
+        # registrado. Se usa para vincular el ticket al Pasajero de su cuenta y que
+        # aparezca correctamente en el historial del cliente.
+        cliente_id      = data.get('cliente_id')
 
         with transaction.atomic():
             vendedor = None
@@ -1288,9 +1292,11 @@ def api_comprar(request):
             es_primer_pasajero = True
             for p in pasajeros:
                 ano_nacimiento = date.today().year - p['edad']
-                if es_primer_pasajero and vendedor is None and vendedor_id:
+                # Si es el primer pasajero y viene con cliente_id, reusar el Pasajero
+                # existente de la cuenta para que el historial quede vinculado.
+                if es_primer_pasajero and cliente_id:
                     try:
-                        pasajero = Pasajero.objects.get(num=vendedor_id)
+                        pasajero = Pasajero.objects.get(num=cliente_id)
                     except Pasajero.DoesNotExist:
                         pasajero = Pasajero.objects.create(
                             panombre=p['nombre'], paprimerapell=p['primer_apellido'],

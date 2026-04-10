@@ -49,6 +49,8 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// ─── HomeScreen ───────────────────────────────────────────────────────────────
+
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -56,17 +58,21 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
-  static const naranja = Color(0xFFE9713A);
-
+class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _entryController;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
+  late AnimationController _orientationController;
+  late Animation<double> _orientationFade;
+  late Animation<Offset> _orientationSlide;
+
+  bool _wasLandscape = false;
+
   @override
   void initState() {
     super.initState();
+
     _entryController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -83,12 +89,37 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         );
     _entryController.forward();
+
+    _orientationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+    _orientationFade = CurvedAnimation(
+      parent: _orientationController,
+      curve: Curves.easeOut,
+    );
+    _orientationSlide =
+        Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _orientationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
+    _orientationController.value = 1.0;
   }
 
   @override
   void dispose() {
     _entryController.dispose();
+    _orientationController.dispose();
     super.dispose();
+  }
+
+  void _triggerOrientationAnim(bool isLandscape) {
+    if (isLandscape != _wasLandscape) {
+      _wasLandscape = isLandscape;
+      _orientationController.forward(from: 0.0);
+    }
   }
 
   void _showBottomSheet(BuildContext context, Widget screen) {
@@ -117,17 +148,22 @@ class _HomeScreenState extends State<HomeScreen>
       resizeToAvoidBottomInset: false,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final isTablet = constraints.maxWidth > 600;
           final isLandscape = constraints.maxWidth > constraints.maxHeight;
+          final isTablet = constraints.maxWidth > 600;
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _triggerOrientationAnim(isLandscape);
+          });
+
           return Container(
-            color: Colors.white, // 👈 era Color(0xFF008FD4)
+            color: Colors.white,
             child: Container(
               decoration: BoxDecoration(
                 image: DecorationImage(
                   image: const AssetImage('assets/images/fondo.png'),
-                  fit: BoxFit.fitWidth,
+                  fit: isLandscape ? BoxFit.cover : BoxFit.fitWidth,
                   alignment: isLandscape
-                      ? Alignment.centerLeft
+                      ? Alignment.centerRight
                       : isTablet
                       ? const Alignment(0.0, -2.0)
                       : Alignment.topCenter,
@@ -137,9 +173,15 @@ class _HomeScreenState extends State<HomeScreen>
                 opacity: _fadeAnim,
                 child: SlideTransition(
                   position: _slideAnim,
-                  child: isLandscape
-                      ? _buildLandscape(context)
-                      : _buildPortrait(context, isTablet),
+                  child: FadeTransition(
+                    opacity: _orientationFade,
+                    child: SlideTransition(
+                      position: _orientationSlide,
+                      child: isLandscape
+                          ? _buildLandscape(context)
+                          : _buildPortrait(context, isTablet),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -149,13 +191,14 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // ── Portrait ──────────────────────────────────────────────────────────────
+
   Widget _buildPortrait(BuildContext context, bool isTablet) {
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Onda azul
         Positioned(
           bottom: 0,
           left: 0,
@@ -166,16 +209,12 @@ class _HomeScreenState extends State<HomeScreen>
             child: const SizedBox.expand(),
           ),
         ),
-
-        // Botones siempre pegados al fondo
         Positioned(
           bottom: 70,
           left: 32,
           right: 32,
-          child: _buildButtons(context),
+          child: _buildButtons(context, isLandscape: false),
         ),
-
-        // Logo + título + bus arriba
         Positioned(
           top: screenHeight * 0.42,
           left: 32,
@@ -183,9 +222,9 @@ class _HomeScreenState extends State<HomeScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildLogo(),
+              const _LogoIcon(),
               const SizedBox(height: 20),
-              _buildTitle(),
+              _buildTitle(isLandscape: false),
               const SizedBox(height: 20),
               const _AnimatedBusRoute(),
             ],
@@ -195,89 +234,149 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  // ── Landscape ─────────────────────────────────────────────────────────────
+
   Widget _buildLandscape(BuildContext context) {
-    return SafeArea(
-      child: Row(
-        children: [
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildLogo(),
-                  const SizedBox(height: 16),
-                  _buildTitle(),
-                  const SizedBox(height: 24),
-                  const _AnimatedBusRoute(),
-                ],
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Gradiente izquierdo: oscurece el fondo para legibilidad del texto
+        Positioned.fill(
+          child: Row(
+            children: [
+              Expanded(
+                flex: 5,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [Color(0xCC1A5276), Color(0x001A5276)],
+                    ),
+                  ),
+                ),
               ),
-            ),
+              const Expanded(flex: 5, child: SizedBox()),
+            ],
           ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [_buildButtons(context)],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildLogo() {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.5, end: 1.0),
-      duration: const Duration(milliseconds: 700),
-      curve: Curves.elasticOut,
-      builder: (_, value, child) => Transform.scale(scale: value, child: child),
-      child: Container(
-        width: 72,
-        height: 72,
-        decoration: BoxDecoration(
-          color: naranja,
-          borderRadius: BorderRadius.circular(18),
-          boxShadow: [
-            BoxShadow(
-              color: naranja.withOpacity(0.4),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
-            ),
-          ],
         ),
-        child: const Icon(Icons.directions_bus, color: Colors.white, size: 40),
-      ),
+
+        // Gradiente derecho: fondo oscuro para los botones
+        Positioned.fill(
+          child: Row(
+            children: [
+              const Expanded(flex: 5, child: SizedBox()),
+              Expanded(
+                flex: 5,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerRight,
+                      end: Alignment.centerLeft,
+                      colors: [Color(0xDD1B2A3B), Color(0x001B2A3B)],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Contenido principal
+        SafeArea(
+          child: Row(
+            children: [
+              Expanded(
+                flex: 5,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 8,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const _LogoIcon(size: 52),
+                      const SizedBox(height: 10),
+                      _buildTitle(isLandscape: true),
+                      const SizedBox(height: 14),
+                      const _AnimatedBusRoute(),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                flex: 5,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 8,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [_buildButtons(context, isLandscape: true)],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildTitle() {
-    return const Column(
+  // ── Título ────────────────────────────────────────────────────────────────
+
+  Widget _buildTitle({required bool isLandscape}) {
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Rutas Baja\nExpress',
           style: TextStyle(
             color: Colors.white,
-            fontSize: 36,
+            fontSize: isLandscape ? 26 : 36,
             fontWeight: FontWeight.bold,
             height: 1.1,
+            shadows: isLandscape
+                ? const [
+                    Shadow(
+                      color: Colors.black45,
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    ),
+                  ]
+                : null,
           ),
         ),
-        SizedBox(height: 12),
+        SizedBox(height: isLandscape ? 6 : 12),
         Text(
           'Tu sistema de viajes en\nBaja California',
-          style: TextStyle(color: Colors.white70, fontSize: 15, height: 1.5),
+          style: TextStyle(
+            color: isLandscape ? Colors.white.withOpacity(0.9) : Colors.white70,
+            fontSize: isLandscape ? 12 : 15,
+            height: 1.5,
+            shadows: isLandscape
+                ? const [
+                    Shadow(
+                      color: Colors.black38,
+                      blurRadius: 6,
+                      offset: Offset(0, 1),
+                    ),
+                  ]
+                : null,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildButtons(BuildContext context) {
+  // ── Botones ───────────────────────────────────────────────────────────────
+
+  Widget _buildButtons(BuildContext context, {required bool isLandscape}) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Row(
           children: [
@@ -285,20 +384,22 @@ class _HomeScreenState extends State<HomeScreen>
               child: _AnimatedButton(
                 onTap: () => _showBottomSheet(context, const LoginScreen()),
                 isOutlined: true,
-                label: 'Sign In',
+                label: 'Iniciar sesión',
+                compact: isLandscape,
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               child: _AnimatedButton(
                 onTap: () => _showBottomSheet(context, const SignupScreen()),
                 isOutlined: false,
-                label: 'Sign Up',
+                label: 'Registrarse',
+                compact: isLandscape,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        SizedBox(height: isLandscape ? 8 : 12),
         SizedBox(
           width: double.infinity,
           child: AnimatedTapButton(
@@ -309,14 +410,17 @@ class _HomeScreenState extends State<HomeScreen>
               );
             },
             scaleFactor: 0.97,
-            child: const Text(
+            child: Text(
               'Entrar como invitado',
-              textAlign: TextAlign.center, // 👈 centrado
+              textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white, // 👈 era Color(0xFF6B8FA8)
-                fontSize: 13,
+                color: Colors.white,
+                fontSize: isLandscape ? 12 : 13,
                 decoration: TextDecoration.underline,
-                decorationColor: Colors.white, // 👈 también blanco
+                decorationColor: Colors.white,
+                shadows: isLandscape
+                    ? const [Shadow(color: Colors.black45, blurRadius: 6)]
+                    : null,
               ),
             ),
           ),
@@ -326,15 +430,105 @@ class _HomeScreenState extends State<HomeScreen>
   }
 }
 
+// ─── Logo con ciclo de colores ────────────────────────────────────────────────
+
+class _LogoIcon extends StatefulWidget {
+  final double size;
+  const _LogoIcon({this.size = 72});
+
+  @override
+  State<_LogoIcon> createState() => _LogoIconState();
+}
+
+class _LogoIconState extends State<_LogoIcon>
+    with SingleTickerProviderStateMixin {
+  static const _colors = [
+    Color(0xFFE9713A),
+    Color(0xFFC0392B),
+    Color(0xFF27AE60),
+  ];
+
+  int _colorIndex = 0;
+
+  late AnimationController _scaleCtrl;
+  late Animation<double> _scaleAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      reverseDuration: const Duration(milliseconds: 200),
+    );
+    _scaleAnim = Tween<double>(
+      begin: 1.0,
+      end: 0.88,
+    ).animate(CurvedAnimation(parent: _scaleCtrl, curve: Curves.easeOut));
+  }
+
+  @override
+  void dispose() {
+    _scaleCtrl.dispose();
+    super.dispose();
+  }
+
+  void _onTap() => setState(() {
+    _colorIndex = (_colorIndex + 1) % _colors.length;
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _colors[_colorIndex];
+    return GestureDetector(
+      onTapDown: (_) => _scaleCtrl.forward(),
+      onTapUp: (_) {
+        _scaleCtrl.reverse();
+        _onTap();
+      },
+      onTapCancel: () => _scaleCtrl.reverse(),
+      child: ScaleTransition(
+        scale: _scaleAnim,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          width: widget.size,
+          height: widget.size,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(widget.size * 0.25),
+            boxShadow: [
+              BoxShadow(
+                color: color.withOpacity(0.4),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Icon(
+            Icons.directions_bus,
+            color: Colors.white,
+            size: widget.size * 0.55,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Botón animado ────────────────────────────────────────────────────────────
+
 class _AnimatedButton extends StatefulWidget {
   final VoidCallback onTap;
   final bool isOutlined;
   final String label;
+  final bool compact;
 
   const _AnimatedButton({
     required this.onTap,
     required this.isOutlined,
     required this.label,
+    this.compact = false,
   });
 
   @override
@@ -369,6 +563,9 @@ class _AnimatedButtonState extends State<_AnimatedButton>
 
   @override
   Widget build(BuildContext context) {
+    final vertPad = widget.compact ? 10.0 : 14.0;
+    final fontSize = widget.compact ? 13.0 : 15.0;
+
     return GestureDetector(
       onTapDown: (_) => _ctrl.forward(),
       onTapUp: (_) {
@@ -382,19 +579,19 @@ class _AnimatedButtonState extends State<_AnimatedButton>
             ? OutlinedButton(
                 onPressed: widget.onTap,
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white, // 👈 era azul
-                  side: const BorderSide(
-                    color: Colors.white,
-                    width: 1.5,
-                  ), // 👈 era azul
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  foregroundColor: Colors.white,
+                  side: const BorderSide(color: Colors.white, width: 1.5),
+                  padding: EdgeInsets.symmetric(vertical: vertPad),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 child: Text(
                   widget.label,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: fontSize,
+                  ),
                 ),
               )
             : ElevatedButton(
@@ -404,20 +601,25 @@ class _AnimatedButtonState extends State<_AnimatedButton>
                   foregroundColor: Colors.white,
                   elevation: 6,
                   shadowColor: naranja.withOpacity(0.45),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: EdgeInsets.symmetric(vertical: vertPad),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 child: Text(
                   widget.label,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: fontSize,
+                  ),
                 ),
               ),
       ),
     );
   }
 }
+
+// ─── Bus animado ──────────────────────────────────────────────────────────────
 
 class _AnimatedBusRoute extends StatefulWidget {
   const _AnimatedBusRoute();
@@ -496,13 +698,11 @@ class _AnimatedBusRouteState extends State<_AnimatedBusRoute>
                   ),
                   AnimatedBuilder(
                     animation: _pos,
-                    builder: (_, __) {
-                      return Positioned(
-                        left: 4 + _pos.value * (w - 36),
-                        top: 3,
-                        child: const Text('🚌', style: TextStyle(fontSize: 20)),
-                      );
-                    },
+                    builder: (_, __) => Positioned(
+                      left: 4 + _pos.value * (w - 36),
+                      top: 3,
+                      child: const Text('🚌', style: TextStyle(fontSize: 20)),
+                    ),
                   ),
                 ],
               ),
@@ -528,6 +728,8 @@ class _AnimatedBusRouteState extends State<_AnimatedBusRoute>
   }
 }
 
+// ─── Wave painter ─────────────────────────────────────────────────────────────
+
 class _WavePainter extends CustomPainter {
   final Color color;
   const _WavePainter({required this.color});
@@ -536,15 +738,14 @@ class _WavePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = color;
     final path = Path();
-    // Empieza alto a la izquierda, cae hacia la derecha — más empinada
     path.moveTo(0, size.height * 0.02);
     path.cubicTo(
       size.width * 0.25,
-      size.height * 0.02, // control 1: se queda arriba
+      size.height * 0.02,
       size.width * 0.60,
-      size.height * 0.38, // control 2: cae fuerte
+      size.height * 0.38,
       size.width,
-      size.height * 0.28, // termina más abajo a la derecha
+      size.height * 0.28,
     );
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);

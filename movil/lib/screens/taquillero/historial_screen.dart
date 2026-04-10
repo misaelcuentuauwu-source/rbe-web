@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:typed_data';
-import 'dart:ui' as ui;
 import 'package:http/http.dart' as http;
 import 'package:printing/printing.dart';
 import '../../config.dart';
-import '../../utils/pdf_boleto.dart'; // ajusta el path según tu proyecto
+import '../../utils/pdf_boleto.dart';
 
 // ─────────────────────────────────────────────────────────
-//  HISTORIAL SCREEN  –  RBE v3
-//  - Muestra TODAS las ventas registradas
-//  - Filtro: Todas las ventas / Mis ventas
-//  - Reimprimir genera el PDF directamente sin pantalla intermedia
+//  HISTORIAL SCREEN  –  RBE v4
+//  BUG FIX: crash _dependents.isEmpty resuelto.
+//  Causa: _iniciarAnimacionCards() disponía los AnimationController
+//  mientras sus CurvedAnimation hijos seguían vivos en el árbol.
+//  Solución: guardar los CurvedAnimation en listas propias y
+//  disponerlos ANTES de disponer el controller padre.
 // ─────────────────────────────────────────────────────────
 
 class HistorialScreen extends StatefulWidget {
@@ -38,10 +39,7 @@ class _HistorialScreenState extends State<HistorialScreen>
   bool cargando = true;
   bool mostrarFiltros = false;
 
-  // Filtro de ventas: 'todas' o 'mias'
   String _filtroVendedor = 'todas';
-
-  // Filtros existentes
   DateTime? fechaDesde;
   DateTime? fechaHasta;
   String? origenFiltro;
@@ -52,14 +50,17 @@ class _HistorialScreenState extends State<HistorialScreen>
   final _origenCtrl = TextEditingController();
   final _destinoCtrl = TextEditingController();
 
-  // Reimprimir en proceso
   Set<int> _reimprimiendoFolios = {};
 
   // ── Animaciones ───────────────────────────────────────
   late AnimationController _filterPanelCtrl;
   late Animation<double> _filterPanelAnim;
 
+  // BUG FIX: guardamos TANTO el controller COMO los CurvedAnimation
+  // para poder disponer los hijos antes que el padre.
   final List<AnimationController> _cardCtrls = [];
+  final List<CurvedAnimation> _cardFadeCurves = []; // ← nuevo
+  final List<CurvedAnimation> _cardSlideCurves = []; // ← nuevo
   final List<Animation<double>> _cardFadeAnims = [];
   final List<Animation<Offset>> _cardSlideAnims = [];
 
@@ -93,7 +94,6 @@ class _HistorialScreenState extends State<HistorialScreen>
     ),
   };
 
-  // ─────────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
@@ -113,34 +113,56 @@ class _HistorialScreenState extends State<HistorialScreen>
     _filterPanelCtrl.dispose();
     _origenCtrl.dispose();
     _destinoCtrl.dispose();
-    for (final c in _cardCtrls) {
-      c.dispose();
-    }
+    _limpiarAnimacionCards(); // usa el método seguro
     super.dispose();
   }
 
-  // ── Stagger para tarjetas ─────────────────────────────
-  void _iniciarAnimacionCards(int count) {
+  // ── BUG FIX: disponer hijos ANTES que padres ──────────
+  void _limpiarAnimacionCards() {
+    // 1. Disponer CurvedAnimations (hijos) primero
+    for (final c in _cardFadeCurves) {
+      c.dispose();
+    }
+    for (final c in _cardSlideCurves) {
+      c.dispose();
+    }
+    _cardFadeCurves.clear();
+    _cardSlideCurves.clear();
+    _cardFadeAnims.clear();
+    _cardSlideAnims.clear();
+
+    // 2. Ahora sí disponer los controllers (padres)
     for (final c in _cardCtrls) {
       c.dispose();
     }
     _cardCtrls.clear();
-    _cardFadeAnims.clear();
-    _cardSlideAnims.clear();
+  }
+
+  void _iniciarAnimacionCards(int count) {
+    _limpiarAnimacionCards(); // limpieza segura antes de crear nuevos
 
     for (int i = 0; i < count; i++) {
       final ctrl = AnimationController(
         vsync: this,
         duration: const Duration(milliseconds: 420),
       );
-      _cardCtrls.add(ctrl);
-      _cardFadeAnims.add(CurvedAnimation(parent: ctrl, curve: Curves.easeOut));
-      _cardSlideAnims.add(
-        Tween<Offset>(
-          begin: const Offset(0, 0.12),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(parent: ctrl, curve: Curves.easeOutCubic)),
+
+      final fadeCurve = CurvedAnimation(parent: ctrl, curve: Curves.easeOut);
+      final slideCurve = CurvedAnimation(
+        parent: ctrl,
+        curve: Curves.easeOutCubic,
       );
+      final slideAnim = Tween<Offset>(
+        begin: const Offset(0, 0.12),
+        end: Offset.zero,
+      ).animate(slideCurve);
+
+      _cardCtrls.add(ctrl);
+      _cardFadeCurves.add(fadeCurve); // guardamos referencia al hijo
+      _cardSlideCurves.add(slideCurve); // guardamos referencia al hijo
+      _cardFadeAnims.add(fadeCurve);
+      _cardSlideAnims.add(slideAnim);
+
       Future.delayed(Duration(milliseconds: 60 * i), () {
         if (mounted) ctrl.forward();
       });
@@ -148,16 +170,12 @@ class _HistorialScreenState extends State<HistorialScreen>
   }
 
   // ── Data ──────────────────────────────────────────────
-  /// Carga TODAS las ventas desde el endpoint general
   Future<void> cargarHistorial() async {
     setState(() => cargando = true);
     try {
       final res = await http
           .get(Uri.parse('${Config.baseUrl}/api/historial/'))
           .timeout(const Duration(seconds: 10));
-
-      debugPrint('STATUS: ${res.statusCode}');
-      debugPrint('BODY: ${res.body}'); // ← esto te dirá exactamente qué regresa
 
       if (res.statusCode == 200) {
         final decoded = jsonDecode(res.body);
@@ -168,26 +186,25 @@ class _HistorialScreenState extends State<HistorialScreen>
           });
           aplicarFiltros();
         } else {
-          debugPrint('ERROR: el backend no devolvió una lista: $decoded');
+          debugPrint('Respuesta inesperada del backend: $decoded');
           setState(() => cargando = false);
         }
       } else {
-        debugPrint('ERROR HTTP: ${res.statusCode} - ${res.body}');
+        debugPrint('Error HTTP ${res.statusCode}: ${res.body}');
         setState(() => cargando = false);
       }
     } catch (e) {
-      debugPrint('EXCEPCION: $e');
+      debugPrint('Excepción al cargar historial: $e');
       setState(() => cargando = false);
     }
   }
 
-  // ── Reimprimir boleto directamente ────────────────────
+  // ── Reimprimir ────────────────────────────────────────
   Future<void> _reimprimir(BuildContext ctx, int folio) async {
     if (_reimprimiendoFolios.contains(folio)) return;
     setState(() => _reimprimiendoFolios.add(folio));
 
     try {
-      // 1) Traer datos del folio
       final res = await http
           .get(Uri.parse('${Config.baseUrl}/api/boleto/$folio/detalle/'))
           .timeout(const Duration(seconds: 10));
@@ -199,7 +216,6 @@ class _HistorialScreenState extends State<HistorialScreen>
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
 
-      // 2) Construir lista de pasajeros con el formato que espera PdfBoleto
       final pasajeros = (data['pasajeros'] as List).map((p) {
         return {
           'nombre': p['nombre'],
@@ -212,7 +228,6 @@ class _HistorialScreenState extends State<HistorialScreen>
         };
       }).toList();
 
-      // 3) Generar PDF
       final pdfBytes = await PdfBoleto.generar(
         pagoId: folio,
         origenNombre: data['origen'],
@@ -225,7 +240,6 @@ class _HistorialScreenState extends State<HistorialScreen>
         metodoPago: data['metodo_pago_id'] ?? 1,
       );
 
-      // 4) Mostrar diálogo de impresión
       await Printing.layoutPdf(onLayout: (_) async => pdfBytes);
     } catch (e) {
       debugPrint('Error reimprimir: $e');
@@ -239,7 +253,6 @@ class _HistorialScreenState extends State<HistorialScreen>
   void aplicarFiltros() {
     setState(() {
       historialFiltrado = historial.where((item) {
-        // Filtro Todas / Mis ventas
         if (_filtroVendedor == 'mias') {
           if (item['vendedor_id']?.toString() != widget.vendedorId.toString()) {
             return false;
@@ -306,7 +319,6 @@ class _HistorialScreenState extends State<HistorialScreen>
       (estadoFiltro?.isNotEmpty == true) ||
       _filtroVendedor == 'mias';
 
-  // ── Fecha helpers ─────────────────────────────────────
   Future<void> _selecFecha(BuildContext ctx, bool esDesde) async {
     final p = await showDatePicker(
       context: ctx,
@@ -384,7 +396,12 @@ class _HistorialScreenState extends State<HistorialScreen>
             SizeTransition(
               sizeFactor: _filterPanelAnim,
               axisAlignment: -1,
-              child: _buildPanelFiltros(),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).viewInsets.bottom,
+                ),
+                child: _buildPanelFiltros(),
+              ),
             ),
             if (hayFiltros) _buildBarraResultados(),
             const SizedBox(height: 8),
@@ -395,7 +412,6 @@ class _HistorialScreenState extends State<HistorialScreen>
     );
   }
 
-  // ── Header ────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -505,7 +521,6 @@ class _HistorialScreenState extends State<HistorialScreen>
     );
   }
 
-  // ── Panel Filtros ─────────────────────────────────────
   Widget _buildPanelFiltros() {
     return Container(
       color: Colors.white,
@@ -513,7 +528,6 @@ class _HistorialScreenState extends State<HistorialScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── NUEVO: Filtro Todas / Mis ventas ──────────
           _SectionLabel('Ventas a mostrar'),
           const SizedBox(height: 8),
           Row(
@@ -545,7 +559,6 @@ class _HistorialScreenState extends State<HistorialScreen>
           ),
           const SizedBox(height: 14),
 
-          // ── Tipo fecha toggle ──────────────────────────
           _SectionLabel('Filtrar fechas por'),
           const SizedBox(height: 8),
           Row(
@@ -577,7 +590,6 @@ class _HistorialScreenState extends State<HistorialScreen>
           ),
           const SizedBox(height: 10),
 
-          // ── Rango de fechas ───────────────────────────
           Row(
             children: [
               Expanded(
@@ -739,7 +751,6 @@ class _HistorialScreenState extends State<HistorialScreen>
               ),
             ),
           ),
-          // Indicador visual de qué ventas se muestran
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -786,7 +797,6 @@ class _HistorialScreenState extends State<HistorialScreen>
     );
   }
 
-  // ── Contenido principal ────────────────────────────────
   Widget _buildContenido() {
     if (cargando) return _buildShimmer();
 
@@ -825,7 +835,6 @@ class _HistorialScreenState extends State<HistorialScreen>
     );
   }
 
-  // ── Shimmer de carga ──────────────────────────────────
   Widget _buildShimmer() {
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
@@ -898,7 +907,6 @@ class _HistorialScreenState extends State<HistorialScreen>
     );
   }
 
-  // ── Tarjeta de venta ───────────────────────────────────
   Widget _buildTarjeta(Map venta, int index) {
     final esTarjeta = venta['metodo_pago'].toString().toLowerCase().contains(
       'tarjeta',
@@ -924,7 +932,6 @@ class _HistorialScreenState extends State<HistorialScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Fila 1: folio + estado + fecha ────────────
             Row(
               children: [
                 _FolioChip(folio: '#$folio'),
@@ -938,7 +945,6 @@ class _HistorialScreenState extends State<HistorialScreen>
                     pulsa: enRuta,
                   ),
                 const Spacer(),
-                // Indicador si es venta propia
                 if (esPropia)
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -975,7 +981,6 @@ class _HistorialScreenState extends State<HistorialScreen>
 
             const SizedBox(height: 14),
 
-            // ── Ruta ──────────────────────────────────────
             _RutaRow(origen: venta['origen'], destino: venta['destino']),
 
             const SizedBox(height: 10),
@@ -1020,7 +1025,6 @@ class _HistorialScreenState extends State<HistorialScreen>
 
             const SizedBox(height: 12),
 
-            // ── Pasajeros + Pago + Monto ──────────────────
             Row(
               children: [
                 _MiniChip(
@@ -1062,7 +1066,6 @@ class _HistorialScreenState extends State<HistorialScreen>
 
             const SizedBox(height: 12),
 
-            // ── Botón reimprimir ──────────────────────────
             _ReimprimirBtn(
               cargando: _reimprimiendoFolios.contains(folio),
               onTap: () => _reimprimir(context, folio),
@@ -1387,7 +1390,6 @@ class _MiniChip extends StatelessWidget {
   }
 }
 
-// ── Botón reimprimir con estado de carga ──────────────────
 class _ReimprimirBtn extends StatefulWidget {
   final VoidCallback onTap;
   final bool cargando;

@@ -5,8 +5,6 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../config.dart';
 import 'resumen_compra_screen.dart';
-// Imports a agregar
-import 'dart:convert';
 import '../../utils/pdf_boleto.dart';
 
 class PagoScreen extends StatefulWidget {
@@ -100,7 +98,15 @@ class _PagoScreenState extends State<PagoScreen> {
       );
       final correo = contacto['correo'] ?? '';
 
-      // 1. Primero hacer el POST sin pdf_base64
+      // ── BUG 2 FIX: incluir cliente_id para que el historial funcione ──────
+      // Si el usuario es cliente, mandamos su pasajero_num para que el backend
+      // lo vincule al ticket en lugar de crear un pasajero anónimo nuevo.
+      int? clienteId;
+      if (widget.tipoUsuario == 'cliente' && widget.datosUsuario != null) {
+        clienteId = widget.datosUsuario!['pasajero_num'] as int?;
+      }
+
+      // 1. POST principal de compra
       final response = await http
           .post(
             Uri.parse('${Config.baseUrl}/api/comprar/'),
@@ -112,6 +118,7 @@ class _PagoScreenState extends State<PagoScreen> {
               'pasajeros': widget.pasajeros,
               'vendedor_id': widget.vendedorId,
               'correo_contacto': correo,
+              if (clienteId != null) 'cliente_id': clienteId, // ← FIX
             }),
           )
           .timeout(const Duration(seconds: 30));
@@ -120,11 +127,11 @@ class _PagoScreenState extends State<PagoScreen> {
         final data = jsonDecode(response.body);
         final pagoId = data['pago_id'];
 
-        // 2. Ya con el pago_id real, generar el PDF y mandarlo
+        // 2. Generar PDF y enviarlo por correo si hay contacto
         if (correo.isNotEmpty) {
           try {
             final pdfBytes = await PdfBoleto.generar(
-              pagoId: pagoId, // ← ahora sí es el número real
+              pagoId: pagoId,
               origenNombre: widget.origenNombre,
               destinoNombre: widget.destinoNombre,
               horaSalida: widget.horaSalida,
@@ -136,7 +143,6 @@ class _PagoScreenState extends State<PagoScreen> {
             );
             final pdfBase64 = base64Encode(pdfBytes);
 
-            // 3. Mandar el PDF al backend para adjuntarlo al correo
             await http
                 .post(
                   Uri.parse(
@@ -152,7 +158,7 @@ class _PagoScreenState extends State<PagoScreen> {
           }
         }
 
-        // 4. Navegar a resumen
+        // 3. Navegar a resumen
         if (mounted) {
           Navigator.pushReplacement(
             context,
