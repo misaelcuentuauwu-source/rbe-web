@@ -132,6 +132,11 @@ function showPage(id) {
     'gestion'         : 'Gestión',
     'configuracion'   : 'Configuración'
   }[id] || id;
+  // Ocultar FAB modo asistido cuando no estamos en Gestión→viaje
+  if (id !== 'gestion') {
+    const fab = document.getElementById('fab-modo-asistido');
+    if (fab) fab.style.display = 'none';
+  }
   if (id==='salidas')         cargarSalidas();
   if (id==='historial')       cargarHistorial();
   if (id==='kpi-generales')   cargarKpiGenerales();
@@ -153,6 +158,9 @@ function showGestion(tabla) {
     'Gestión — ' + tabla.charAt(0).toUpperCase() + tabla.slice(1);
   tablaActual.nombre = tabla;
   if (!TABLAS_CON_LEGIBLE.has(tabla)) gestionModo = 'db';
+  // Ocultar FAB si no es viaje; recargarGestion lo mostrará si aplica
+  const fab = document.getElementById('fab-modo-asistido');
+  if (fab) fab.style.display = 'none';
   recargarGestion();
 }
 
@@ -1545,7 +1553,7 @@ function _syncDbToggleUI() {
   document.getElementById('db-toggle-wrap').style.display = 'flex';
 }
 
-async function recargarGestion() {
+async function recargarGestion(limit) {
   const tabla = tablaActual.nombre;
   if (!tabla) return;
   document.getElementById('gestion-search-wrap').style.display = '';
@@ -1555,19 +1563,44 @@ async function recargarGestion() {
   document.getElementById('gestion-search-clear').style.display = 'none';
   document.getElementById('gestion-tbody').innerHTML = '<tr><td colspan="20"><span class="spinner"></span></td></tr>';
   document.getElementById('gestion-cards-wrap').innerHTML = '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
+  document.getElementById('gestion-ver-todos-wrap').style.display = 'none';
 
-  const url = `/api/crud/${tabla}/leer/?modo=${gestionModo}`;
+  // FAB modo asistido: solo visible desde Salidas programadas, nunca en Gestión
+  const fabAsistido = document.getElementById('fab-modo-asistido');
+  if (fabAsistido) fabAsistido.style.display = 'none';
+
+  const lim = limit || 500;
+  const url = `/api/crud/${tabla}/leer/?modo=${gestionModo}&limit=${lim}`;
   const d = await fetch(url).then(r=>r.json());
   if (d.error) { toast(d.error,'err'); return; }
 
   gestionLastData = d;
 
   const badge = `<span class="modo-badge ${gestionModo}">${gestionModo === 'legible' ? '🔤 Legible' : '🗄 DB'}</span>`;
-  document.getElementById('gestion-info').innerHTML = `${d.rows.length} registro(s)${badge}`;
+  const totalReal = d.total_real ?? d.rows.length;
+  const hayMas    = totalReal > d.rows.length;
+  document.getElementById('gestion-info').innerHTML =
+    `${d.rows.length} de ${totalReal} registro(s)${badge}`;
+
+  // Botón "Ver todos" si hay registros ocultos por el límite
+  if (hayMas) {
+    document.getElementById('ver-todos-count').textContent = totalReal;
+    document.getElementById('gestion-ver-todos-wrap').style.display = '';
+  }
 
   if (gestionView === 'tabla') renderGestionTabla(d);
   else                         renderGestionCards(d);
 }
+
+function verTodosRegistros() {
+  recargarGestion(5000);
+}
+
+function abrirModoAsistido() {
+  // Abre el modal de viaje asistido (el mismo de Salidas programadas)
+  abrirModalViaje();
+}
+
 
 function _infoBadge() {
   return `<span class="modo-badge ${gestionModo}">${gestionModo === 'legible' ? '🔤 Legible' : '🗄 DB'}</span>`;
@@ -1703,21 +1736,23 @@ async function abrirInsertar() {
   const tabla = tablaActual.nombre;
   if (!tabla) { toast('Selecciona una tabla','err'); return; }
   try {
-    const esq   = await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
-    const datos = await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
-    const pkCol = esq.columnas.find(c => c.Key === 'PRI')?.Field;
-    let nextId = '';
-    if (pkCol && datos.rows?.length) {
-      const max = Math.max(...datos.rows.map(r => parseInt(r[pkCol]) || 0));
-      nextId = max + 1;
-    } else {
-      nextId = 1;
-    }
+    const [esq, pkInfo] = await Promise.all([
+      fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json()),
+      fetch(`/api/crud/${tabla}/next_pk/`).then(r=>r.json()),
+    ]);
+
     tablaActual.esquema = esq;
     tablaActual.modo    = 'insertar';
-    tablaActual.nextId  = nextId;
-    document.getElementById('crud-modal-title').textContent  = `Insertar en ${tabla}`;
-    document.getElementById('crud-submit-btn').textContent   = 'Insertar';
+    tablaActual.nextId  = pkInfo.ok ? pkInfo.next_id : 1;
+    tablaActual.pkCol   = pkInfo.ok ? pkInfo.pk_col  : null;
+
+    document.getElementById('crud-modal-title').textContent = `Insertar en ${tabla}`;
+    document.getElementById('crud-submit-btn').textContent  = 'Insertar';
+
+    // Mostrar/ocultar botón modo asistido dentro del modal
+    const btnAs = document.getElementById('crud-btn-asistido');
+    if (btnAs) btnAs.style.display = tabla === 'viaje' ? '' : 'none';
+
     renderCrudForm(esq, null);
     abrirModal('modal-crud');
   } catch (e) {
@@ -1740,9 +1775,37 @@ async function abrirEditar(tabla, pk, pkv) {
   abrirModal('modal-crud');
 }
 
+// Campos de cuenta_pasajero que viven en Firebase — advertencia al editar
+const CAMPOS_FIREBASE = {
+  clave:        { nivel: 'peligro', msg: 'La contraseña se gestiona en Firebase Authentication. Modificarla aquí <strong>no actualiza Firebase</strong> y puede impedir que el usuario inicie sesión en la app.' },
+  firebase_uid: { nivel: 'peligro', msg: 'Este UID es generado por Firebase. Cambiarlo manualmente <strong>romperá el acceso</strong> del usuario en la app móvil.' },
+  proveedor:    { nivel: 'info',    msg: 'Este campo indica el método de login (local / google). Cámbialo solo si sabes lo que haces; un valor incorrecto puede bloquear el acceso desde la app.' },
+  correo:       { nivel: 'info',    msg: 'Cambiar el correo aquí no lo actualiza en Firebase. El usuario seguirá entrando con el correo anterior desde la app hasta que se sincronice.' },
+};
+
 function renderCrudForm(esq, vals) {
-  const c = document.getElementById('crud-form-fields');
+  const c     = document.getElementById('crud-form-fields');
+  const tabla = tablaActual.nombre;
   c.innerHTML = '';
+
+  // [CAM-1] Banner general para cuenta_pasajero
+  if (tabla === 'cuenta_pasajero') {
+    const banner = document.createElement('div');
+    banner.style.cssText = `
+      background:#fff8e1;border:1.5px solid #f59e0b;border-radius:8px;
+      padding:10px 14px;margin-bottom:14px;font-size:13px;color:#92400e;
+      display:flex;gap:10px;align-items:flex-start;line-height:1.5;`;
+    banner.innerHTML = `
+      <span style="font-size:18px;flex-shrink:0">⚠️</span>
+      <div>
+        <strong>Tabla sincronizada con Firebase</strong><br>
+        Algunos campos de esta tabla están controlados por Firebase Authentication
+        (la autenticación de la app móvil). Modifica solo los campos que no afecten
+        el inicio de sesión, como la foto. Los campos críticos muestran una advertencia individual.
+      </div>`;
+    c.appendChild(banner);
+  }
+
   esq.columnas.forEach(col => {
     const name = col.Field;
     let val = vals ? (vals[name] ?? '') : '';
@@ -1840,6 +1903,22 @@ function renderCrudForm(esq, vals) {
         />
       `;
     }
+    // [CAM-1] Advertencia individual por campo de cuenta_pasajero
+    if (tabla === 'cuenta_pasajero' && CAMPOS_FIREBASE[name]) {
+      const fw = CAMPOS_FIREBASE[name];
+      const alertDiv = document.createElement('div');
+      const bgColor  = fw.nivel === 'peligro' ? '#fff0f0' : '#f0f7ff';
+      const bdColor  = fw.nivel === 'peligro' ? '#f87171' : '#93c5fd';
+      const txColor  = fw.nivel === 'peligro' ? '#991b1b' : '#1e40af';
+      const icon     = fw.nivel === 'peligro' ? '🚫' : 'ℹ️';
+      alertDiv.style.cssText = `
+        background:${bgColor};border:1px solid ${bdColor};border-radius:6px;
+        padding:7px 12px;margin-bottom:2px;font-size:12px;color:${txColor};
+        display:flex;gap:8px;align-items:flex-start;line-height:1.5;`;
+      alertDiv.innerHTML = `<span style="flex-shrink:0">${icon}</span><span>${fw.msg}</span>`;
+      c.appendChild(alertDiv);
+    }
+
     c.appendChild(div);
   });
 }
@@ -1851,21 +1930,105 @@ async function submitCrud() {
   campos.forEach(el => {
     if (el.readOnly || el.disabled) return;
     const v = el.value.trim();
-    // Campo contrasena vacio en modo editar: no incluirlo (no cambiar)
     const esPassVacio = (el.dataset.field === 'contrasena' || el.dataset.field === 'clave')
                         && v === '' && tablaActual.modo === 'editar';
     if (esPassVacio) return;
     data[el.dataset.field] = v==='' ? null : v;
   });
-  if (tablaActual.modo==='insertar') {
+
+  // [CAM-3] Validación de fechas para viaje (frontend)
+  if (tabla === 'viaje') {
+    const salida  = data['fecHoraSalida'] || data['fechorasalida'];
+    const llegada = data['fecHoraEntrada'] || data['fechoraentrada'];
+    if (salida && llegada) {
+      const dtSal = new Date(salida.replace(' ','T'));
+      const dtLle = new Date(llegada.replace(' ','T'));
+      if (isNaN(dtSal) || isNaN(dtLle)) {
+        toast('Formato de fecha inválido.', 'err'); return;
+      }
+      if (dtLle <= dtSal) {
+        toast('⚠️ La llegada debe ser posterior a la salida.', 'err'); return;
+      }
+    }
+  }
+
+  if (tablaActual.modo === 'insertar') {
+    // [CAM-PK] Verificar si la PK propuesta está ocupada antes de enviar
+    const pkCol = tablaActual.pkCol;
+    if (pkCol && data[pkCol] !== null && data[pkCol] !== undefined) {
+      const pkVal = String(data[pkCol]).trim();
+      if (pkVal !== '') {
+        const chk = await fetch(`/api/crud/${tabla}/next_pk/?propuesto=${encodeURIComponent(pkVal)}`).then(r=>r.json());
+        if (chk.ok && chk.ocupado) {
+          // Mostrar diálogo de confirmación
+          const confirmado = await _dialogoPkOcupado(pkVal, chk.next_id);
+          if (!confirmado) return;           // usuario canceló
+          data[pkCol] = chk.next_id;         // reemplazar con el ID libre
+          // Actualizar el campo visible en el formulario
+          const inp = document.querySelector(`#crud-form-fields [data-field="${pkCol}"]`);
+          if (inp) inp.value = chk.next_id;
+        }
+      }
+    }
+
     const d = await fetch(`/api/crud/${tabla}/insertar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify(data)}).then(r=>r.json());
-    d.ok ? (toast('Registro insertado'), cerrarModal('modal-crud'), recargarGestion()) : toast('Error: '+d.error,'err');
+    d.ok ? (toast('Registro insertado ✓'), cerrarModal('modal-crud'), recargarGestion()) : toast('Error: '+d.error,'err');
   } else {
     data.__pk_name__  = tablaActual.pkName;
     data.__pk_value__ = tablaActual.pkValue;
     const d = await fetch(`/api/crud/${tabla}/actualizar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify(data)}).then(r=>r.json());
-    d.ok ? (toast('Registro actualizado'), cerrarModal('modal-crud'), recargarGestion()) : toast('Error: '+d.error,'err');
+    d.ok ? (toast('Registro actualizado ✓'), cerrarModal('modal-crud'), recargarGestion()) : toast('Error: '+d.error,'err');
   }
+}
+
+// Diálogo de confirmación cuando la PK propuesta ya está ocupada
+function _dialogoPkOcupado(pkOcupada, pkLibre) {
+  return new Promise(resolve => {
+    // Eliminar diálogo previo si existiera
+    document.getElementById('_dlg-pk-ocupada')?.remove();
+
+    const dlg = document.createElement('div');
+    dlg.id = '_dlg-pk-ocupada';
+    dlg.style.cssText = `
+      position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;
+      background:rgba(0,0,0,.45);`;
+    dlg.innerHTML = `
+      <div style="background:var(--bg,#fff);border-radius:14px;padding:28px 32px;max-width:380px;
+                  width:90%;box-shadow:0 8px 40px rgba(0,0,0,.22);font-family:inherit;">
+        <div style="font-size:22px;margin-bottom:10px">⚠️</div>
+        <div style="font-weight:700;font-size:16px;margin-bottom:8px;color:var(--text,#1a2b3c)">
+          ID ${pkOcupada} ya está en uso
+        </div>
+        <div style="font-size:14px;color:var(--muted,#6b8fa8);margin-bottom:22px;line-height:1.6">
+          El número <b>${pkOcupada}</b> ya existe en la tabla.<br>
+          ¿Quieres usar el <b style="color:var(--azul,#1181c3)">${pkLibre}</b> (siguiente disponible)?
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button id="_dlg-pk-cancel"
+            style="padding:8px 18px;border-radius:8px;border:1.5px solid var(--border,#e2e8f0);
+                   background:transparent;cursor:pointer;font-size:14px;color:var(--text,#1a2b3c)">
+            Cancelar
+          </button>
+          <button id="_dlg-pk-ok"
+            style="padding:8px 18px;border-radius:8px;border:none;background:var(--azul,#1181c3);
+                   color:#fff;cursor:pointer;font-size:14px;font-weight:600">
+            Usar ${pkLibre}
+          </button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(dlg);
+
+    document.getElementById('_dlg-pk-ok').onclick = () => {
+      dlg.remove(); resolve(true);
+    };
+    document.getElementById('_dlg-pk-cancel').onclick = () => {
+      dlg.remove(); resolve(false);
+    };
+    dlg.addEventListener('click', e => {
+      if (e.target === dlg) { dlg.remove(); resolve(false); }
+    });
+  });
 }
 
 async function eliminarReg(tabla, pk, pkv) {

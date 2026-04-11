@@ -243,14 +243,19 @@ def crud_leer(request, tabla):
     if tabla not in TABLAS_PERMITIDAS:
         return JsonResponse({'error': 'Tabla no permitida'}, status=403)
 
-    modo = request.GET.get('modo', 'db')   # 'db' | 'legible'
+    modo  = request.GET.get('modo', 'db')   # 'db' | 'legible'
+    limit = int(request.GET.get('limit', 500))
+    limit = max(1, min(limit, 5000))          # entre 1 y 5 000
 
     from django.db import connection
     with connection.cursor() as cur:
+        # Total real de la tabla (sin filtros)
+        cur.execute(f"SELECT COUNT(*) FROM `{tabla}`")
+        total_real = cur.fetchone()[0]
 
         # ── Modo DB: SELECT * puro (igual al DBMS) ──────────────
         if modo != 'legible':
-            cur.execute(f"SELECT * FROM `{tabla}` LIMIT 500")
+            cur.execute(f"SELECT * FROM `{tabla}` LIMIT {limit}")
             cols = [d[0] for d in cur.description]
             rows = [dict(zip(cols, r)) for r in cur.fetchall()]
 
@@ -262,7 +267,7 @@ def crud_leer(request, tabla):
                            ma.nombre AS marca
                     FROM modelo m
                     JOIN marca ma ON ma.numero = m.marca
-                    LIMIT 500
+                    LIMIT {limit}
                 """)
             elif tabla == 'ruta':
                 cur.execute("""
@@ -277,7 +282,7 @@ def crud_leer(request, tabla):
                     JOIN ciudad corig  ON tor.ciudad = corig.clave
                     JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
                     ORDER BY r.codigo
-                    LIMIT 500
+                    LIMIT {limit}
                 """)
             elif tabla == 'pago':
                 cur.execute("""
@@ -289,7 +294,7 @@ def crud_leer(request, tabla):
                     FROM pago pg
                     JOIN tipo_pago tpg ON tpg.numero  = pg.tipo
                     LEFT JOIN taquillero t ON t.registro = pg.vendedor
-                    LIMIT 500
+                    LIMIT {limit}
                 """)
             elif tabla == 'ticket':
                 cur.execute("""
@@ -312,7 +317,7 @@ def crud_leer(request, tabla):
                     JOIN tipo_pasajero tp ON tp.num     = tk.tipopasajero
                     JOIN pago pg         ON pg.numero   = tk.pago
                     JOIN tipo_pago tpg   ON tpg.numero  = pg.tipo
-                    LIMIT 500
+                    LIMIT {limit}
                 """)
             elif tabla == 'taquillero':
                 cur.execute("""
@@ -322,7 +327,7 @@ def crud_leer(request, tabla):
                            CASE t.supervisa WHEN 1 THEN 'Sí' ELSE 'No' END AS supervisa
                     FROM taquillero t
                     JOIN terminal ter ON ter.numero = t.terminal
-                    LIMIT 500
+                    LIMIT {limit}
                 """)
             elif tabla == 'viaje_asiento':
                 cur.execute("""
@@ -336,7 +341,7 @@ def crud_leer(request, tabla):
                     JOIN terminal tdes ON r.destino  = tdes.numero
                     JOIN ciudad corig  ON tor.ciudad = corig.clave
                     JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
-                    LIMIT 500
+                    LIMIT {limit}
                 """)
             elif tabla == 'asiento':
                 cur.execute("""
@@ -346,7 +351,7 @@ def crud_leer(request, tabla):
                     FROM asiento a
                     JOIN tipo_asiento ta ON ta.codigo = a.tipo
                     JOIN autobus b       ON b.numero  = a.autobus
-                    LIMIT 500
+                    LIMIT {limit}
                 """)
             elif tabla == 'viaje':
                 cur.execute("""
@@ -366,7 +371,7 @@ def crud_leer(request, tabla):
                     JOIN edo_viaje ev  ON ev.numero  = v.estado
                     LEFT JOIN autobus a   ON a.numero  = v.autobus
                     LEFT JOIN conductor c ON c.registro = v.conductor
-                    LIMIT 500
+                    LIMIT {limit}
                 """)
             elif tabla == 'cuenta_pasajero':
                 cur.execute("""
@@ -379,11 +384,11 @@ def crud_leer(request, tabla):
                     FROM cuenta_pasajero cp
                     JOIN pasajero p ON p.num = cp.pasajero_num
                     ORDER BY cp.pasajero_num
-                    LIMIT 500
+                    LIMIT {limit}
                 """)
             else:
                 # Fallback: mismo que DB hasta agregar más tablas
-                cur.execute(f"SELECT * FROM `{tabla}` LIMIT 500")
+                cur.execute(f"SELECT * FROM `{tabla}` LIMIT {limit}")
 
             cols = [d[0] for d in cur.description]
             rows = [dict(zip(cols, r)) for r in cur.fetchall()]
@@ -393,7 +398,7 @@ def crud_leer(request, tabla):
             if hasattr(v, 'isoformat'):
                 row[k] = v.isoformat()
 
-    return JsonResponse({'cols': cols, 'rows': rows, 'modo': modo})
+    return JsonResponse({'cols': cols, 'rows': rows, 'modo': modo, 'total_real': total_real, 'limit': limit})
 @admin_requerido
 def crud_esquema(request, tabla):
     if tabla not in TABLAS_PERMITIDAS:
@@ -445,6 +450,19 @@ def crud_esquema(request, tabla):
                     opciones[col] = [{'value': r[0], 'label': r[1].strip()} for r in cur2.fetchall()]
                     continue
 
+                # Caso especial: autobus → mostrar número, placas y modelo legible
+                if rt == 'autobus':
+                    cur2.execute("""
+                        SELECT a.numero,
+                               CONCAT('Bus #', a.numero, ' — ', a.placas,
+                                      ' (', m.nombre, ')') AS label
+                        FROM autobus a
+                        JOIN modelo m ON m.numero = a.modelo
+                        ORDER BY a.numero
+                    """)
+                    opciones[col] = [{'value': r[0], 'label': r[1]} for r in cur2.fetchall()]
+                    continue
+
                 cur2.execute(f"SHOW COLUMNS FROM `{rt}`")
                 rt_cols = [r[0] for r in cur2.fetchall()]
                 display = next(
@@ -460,15 +478,82 @@ def crud_insertar(request, tabla):
     if tabla not in TABLAS_PERMITIDAS:
         return JsonResponse({'error': 'Tabla no permitida'}, status=403)
     data = json.loads(request.body)
+
+    from django.db import connection
+
+    # ── Validaciones previas al INSERT ────────────────────────────────────────
+
+    # [CAM-5] Detectar usuario duplicado en taquillero
+    if tabla == 'taquillero' and data.get('usuario'):
+        with connection.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM taquillero WHERE usuario = %s", [data['usuario']])
+            if cur.fetchone()[0] > 0:
+                return JsonResponse({'ok': False, 'error': f"El usuario «{data['usuario']}» ya existe. Elige un nombre de usuario diferente."})
+
+    # [CAM-5] Detectar correo duplicado en cuenta_pasajero
+    if tabla == 'cuenta_pasajero' and data.get('correo'):
+        with connection.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM cuenta_pasajero WHERE correo = %s", [data['correo']])
+            if cur.fetchone()[0] > 0:
+                return JsonResponse({'ok': False, 'error': f"El correo «{data['correo']}» ya está registrado."})
+
+    # [CAM-3] Validar fechas coherentes + conflictos de conductor/autobús en viaje
+    if tabla == 'viaje':
+        salida  = data.get('fecHoraSalida') or data.get('fechorasalida')
+        llegada = data.get('fecHoraEntrada') or data.get('fechoraentrada')
+        if salida and llegada:
+            from datetime import datetime
+            try:
+                dt_sal = datetime.fromisoformat(salida.replace('T', ' '))
+                dt_lle = datetime.fromisoformat(llegada.replace('T', ' '))
+                if dt_lle <= dt_sal:
+                    return JsonResponse({'ok': False, 'error': 'La fecha/hora de llegada debe ser posterior a la de salida.'})
+            except ValueError:
+                return JsonResponse({'ok': False, 'error': 'Formato de fecha inválido.'})
+
+            # Validar conflicto de conductor
+            conductor_id = data.get('conductor')
+            if conductor_id:
+                with connection.cursor() as cur:
+                    cur.execute("""
+                        SELECT numero FROM viaje
+                        WHERE conductor = %s
+                          AND estado NOT IN (3, 4)
+                          AND fecHoraSalida < %s
+                          AND fecHoraEntrada > %s
+                    """, [conductor_id, llegada, salida])
+                    conflicto = cur.fetchone()
+                if conflicto:
+                    with connection.cursor() as cur:
+                        cur.execute("SELECT conNombre, conPrimerApell FROM conductor WHERE registro = %s", [conductor_id])
+                        con_row = cur.fetchone()
+                    nombre_con = f"{con_row[0]} {con_row[1]}" if con_row else f"ID {conductor_id}"
+                    return JsonResponse({'ok': False, 'error': f"Conflicto de horario: el conductor {nombre_con} ya tiene el viaje #{conflicto[0]} en ese horario."})
+
+            # Validar conflicto de autobús
+            autobus_id = data.get('autobus')
+            if autobus_id:
+                with connection.cursor() as cur:
+                    cur.execute("""
+                        SELECT numero FROM viaje
+                        WHERE autobus = %s
+                          AND estado NOT IN (3, 4)
+                          AND fecHoraSalida < %s
+                          AND fecHoraEntrada > %s
+                    """, [autobus_id, llegada, salida])
+                    conflicto = cur.fetchone()
+                if conflicto:
+                    return JsonResponse({'ok': False, 'error': f"Conflicto de horario: el autobús #{autobus_id} ya está asignado al viaje #{conflicto[0]} en ese horario."})
+
     # Hashear contrasena al insertar un taquillero nuevo
     if tabla == 'taquillero' and 'contrasena' in data and data['contrasena']:
         from django.contrib.auth.hashers import make_password as _mkpass
         data['contrasena'] = _mkpass(data['contrasena'])
+
     fields = list(data.keys())
     vals   = list(data.values())
     sql = f"INSERT INTO `{tabla}` ({', '.join(f'`{f}`' for f in fields)}) VALUES ({', '.join(['%s']*len(vals))})"
     try:
-        from django.db import connection
         with connection.cursor() as cur:
             cur.execute(sql, vals)
         return JsonResponse({'ok': True})
@@ -531,6 +616,73 @@ def crud_actualizar(request, tabla):
             from django.contrib.auth.hashers import make_password as _mkpass
             data['contrasena'] = _mkpass(data['contrasena'])
 
+        # [CAM-5] Detectar usuario duplicado al editar taquillero
+        if tabla == 'taquillero' and 'usuario' in data:
+            from django.db import connection as _c
+            with _c.cursor() as _cur:
+                _cur.execute("SELECT COUNT(*) FROM taquillero WHERE usuario = %s AND registro != %s", [data['usuario'], pk_value])
+                if _cur.fetchone()[0] > 0:
+                    return JsonResponse({'ok': False, 'error': f"El usuario «{data['usuario']}» ya está en uso por otro taquillero."})
+
+        # [CAM-3] Validar fechas coherentes + conflictos de conductor/autobús al editar viaje
+        if tabla == 'viaje':
+            salida  = data.get('fecHoraSalida') or data.get('fechorasalida')
+            llegada = data.get('fecHoraEntrada') or data.get('fechoraentrada')
+            # Si solo viene uno de los dos, obtener el otro de la BD
+            if salida or llegada:
+                from django.db import connection as _c
+                from datetime import datetime
+                with _c.cursor() as _cur:
+                    _cur.execute("SELECT fecHoraSalida, fecHoraEntrada, conductor, autobus FROM viaje WHERE numero = %s", [pk_value])
+                    row_actual = _cur.fetchone()
+                if row_actual:
+                    sal_final = salida  or str(row_actual[0])
+                    lle_final = llegada or str(row_actual[1])
+                    # conductor y autobus: usar el nuevo valor si viene, si no el actual de BD
+                    conductor_id = data.get('conductor') or row_actual[2]
+                    autobus_id   = data.get('autobus')   or row_actual[3]
+                    try:
+                        dt_sal = datetime.fromisoformat(str(sal_final).replace('T', ' ')[:16])
+                        dt_lle = datetime.fromisoformat(str(lle_final).replace('T', ' ')[:16])
+                        if dt_lle <= dt_sal:
+                            return JsonResponse({'ok': False, 'error': 'La fecha/hora de llegada debe ser posterior a la de salida.'})
+                    except ValueError:
+                        return JsonResponse({'ok': False, 'error': 'Formato de fecha inválido.'})
+
+                    # Validar conflicto de conductor (excluir el viaje que se está editando)
+                    if conductor_id:
+                        with _c.cursor() as _cur:
+                            _cur.execute("""
+                                SELECT numero FROM viaje
+                                WHERE conductor = %s
+                                  AND numero != %s
+                                  AND estado NOT IN (3, 4)
+                                  AND fecHoraSalida < %s
+                                  AND fecHoraEntrada > %s
+                            """, [conductor_id, pk_value, lle_final, sal_final])
+                            conflicto = _cur.fetchone()
+                        if conflicto:
+                            with _c.cursor() as _cur:
+                                _cur.execute("SELECT conNombre, conPrimerApell FROM conductor WHERE registro = %s", [conductor_id])
+                                con_row = _cur.fetchone()
+                            nombre_con = f"{con_row[0]} {con_row[1]}" if con_row else f"ID {conductor_id}"
+                            return JsonResponse({'ok': False, 'error': f"Conflicto de horario: el conductor {nombre_con} ya tiene el viaje #{conflicto[0]} en ese horario."})
+
+                    # Validar conflicto de autobús (excluir el viaje que se está editando)
+                    if autobus_id:
+                        with _c.cursor() as _cur:
+                            _cur.execute("""
+                                SELECT numero FROM viaje
+                                WHERE autobus = %s
+                                  AND numero != %s
+                                  AND estado NOT IN (3, 4)
+                                  AND fecHoraSalida < %s
+                                  AND fecHoraEntrada > %s
+                            """, [autobus_id, pk_value, lle_final, sal_final])
+                            conflicto = _cur.fetchone()
+                        if conflicto:
+                            return JsonResponse({'ok': False, 'error': f"Conflicto de horario: el autobús #{autobus_id} ya está asignado al viaje #{conflicto[0]} en ese horario."})
+
         setters = [f"`{k}` = %s" for k in data]
         vals    = list(data.values()) + [pk_value]
         sql = f"UPDATE `{tabla}` SET {', '.join(setters)} WHERE `{pk_name}` = %s"
@@ -542,6 +694,37 @@ def crud_actualizar(request, tabla):
 
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
+
+@admin_requerido
+def crud_next_pk(request, tabla):
+    """Devuelve el verdadero MAX(pk)+1 de la tabla y si un ID propuesto está ocupado."""
+    if tabla not in TABLAS_PERMITIDAS:
+        return JsonResponse({'error': 'Tabla no permitida'}, status=403)
+    propuesto = request.GET.get('propuesto')  # opcional: verificar si ese ID ya existe
+    from django.db import connection
+    with connection.cursor() as cur:
+        # Obtener la columna PK
+        cur.execute(f"SHOW COLUMNS FROM `{tabla}`")
+        cols = [dict(zip([d[0] for d in cur.description], r)) for r in cur.fetchall()]
+        pk_col = next((c['Field'] for c in cols if c['Key'] == 'PRI'), None)
+        if not pk_col:
+            return JsonResponse({'ok': False, 'error': 'Tabla sin PK definida'})
+        # MAX real
+        cur.execute(f"SELECT MAX(`{pk_col}`) FROM `{tabla}`")
+        row = cur.fetchone()
+        max_val = int(row[0]) if row and row[0] is not None else 0
+        next_id = max_val + 1
+        # ¿El ID propuesto está ocupado?
+        ocupado = False
+        if propuesto is not None:
+            try:
+                pid = int(propuesto)
+                cur.execute(f"SELECT COUNT(*) FROM `{tabla}` WHERE `{pk_col}` = %s", [pid])
+                ocupado = cur.fetchone()[0] > 0
+            except (ValueError, TypeError):
+                pass
+    return JsonResponse({'ok': True, 'pk_col': pk_col, 'next_id': next_id, 'ocupado': ocupado})
+
 @require_POST
 @admin_requerido
 def crud_eliminar(request, tabla):
@@ -1321,6 +1504,12 @@ def api_login(request):
     try:
         taquillero = Taquillero.objects.get(usuario=usuario)
         if check_password(contrasena, taquillero.contrasena):
+            # Construir URL absoluta de la foto si existe
+            foto_url = ''
+            if taquillero.foto:
+                foto_url = request.build_absolute_uri(
+                    f'{settings.MEDIA_URL}{taquillero.foto}'
+                )
             return Response({
                 'tipo': 'taquillero',
                 'registro': taquillero.registro,
@@ -1329,6 +1518,7 @@ def api_login(request):
                 'segundo_apellido': taquillero.taqsegundoapell or '',
                 'usuario': taquillero.usuario,
                 'fecha_contrato': str(taquillero.fechacontrato),
+                'foto': foto_url,
                 'terminal': {
                     'numero': taquillero.terminal.numero,
                     'nombre': taquillero.terminal.nombre,

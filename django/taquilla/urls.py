@@ -28,6 +28,7 @@ urlpatterns = [
     # CRUD genérico
     path('api/crud/<str:tabla>/leer/',       views.crud_leer,       name='crud_leer'),
     path('api/crud/<str:tabla>/esquema/',    views.crud_esquema,    name='crud_esquema'),
+    path('api/crud/<str:tabla>/next_pk/',    views.crud_next_pk,    name='crud_next_pk'),
     path('api/crud/<str:tabla>/insertar/',   views.crud_insertar,   name='crud_insertar'),
     path('api/crud/<str:tabla>/actualizar/', views.crud_actualizar, name='crud_actualizar'),
     path('api/crud/<str:tabla>/eliminar/',   views.crud_eliminar,   name='crud_eliminar'),

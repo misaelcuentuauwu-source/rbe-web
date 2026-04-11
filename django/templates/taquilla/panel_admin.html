@@ -65,6 +65,33 @@
       color: #7a5c00;
     }
 
+    /* ── FAB Modo asistido ── */
+    #fab-modo-asistido {
+      position: fixed;
+      bottom: 28px;
+      right: 32px;
+      z-index: 900;
+      background: var(--azul, #1181c3);
+      color: #fff;
+      border: none;
+      border-radius: 50px;
+      padding: 13px 22px 13px 18px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(17,129,195,.35);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background .18s, transform .15s, box-shadow .18s;
+    }
+    #fab-modo-asistido:hover {
+      background: #0d6fa8;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(17,129,195,.45);
+    }
+    #fab-modo-asistido:active { transform: translateY(0); }
+
     /* ── Toggle DB / Legible ── */
     .db-toggle-wrap {
       display: none;
@@ -960,6 +987,12 @@
         </div>
       </div>
       <div class="info-bar" id="gestion-info"></div>
+      <div id="gestion-ver-todos-wrap" style="display:none;margin:0 0 8px 0;">
+        <button class="btn btn-sm" id="btn-ver-todos" onclick="verTodosRegistros()"
+          style="background:var(--naranja,#e06d30);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:13px;cursor:pointer;">
+          ↓ Ver todos los registros (<span id="ver-todos-count"></span>)
+        </button>
+      </div>
       <div class="tbl-wrap" id="gestion-tabla-wrap">
         <table id="gestion-tabla">
           <thead id="gestion-thead"></thead>
@@ -967,6 +1000,12 @@
         </table>
       </div>
       <div id="gestion-cards-wrap" style="display:none"></div>
+
+      <!-- FAB: Modo asistido — solo visible en tabla viaje -->
+      <button id="fab-modo-asistido" onclick="abrirModoAsistido()" style="display:none"
+        title="Agregar viaje con modo asistido">
+        🚌<span id="fab-label"> Modo asistido</span>
+      </button>
     </div>
 
     <!-- ════ CONFIGURACIÓN ════ -->
@@ -1090,6 +1129,7 @@
     <div id="crud-form-fields"></div>
     <div class="modal-actions">
       <button class="btn btn-gray"    onclick="cerrarModal('modal-crud')">Cancelar</button>
+      <button class="btn btn-primary" id="crud-btn-asistido" onclick="cerrarModal('modal-crud');abrirModoAsistido()" style="display:none">🚌 Modo asistido</button>
       <button class="btn btn-naranja" id="crud-submit-btn" onclick="submitCrud()">Guardar</button>
     </div>
   </div>
