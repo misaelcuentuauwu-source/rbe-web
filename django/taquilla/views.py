@@ -51,7 +51,7 @@ def admin_requerido(view_func):
 
 def login_view(request):
     if request.method == 'POST':
-        usuario = request.POST.get('usuario', '').strip()
+        usuario   = request.POST.get('usuario', '').strip()
         contrasena = request.POST.get('contrasena', '').strip()
         try:
             taquillero = Taquillero.objects.get(usuario=usuario)
@@ -1316,26 +1316,27 @@ def api_ventas_sujetos(request):
 
 @api_view(['POST'])
 def api_login(request):
-    usuario = request.data.get('usuario')
+    usuario    = request.data.get('usuario')
     contrasena = request.data.get('contrasena')
     try:
         taquillero = Taquillero.objects.get(usuario=usuario)
-        if not check_password(contrasena, taquillero.contrasena):
+        if check_password(contrasena, taquillero.contrasena):
+            return Response({
+                'tipo': 'taquillero',
+                'registro': taquillero.registro,
+                'nombre': taquillero.taqnombre,
+                'primer_apellido': taquillero.taqprimerapell,
+                'segundo_apellido': taquillero.taqsegundoapell or '',
+                'usuario': taquillero.usuario,
+                'fecha_contrato': str(taquillero.fechacontrato),
+                'terminal': {
+                    'numero': taquillero.terminal.numero,
+                    'nombre': taquillero.terminal.nombre,
+                    'ciudad': taquillero.terminal.ciudad.nombre,
+                }
+            })
+        else:
             return Response({'error': 'Credenciales incorrectas'}, status=401)
-        return Response({
-            'tipo': 'taquillero',
-            'registro': taquillero.registro,
-            'nombre': taquillero.taqnombre,
-            'primer_apellido': taquillero.taqprimerapell,
-            'segundo_apellido': taquillero.taqsegundoapell or '',
-            'usuario': taquillero.usuario,
-            'fecha_contrato': str(taquillero.fechacontrato),
-            'terminal': {
-                'numero': taquillero.terminal.numero,
-                'nombre': taquillero.terminal.nombre,
-                'ciudad': taquillero.terminal.ciudad.nombre,
-            }
-        })
     except Taquillero.DoesNotExist:
         return Response({'error': 'Credenciales incorrectas'}, status=401)
 
