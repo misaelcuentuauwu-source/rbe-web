@@ -54,7 +54,7 @@
   .pin-circle{fill:var(--naranja);stroke:var(--blanco);stroke-width:2.5;transition:r .2s,fill .2s}
   .terminal-pin{cursor:pointer}
   .terminal-pin:hover .pin-circle{fill:var(--azul)}
-  .ruta-line{stroke:var(--azul);stroke-width:2;fill:none;stroke-dasharray:5 3;opacity:.55}
+  .ruta-line{stroke:var(--azul);stroke-width:2;fill:none;stroke-dasharray:5 3;opacity:.85}
   .terminales-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:22px;perspective:1000px}
   .card-terminal{height:230px;border-radius:16px;overflow:hidden;position:relative;background-size:cover;background-position:center;cursor:pointer;transition:transform .4s ease,box-shadow .4s ease;transform-style:preserve-3d;box-shadow:0 10px 20px rgba(0,0,0,.08)}
   .card-terminal:hover{box-shadow:0 20px 40px rgba(0,0,0,.2),0 0 20px rgba(233,111,46,.15)}
@@ -177,11 +177,11 @@
           </filter>
         </defs>
         <!-- Imagen real del mapa de Baja California -->
-        <image href="bajaCaliforniaMapa2.jpg" x="0" y="0" width="520" height="520" preserveAspectRatio="xMidYMid meet"/>
+        <image href="bajaCaliforniaMapa3.png" x="0" y="0" width="520" height="520" preserveAspectRatio="xMidYMid meet"/>
         <!-- Rutas (coordenadas ajustadas al mapa real) -->
         <!-- Tijuana(155,80) - Tecate(230,88) - Mexicali(340,72) -->
-        <line x1="170" y1="65" x2="200" y2="70" class="ruta-line"/>
-        <line x1="210" y1="70" x2="250" y2="85" class="ruta-line"/>
+        <line x1="170" y1="65" x2="200" y2="67" class="ruta-line"/>
+        <line x1="210" y1="63" x2="250" y2="85" class="ruta-line"/>
         <!-- Tijuana - Rosarito -->
         <line x1="155" y1="70" x2="160" y2="100" class="ruta-line"/>
         <!-- Rosarito - Ensenada -->
@@ -189,7 +189,7 @@
         <!-- Ensenada - San Quintín -->
         <line x1="230" y1="165" x2="270" y2="270" class="ruta-line"/>
         <!-- Mexicali - San Felipe -->
-        <line x1="260" y1="90" x2="320" y2="248" class="ruta-line"/>
+        <line x1="260" y1="90" x2="350" y2="340" class="ruta-line"/>
         <!-- Tijuana -->
         <g class="terminal-pin" onclick="location.href='terminales.html#tijuana'" filter="url(#pinShadow)">
           <circle class="pin-circle" cx="155" cy="60" r="10"/>
@@ -222,9 +222,9 @@
         </g>
         <!-- San Felipe -->
         <g class="terminal-pin" onclick="location.href='terminales.html#sanfelipe'" filter="url(#pinShadow)">
-          <circle class="pin-circle" cx="320" cy="248" r="10"/>
-          <circle cx="320" cy="248" r="4" fill="white"/>
-          <text x="333" y="244" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">San Felipe</text>
+          <circle class="pin-circle" cx="350" cy="340" r="10"/>
+          <circle cx="350" cy="340" r="4" fill="white"/>
+          <text x="333" y="320" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">San Felipe</text>
         </g>
         <!-- San Quintín -->
         <g class="terminal-pin" onclick="location.href='terminales.html#sanquintin'" filter="url(#pinShadow)">
@@ -233,11 +233,11 @@
           <text x="235" y="300" font-size="12" font-weight="700" font-family="Montserrat,sans-serif" fill="#15557a" stroke="white" stroke-width="3" paint-order="stroke">San Quintín</text>
         </g>
         <!-- Leyenda -->
-        <rect x="8" y="480" width="164" height="42" rx="8" fill="white" fill-opacity="0.92" stroke="#c8dcea" stroke-width="1"/>
-        <circle cx="26" cy="493" r="6" fill="#E96F2E" stroke="white" stroke-width="2"/>
-        <text x="38" y="497" font-size="10" font-family="Montserrat,sans-serif" fill="#4a4a4a" font-weight="700">Terminal RBE</text>
-        <line x1="18" y1="510" x2="36" y2="510" stroke="#1F77A8" stroke-width="2" stroke-dasharray="4 2"/>
-        <text x="40" y="514" font-size="10" font-family="Montserrat,sans-serif" fill="#4a4a4a">Ruta activa</text>
+        <rect x="8" y="470" width="164" height="42" rx="8" fill="white" fill-opacity="0.92" stroke="#c8dcea" stroke-width="1"/>
+        <circle cx="26" cy="483" r="6" fill="#E96F2E" stroke="white" stroke-width="2"/>
+        <text x="38" y="485" font-size="10" font-family="Montserrat,sans-serif" fill="#4a4a4a" font-weight="700">Terminal RBE</text>
+        <line x1="18" y1="502" x2="36" y2="502" stroke="#1F77A8" stroke-width="2" stroke-dasharray="4 2"/>
+        <text x="40" y="505" font-size="10" font-family="Montserrat,sans-serif" fill="#4a4a4a">Ruta activa</text>
       </svg>
     </div>
 
