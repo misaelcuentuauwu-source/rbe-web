@@ -1482,6 +1482,20 @@ function exportarPasajerosCSV() {
 const COLS_IMAGEN = new Set(['foto']);
 const COLS_OCULTAS_CARDS = new Set(['serieVIN', 'serievin', 'firebase_uid', 'clave', 'contrasena']);
 
+// Aliases de columnas: se muestran en headers/labels con nombre amigable sin alterar la BD
+const COL_ALIAS = {
+  'ano': 'año',
+  'contrasena': 'contraseña',
+  'numasientos': 'num. asientos',
+  'fechacontrato': 'fecha contrato',
+  'fechanacimiento': 'fecha nacimiento',
+  'fechapago': 'fecha pago',
+  'fechoemision': 'fecha emisión',
+  'tipopasajero': 'tipo pasajero',
+  'firebase_uid': 'firebase uid',
+};
+function colLabel(c) { return COL_ALIAS[c.toLowerCase()] ?? c; }
+
 function setGestionView(view) {
   gestionView = view;
   document.getElementById('gvt-tabla').classList.toggle('active', view === 'tabla');
@@ -1602,7 +1616,7 @@ function highlightMatch(text, q) {
 function renderGestionTabla(d, q = '') {
   const tabla = tablaActual.nombre;
   document.getElementById('gestion-thead').innerHTML =
-    `<tr>${d.cols.map(c=>`<th>${c}</th>`).join('')}<th>Acciones</th></tr>`;
+    `<tr>${d.cols.map(c=>`<th>${colLabel(c)}</th>`).join('')}<th>Acciones</th></tr>`;
   if (!d.rows.length) {
     document.getElementById('gestion-tbody').innerHTML =
       '<tr><td colspan="20" style="text-align:center;color:var(--muted)">Sin registros</td></tr>';
@@ -1618,6 +1632,11 @@ function renderGestionTabla(d, q = '') {
             style="width:44px;height:44px;object-fit:cover;border-radius:50%;border:2px solid var(--border);cursor:pointer;vertical-align:middle;"
             onerror="this.style.display='none'"
             onclick="verFotoGrande('${url}')"></td>`;
+        }
+        // Columnas de contrasena: mostrar mascara en tabla (solo taquillero para 'clave')
+        const esColPass = c === 'contrasena' || (c === 'clave' && tabla === 'taquillero');
+        if (esColPass && row[c]) {
+          return `<td style="color:var(--muted);letter-spacing:2px">\u2022\u2022\u2022\u2022\u2022\u2022</td>`;
         }
         return `<td>${highlightMatch(row[c], q)}</td>`;
       }).join('')}
@@ -1653,7 +1672,7 @@ function renderGestionCards(d, q = '') {
     );
     const camposHtml = camposCols.map(c => `
       <div class="gc-field">
-        <span class="gc-field-key">${c}</span>
+        <span class="gc-field-key">${colLabel(c)}</span>
         <span class="gc-field-val">${highlightMatch(row[c], q)}</span>
       </div>`).join('');
     return `
@@ -1737,7 +1756,7 @@ function renderCrudForm(esq, vals) {
     if (esq.fk_map[name]) {
       const opts = esq.opciones[name] || [];
       div.innerHTML = `
-        <label>${name}</label>
+        <label>${colLabel(name)}</label>
         <select data-field="${name}" ${isPK && isEditing ? 'disabled' : ''}>
           <option value="">— seleccionar —</option>
           ${opts.map(o => `
@@ -1752,6 +1771,19 @@ function renderCrudForm(esq, vals) {
       let inputType  = 'text';
       let extraAttrs = '';
       let placeholder = '';
+
+      // Campo contrasena: type=password, nunca mostrar hash, placeholder descriptivo
+      if (name === 'contrasena' || name === 'clave') {
+        div.innerHTML = `
+          <label>${colLabel(name)} ${isEditing ? '<span style="font-size:11px;color:var(--muted)">(dejar vacío para no cambiar)</span>' : ''}</label>
+          <input data-field="${name}" type="password" value=""
+            placeholder="••••••  ${isEditing ? 'Nueva contraseña (opcional)' : 'Contraseña'}"
+            autocomplete="new-password" />
+        `;
+        c.appendChild(div);
+        return;
+      }
+
       if (colType === 'date') {
         inputType   = 'date';
         placeholder = 'YYYY-MM-DD';
@@ -1797,7 +1829,7 @@ function renderCrudForm(esq, vals) {
         }
       }
       div.innerHTML = `
-        <label>${name}</label>
+        <label>${colLabel(name)}</label>
         <input
           data-field="${name}"
           type="${inputType}"
@@ -1819,6 +1851,10 @@ async function submitCrud() {
   campos.forEach(el => {
     if (el.readOnly || el.disabled) return;
     const v = el.value.trim();
+    // Campo contrasena vacio en modo editar: no incluirlo (no cambiar)
+    const esPassVacio = (el.dataset.field === 'contrasena' || el.dataset.field === 'clave')
+                        && v === '' && tablaActual.modo === 'editar';
+    if (esPassVacio) return;
     data[el.dataset.field] = v==='' ? null : v;
   });
   if (tablaActual.modo==='insertar') {
@@ -1833,16 +1869,43 @@ async function submitCrud() {
 }
 
 async function eliminarReg(tabla, pk, pkv) {
-  if (!confirm(`¿Eliminar el registro ${pkv} de ${tabla}?`)) return;
-  const d = await fetch(`/api/crud/${tabla}/eliminar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify({pk_name:pk,pk_value:pkv})}).then(r=>r.json());
-  d.ok ? (toast('Registro eliminado'), recargarGestion()) : toast('Error: '+d.error,'err');
+  // Guardar contexto para que confirmarEliminar() lo use
+  window._elimCtx = { tabla, pk, pkv };
+
+  document.getElementById('modal-elim-tabla').textContent = tabla;
+  document.getElementById('modal-elim-pk').textContent    = pkv;
+
+  // Resaltar la opción RESTRICT por defecto (la más segura)
+  document.querySelectorAll('.elim-opt').forEach(b => b.classList.remove('active'));
+  document.querySelector('.elim-opt[data-modo="restrict"]').classList.add('active');
+  window._elimModo = 'restrict';
+
+  abrirModal('modal-eliminar');
+}
+
+function selElimModo(modo) {
+  window._elimModo = modo;
+  document.querySelectorAll('.elim-opt').forEach(b => b.classList.remove('active'));
+  document.querySelector(`.elim-opt[data-modo="${modo}"]`).classList.add('active');
+}
+
+async function confirmarEliminar() {
+  const { tabla, pk, pkv } = window._elimCtx;
+  const modo = window._elimModo || 'restrict';
+  const d = await fetch(`/api/crud/${tabla}/eliminar/`, {
+    method: 'POST',
+    headers: csrfHeaders(),
+    body: JSON.stringify({ pk_name: pk, pk_value: pkv, modo_eliminar: modo })
+  }).then(r => r.json());
+  cerrarModal('modal-eliminar');
+  d.ok ? (toast('Registro eliminado'), recargarGestion()) : toast('Error: ' + d.error, 'err');
 }
 
 function verDetalle(cols, row) {
   document.getElementById('detalle-title').textContent = `Detalle — ${tablaActual.nombre}`;
   document.getElementById('detalle-body').innerHTML    = cols.map(c=>`
     <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--border)">
-      <span style="font-weight:700;color:var(--muted);flex-shrink:0">${c}</span>
+      <span style="font-weight:700;color:var(--muted);flex-shrink:0">${colLabel(c)}</span>
       <span style="text-align:right;word-break:break-all">${row[c]??'—'}</span>
     </div>`).join('');
   abrirModal('modal-detalle');
@@ -1855,7 +1918,8 @@ function cargarConfig() {
   document.getElementById('cfg-ap1').value      = TAQ_DATA.ap1;
   document.getElementById('cfg-ap2').value      = TAQ_DATA.ap2;
   document.getElementById('cfg-usuario').value  = TAQ_DATA.usuario;
-  document.getElementById('cfg-pass').value     = TAQ_DATA.contrasena;
+  document.getElementById('cfg-pass').value       = '';
+  document.getElementById('cfg-pass').placeholder = '\u2022\u2022\u2022\u2022\u2022\u2022  (dejar vac\u00edo para no cambiar)';
 }
 
 async function guardarConfig() {
@@ -1864,7 +1928,8 @@ async function guardarConfig() {
   body.append('primer_apellido',  document.getElementById('cfg-ap1').value.trim());
   body.append('segundo_apellido', document.getElementById('cfg-ap2').value.trim());
   body.append('usuario',          document.getElementById('cfg-usuario').value.trim());
-  body.append('contrasena',       document.getElementById('cfg-pass').value.trim());
+  const nuevaPass = document.getElementById('cfg-pass').value.trim();
+  if (nuevaPass) body.append('contrasena', nuevaPass);
   body.append('csrfmiddlewaretoken', CSRF);
   const d = await fetch('/api/config/',{method:'POST',body}).then(r=>r.json());
   d.ok ? toast('Cambios guardados') : toast('Error: '+d.error,'err');

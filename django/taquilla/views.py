@@ -124,7 +124,7 @@ def panel_admin(request):
     tablas = [
         'marca','modelo','autobus','ciudad','conductor','ruta','viaje','asiento',
         'viaje_asiento','taquillero','tipo_pasajero','tipo_pago','edo_viaje',
-        'ticket','pasajero','pago','terminal','tipo_asiento',
+        'ticket','pasajero','pago','terminal','tipo_asiento','cuenta_pasajero',
     ]
     taquillero = Taquillero.objects.get(registro=request.session['usuario_id'])
     return render(request, 'taquilla/panel_admin.html', {
@@ -140,7 +140,7 @@ def actualizar_config(request):
     ap2        = request.POST.get('segundo_apellido', '').strip()
     usuario    = request.POST.get('usuario', '').strip()
     contrasena = request.POST.get('contrasena', '').strip()
-    if not all([nombre, ap1, usuario, contrasena]):
+    if not all([nombre, ap1, usuario]):
         return JsonResponse({'ok': False, 'error': 'Campos obligatorios incompletos'})
     try:
         taq = Taquillero.objects.get(registro=request.session['usuario_id'])
@@ -148,7 +148,9 @@ def actualizar_config(request):
         taq.taqprimerapell  = ap1
         taq.taqsegundoapell = ap2
         taq.usuario         = usuario
-        taq.contrasena      = make_password(contrasena)
+        # Solo actualizar contraseña si el usuario envió una nueva
+        if contrasena:
+            taq.contrasena = make_password(contrasena)
         taq.save()
         request.session['usuario_nombre']   = nombre
         request.session['usuario_apellido'] = ap1
@@ -159,7 +161,7 @@ def actualizar_config(request):
 TABLAS_PERMITIDAS = [
     'marca','modelo','autobus','ciudad','conductor','ruta','viaje','asiento',
     'viaje_asiento','taquillero','tipo_pasajero','tipo_pago','edo_viaje',
-    'ticket','pasajero','pago','terminal','tipo_asiento',
+    'ticket','pasajero','pago','terminal','tipo_asiento','cuenta_pasajero',
 ]
 
 @admin_requerido
@@ -366,6 +368,19 @@ def crud_leer(request, tabla):
                     LEFT JOIN conductor c ON c.registro = v.conductor
                     LIMIT 500
                 """)
+            elif tabla == 'cuenta_pasajero':
+                cur.execute("""
+                    SELECT cp.pasajero_num,
+                           CONCAT(p.paNombre, ' ', p.paPrimerApell) AS pasajero,
+                           cp.correo,
+                           cp.proveedor,
+                           CASE WHEN cp.foto IS NOT NULL AND cp.foto != '' THEN 'Sí' ELSE 'No' END AS tiene_foto,
+                           cp.firebase_uid
+                    FROM cuenta_pasajero cp
+                    JOIN pasajero p ON p.num = cp.pasajero_num
+                    ORDER BY cp.pasajero_num
+                    LIMIT 500
+                """)
             else:
                 # Fallback: mismo que DB hasta agregar más tablas
                 cur.execute(f"SELECT * FROM `{tabla}` LIMIT 500")
@@ -419,6 +434,17 @@ def crud_esquema(request, tabla):
                     opciones[col] = [{'value': r[0], 'label': r[1]} for r in cur2.fetchall()]
                     continue
 
+                # Caso especial: conductor → mostrar nombre completo con apellidos
+                if rt == 'conductor':
+                    cur2.execute("""
+                        SELECT registro,
+                               CONCAT(conNombre, ' ', conPrimerApell,
+                                      IFNULL(CONCAT(' ', conSegundoApell), '')) AS label
+                        FROM conductor ORDER BY conNombre
+                    """)
+                    opciones[col] = [{'value': r[0], 'label': r[1].strip()} for r in cur2.fetchall()]
+                    continue
+
                 cur2.execute(f"SHOW COLUMNS FROM `{rt}`")
                 rt_cols = [r[0] for r in cur2.fetchall()]
                 display = next(
@@ -434,6 +460,10 @@ def crud_insertar(request, tabla):
     if tabla not in TABLAS_PERMITIDAS:
         return JsonResponse({'error': 'Tabla no permitida'}, status=403)
     data = json.loads(request.body)
+    # Hashear contrasena al insertar un taquillero nuevo
+    if tabla == 'taquillero' and 'contrasena' in data and data['contrasena']:
+        from django.contrib.auth.hashers import make_password as _mkpass
+        data['contrasena'] = _mkpass(data['contrasena'])
     fields = list(data.keys())
     vals   = list(data.values())
     sql = f"INSERT INTO `{tabla}` ({', '.join(f'`{f}`' for f in fields)}) VALUES ({', '.join(['%s']*len(vals))})"
@@ -496,6 +526,11 @@ def crud_actualizar(request, tabla):
                                 'error': f'Transición no permitida: "{estado_actual.capitalize()}" → "{nuevo_estado.capitalize()}".'
                             })
 
+        # Hashear contrasena si viene con valor nuevo (taquillero)
+        if tabla == 'taquillero' and 'contrasena' in data and data['contrasena']:
+            from django.contrib.auth.hashers import make_password as _mkpass
+            data['contrasena'] = _mkpass(data['contrasena'])
+
         setters = [f"`{k}` = %s" for k in data]
         vals    = list(data.values()) + [pk_value]
         sql = f"UPDATE `{tabla}` SET {', '.join(setters)} WHERE `{pk_name}` = %s"
@@ -512,25 +547,120 @@ def crud_actualizar(request, tabla):
 def crud_eliminar(request, tabla):
     if tabla not in TABLAS_PERMITIDAS:
         return JsonResponse({'error': 'Tabla no permitida'}, status=403)
-    data     = json.loads(request.body)
-    pk_name  = data['pk_name']
-    pk_value = data['pk_value']
+    data          = json.loads(request.body)
+    pk_name       = data['pk_name']
+    pk_value      = data['pk_value']
+    modo_eliminar = data.get('modo_eliminar', 'restrict')
+
+    def get_refs(cur, t, col):
+        """Devuelve [(tabla_hija, columna_fk)] que referencian a t.col"""
+        cur.execute("""
+            SELECT TABLE_NAME, COLUMN_NAME
+            FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA           = DATABASE()
+              AND REFERENCED_TABLE_NAME  = %s
+              AND REFERENCED_COLUMN_NAME = %s
+        """, [t, col])
+        return cur.fetchall()
+
+    def get_pk(cur, t):
+        cur.execute("""
+            SELECT COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s
+              AND CONSTRAINT_NAME = 'PRIMARY'
+            LIMIT 1
+        """, [t])
+        row = cur.fetchone()
+        return row[0] if row else None
+
+    def contar_hijos_total(cur, t, col, val):
+        """Cuenta todos los descendientes (recursivo)."""
+        total = 0
+        refs = get_refs(cur, t, col)
+        for ref_t, ref_c in refs:
+            cur.execute(f"SELECT COUNT(*) FROM `{ref_t}` WHERE `{ref_c}` = %s", [val])
+            n = cur.fetchone()[0]
+            if n > 0:
+                total += n
+                # buscar hijos de los hijos
+                ref_pk = get_pk(cur, ref_t)
+                if ref_pk:
+                    cur.execute(f"SELECT `{ref_pk}` FROM `{ref_t}` WHERE `{ref_c}` = %s", [val])
+                    for (child_id,) in cur.fetchall():
+                        total += contar_hijos_total(cur, ref_t, ref_pk, child_id)
+        return total
+
+    def delete_cascade(cur, t, col, val):
+        """Borra recursivamente todos los hijos antes de borrar el padre."""
+        refs = get_refs(cur, t, col)
+        ref_pk = get_pk(cur, t)
+        for ref_t, ref_c in refs:
+            # obtener IDs de los hijos para recursion
+            if ref_pk:
+                cur.execute(f"SELECT `{ref_pk}` FROM `{t}` WHERE `{col}` = %s", [val])
+                # no es necesario aqui; iteramos sobre los hijos del hijo
+                pass
+            # borrar hijos de los hijos primero
+            ref_ref_pk = get_pk(cur, ref_t)
+            if ref_ref_pk:
+                cur.execute(f"SELECT `{ref_ref_pk}` FROM `{ref_t}` WHERE `{ref_c}` = %s", [val])
+                nietos_ids = [r[0] for r in cur.fetchall()]
+                for nieto_id in nietos_ids:
+                    delete_cascade(cur, ref_t, ref_ref_pk, nieto_id)
+            cur.execute(f"DELETE FROM `{ref_t}` WHERE `{ref_c}` = %s", [val])
+        cur.execute(f"DELETE FROM `{t}` WHERE `{col}` = %s", [val])
+
     try:
         from django.db import connection
         with connection.cursor() as cur:
 
-            # ── Validar que no se elimine una ruta con viajes ─────────
-            if tabla == 'ruta':
-                cur.execute(
-                    "SELECT COUNT(*) FROM viaje WHERE ruta = %s", [pk_value]
-                )
-                if cur.fetchone()[0] > 0:
+            if modo_eliminar == 'restrict':
+                # Verificar hijos directos; si los hay, informar y detener
+                refs = get_refs(cur, tabla, pk_name)
+                conflictos = []
+                for ref_t, ref_c in refs:
+                    cur.execute(
+                        f"SELECT COUNT(*) FROM `{ref_t}` WHERE `{ref_c}` = %s", [pk_value]
+                    )
+                    n = cur.fetchone()[0]
+                    if n > 0:
+                        conflictos.append(f'{n} registro(s) en "{ref_t}"')
+                if conflictos:
                     return JsonResponse({
                         'ok': False,
-                        'error': 'No se puede eliminar la ruta porque tiene viajes registrados.'
+                        'error': (
+                            'No se puede eliminar porque existen dependencias: '
+                            + ', '.join(conflictos) +
+                            '. Usa CASCADE para borrarlos también, o SET NULL para desvincularlos.'
+                        )
                     })
+                cur.execute(f"DELETE FROM `{tabla}` WHERE `{pk_name}` = %s", [pk_value])
 
-            cur.execute(f"DELETE FROM `{tabla}` WHERE `{pk_name}` = %s", [pk_value])
+            elif modo_eliminar == 'cascade':
+                # Desactivar FK checks para evitar conflictos de orden en MySQL
+                cur.execute("SET FOREIGN_KEY_CHECKS = 0")
+                try:
+                    delete_cascade(cur, tabla, pk_name, pk_value)
+                finally:
+                    cur.execute("SET FOREIGN_KEY_CHECKS = 1")
+
+            elif modo_eliminar == 'setnull':
+                # Desactivar FK checks y poner NULL en todos los hijos directos
+                cur.execute("SET FOREIGN_KEY_CHECKS = 0")
+                try:
+                    refs = get_refs(cur, tabla, pk_name)
+                    for ref_t, ref_c in refs:
+                        cur.execute(
+                            f"UPDATE `{ref_t}` SET `{ref_c}` = NULL WHERE `{ref_c}` = %s",
+                            [pk_value]
+                        )
+                    cur.execute(f"DELETE FROM `{tabla}` WHERE `{pk_name}` = %s", [pk_value])
+                finally:
+                    cur.execute("SET FOREIGN_KEY_CHECKS = 1")
+
+            else:
+                return JsonResponse({'ok': False, 'error': 'Modo de eliminación no reconocido'})
+
         return JsonResponse({'ok': True})
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
