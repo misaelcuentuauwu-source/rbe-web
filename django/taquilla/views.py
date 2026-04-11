@@ -574,7 +574,6 @@ def salidas_json(request):
 @admin_requerido
 def historial_json(request):
     from django.db import connection
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     with connection.cursor() as cur:
         cur.execute("""
             SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
@@ -596,12 +595,11 @@ def historial_json(request):
             LEFT JOIN autobus a   ON v.autobus = a.numero
             LEFT JOIN modelo mo   ON a.modelo = mo.numero
             LEFT JOIN ticket t    ON t.viaje = v.numero
-            WHERE v.fecHoraSalida < %s
-               OR LOWER(ev.nombre) IN ('finalizado','completado','cancelado','terminado')
+            WHERE LOWER(ev.nombre) IN ('en curso','completado','finalizado','cancelado','terminado')
             GROUP BY v.numero
             ORDER BY v.fecHoraSalida DESC
             LIMIT 500
-        """, [now])
+        """, [])
         cols = [d[0] for d in cur.description]
         rows = []
         for r in cur.fetchall():
@@ -896,6 +894,61 @@ def kpi_especificos(request):
             LEFT JOIN conductor c ON v.conductor=c.registro
             {w} ORDER BY v.fecHoraSalida ASC
         """, params), 'tipo': tipo})
+    elif tipo == 'ventas':
+        sujeto_tipo = request.GET.get('sujeto_tipo', '')  # 'taquillero' | 'cliente'
+        sujeto_id   = request.GET.get('sujeto_id', '')
+        ruta_id     = request.GET.get('ruta_id', '')
+
+        pagos = Pago.objects.order_by('-fechapago')
+
+        if sujeto_tipo == 'taquillero' and sujeto_id:
+            pagos = pagos.filter(vendedor__registro=sujeto_id)
+        elif sujeto_tipo == 'cliente' and sujeto_id:
+            pagos = pagos.filter(ticket__pasajero__num=sujeto_id).distinct()
+
+        if ruta_id:
+            pagos = pagos.filter(ticket__viaje__ruta__codigo=ruta_id).distinct()
+
+        # Filtro de taquillero adicional (usado cuando sujeto_tipo='cliente' y se quiere ver qué taquillero vendió)
+        vendedor_id = request.GET.get('vendedor_id', '')
+        if vendedor_id:
+            pagos = pagos.filter(vendedor__registro=vendedor_id)
+
+        if aplicar and desde and hasta:
+            pagos = pagos.filter(fechapago__date__gte=desde, fechapago__date__lte=hasta)
+
+        rows = []
+        for pago in pagos:
+            tickets = Ticket.objects.filter(pago=pago).select_related(
+                'viaje__ruta__origen__ciudad',
+                'viaje__ruta__destino__ciudad',
+                'viaje__estado',
+            )
+            primer_ticket = tickets.first()
+            if primer_ticket:
+                viaje   = primer_ticket.viaje
+                origen  = viaje.ruta.origen.ciudad.nombre
+                destino = viaje.ruta.destino.ciudad.nombre
+                salida  = str(viaje.fechorasalida)
+                estado  = viaje.estado.nombre
+            else:
+                origen = destino = salida = estado = ''
+
+            rows.append({
+                'folio':          pago.numero,
+                'fecha':          str(pago.fechapago),
+                'origen':         origen,
+                'destino':        destino,
+                'hora_salida':    salida,
+                'estado':         estado,
+                'num_pasajeros':  tickets.count(),
+                'monto':          str(pago.monto),
+                'metodo_pago':    pago.tipo.nombre,
+                'vendedor_id':    pago.vendedor.registro if pago.vendedor else None,
+                'vendedor_nombre': f'{pago.vendedor.taqnombre} {pago.vendedor.taqprimerapell}' if pago.vendedor else 'App',
+            })
+        return JsonResponse({'rows': rows, 'tipo': tipo})
+
     return JsonResponse({'rows': [], 'tipo': tipo})
 
 @admin_requerido
@@ -908,7 +961,27 @@ def kpi_filtros_opciones(request):
         autobuses = [{'value': r[0], 'label': f"#{r[0]} ({r[1]})"} for r in cur.fetchall()]
         cur.execute("SELECT clave, nombre FROM ciudad ORDER BY nombre")
         ciudades = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
-    return JsonResponse({'conductores': conductores, 'autobuses': autobuses, 'ciudades': ciudades})
+        cur.execute("SELECT registro, CONCAT(taqNombre,' ',taqPrimerApell), usuario FROM taquillero ORDER BY taqNombre")
+        taquilleros = [{'value': r[0], 'label': f"{r[1]} (@{r[2]})"} for r in cur.fetchall()]
+        cur.execute("""
+            SELECT cp.pasajero_num, CONCAT(p.paNombre,' ',p.paPrimerApell), cp.correo
+            FROM cuenta_pasajero cp
+            JOIN pasajero p ON cp.pasajero_num = p.num
+            ORDER BY p.paNombre
+        """)
+        clientes = [{'value': r[0], 'label': f"{r[1]} ({r[2]})"} for r in cur.fetchall()]
+        cur.execute('''
+            SELECT r.codigo,
+                   CONCAT(corig.nombre, ' > ', cdest.nombre) AS label
+            FROM ruta r
+            JOIN terminal tor  ON r.origen  = tor.numero
+            JOIN terminal tdes ON r.destino = tdes.numero
+            JOIN ciudad corig  ON tor.ciudad = corig.clave
+            JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+            ORDER BY corig.nombre, cdest.nombre
+        ''')
+        rutas = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
+    return JsonResponse({'conductores': conductores, 'autobuses': autobuses, 'ciudades': ciudades, 'taquilleros': taquilleros, 'clientes': clientes, 'rutas': rutas})
 
 @api_view(['GET'])
 def api_viajes(request):
@@ -1088,6 +1161,28 @@ def viaje_pasajeros(request, viaje_id):
 
 
 from .elipse_views import elipse_view, elipse_chat
+
+@login_requerido
+def api_ventas_sujetos(request):
+    """Devuelve listas de taquilleros y clientes para el selector del panel de ventas."""
+    taqs = Taquillero.objects.all().order_by('taqnombre', 'taqprimerapell')
+    clientes = CuentaPasajero.objects.select_related('pasajero_num').all().order_by('correo')
+    return JsonResponse({
+        'taquilleros': [
+            {
+                'id': t.registro,
+                'nombre': f'{t.taqnombre} {t.taqprimerapell}',
+                'usuario': t.usuario,
+            } for t in taqs
+        ],
+        'clientes': [
+            {
+                'id': c.pasajero_num.num,
+                'nombre': f'{c.pasajero_num.panombre} {c.pasajero_num.paprimerapell}',
+                'correo': c.correo,
+            } for c in clientes
+        ],
+    })
 
 @api_view(['POST'])
 def api_login(request):

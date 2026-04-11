@@ -319,6 +319,172 @@
     .gc-card-actions {
       display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap;
     }
+
+    /* ── Historial de Ventas (KPIs Específicos) ── */
+    .kv-resumen {
+      display: flex; flex-wrap: wrap; gap: 12px;
+      background: #fff; border: 1px solid var(--border);
+      border-radius: 14px; padding: 16px 20px;
+      margin-bottom: 16px;
+    }
+    .kv-resumen-item { display: flex; flex-direction: column; gap: 3px; flex: 1; min-width: 100px; }
+    .kv-resumen-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+    .kv-resumen-value { font-size: 20px; font-weight: 900; color: var(--text); }
+    .kv-verde { color: #22c55e !important; }
+
+    /* ── Grid compartido para todas las tarjetas KE ── */
+    .kv-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 14px;
+    }
+
+    /* ── Base card — hover profesional ── */
+    .kv-card {
+      background: #fff;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.04);
+      display: flex; flex-direction: column; gap: 10px;
+      animation: fadeIn .35s ease both;
+      transition: box-shadow .22s cubic-bezier(.25,.8,.25,1),
+                  transform .18s cubic-bezier(.25,.8,.25,1),
+                  border-color .18s;
+      cursor: default;
+      position: relative;
+      overflow: hidden;
+    }
+    .kv-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, rgba(17,129,195,.04) 0%, transparent 60%);
+      opacity: 0;
+      transition: opacity .22s;
+      pointer-events: none;
+      border-radius: 18px;
+    }
+    .kv-card:hover {
+      box-shadow: 0 10px 32px rgba(17,129,195,.13), 0 2px 8px rgba(0,0,0,.06);
+      transform: translateY(-3px);
+      border-color: rgba(17,129,195,.25);
+    }
+    .kv-card:hover::before { opacity: 1; }
+
+    /* ── Ventas card-top ── */
+    .kv-card-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .kv-folio {
+      background: rgba(237,114,55,.1); color: var(--naranja);
+      border-radius: 20px; padding: 3px 10px;
+      font-size: 12px; font-weight: 700;
+    }
+    .kv-estado { border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 700; }
+    .kv-estado-disp { background: #e8f5e9; color: #2e7d32; }
+    .kv-estado-ruta  { background: #e3f2fd; color: #1565c0; }
+    .kv-estado-fin   { background: #f0f3f8; color: var(--muted); }
+    .kv-estado-can   { background: #ffebee; color: #c62828; }
+    .kv-estado-otro  { background: var(--border); color: var(--muted); }
+    .kv-fecha-venta  { margin-left: auto; font-size: 10px; color: var(--muted); }
+    .kv-ruta { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700; color: var(--text); flex-wrap: wrap; }
+    .kv-origen { color: var(--naranja); }
+    .kv-flecha { color: var(--muted); font-size: 12px; }
+    .kv-destino { color: var(--azul); }
+    .kv-fechas { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+    .kv-fechas b { color: var(--text); }
+    .kv-card-sep { height: 1px; background: var(--border); margin: 2px 0; }
+    .kv-card-bottom { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .kv-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .kv-chip {
+      background: var(--bg); border-radius: 10px;
+      padding: 5px 10px; font-size: 12px; color: var(--text); font-weight: 500;
+    }
+    .kv-chip-vend { background: rgba(17,129,195,.08); color: var(--azul); }
+    .kv-monto { display: flex; align-items: baseline; gap: 3px; }
+    .kv-monto-num { font-size: 20px; font-weight: 900; color: var(--azul); letter-spacing: -.5px; }
+    .kv-monto-cur { font-size: 10px; color: var(--muted); font-weight: 600; }
+
+    /* ── Tarjetas Boletos ── */
+    .ke-card-boleto .ke-card-header {
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;
+    }
+    .ke-card-id {
+      font-size: 11px; font-weight: 700; color: var(--muted);
+      background: var(--bg); border-radius: 8px; padding: 2px 8px;
+    }
+    .ke-card-ruta {
+      font-size: 15px; font-weight: 800; color: var(--text);
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 4px;
+    }
+    .ke-card-ruta .ke-orig { color: var(--naranja); }
+    .ke-card-ruta .ke-arr  { color: var(--muted); font-size: 11px; }
+    .ke-card-ruta .ke-dest { color: var(--azul); }
+    .ke-card-meta {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px;
+    }
+    .ke-meta-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--bg); border-radius: 10px;
+      padding: 4px 10px; font-size: 12px; color: var(--text); font-weight: 500;
+    }
+    .ke-meta-pill.accent { background: rgba(17,129,195,.08); color: var(--azul); }
+    .ke-meta-pill.warn   { background: rgba(237,114,55,.1);  color: var(--naranja); }
+    .ke-meta-pill.ok     { background: #e8f5e9; color: #2e7d32; }
+    .ke-card-stat {
+      display: flex; align-items: baseline; gap: 3px; margin-left: auto;
+    }
+    .ke-stat-num { font-size: 22px; font-weight: 900; color: var(--azul); letter-spacing: -.5px; }
+    .ke-stat-label { font-size: 10px; color: var(--muted); font-weight: 600; }
+
+    /* ── Tarjetas Conductor ── */
+    .ke-card-conductor .ke-con-avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: linear-gradient(135deg, rgba(17,129,195,.15), rgba(237,114,55,.12));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+    .ke-card-conductor .ke-con-info { flex: 1; min-width: 0; }
+    .ke-card-conductor .ke-con-name {
+      font-size: 15px; font-weight: 800; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ke-card-conductor .ke-con-id {
+      font-size: 11px; color: var(--muted); margin-top: 1px;
+    }
+
+    /* ── Tarjetas Autobús ── */
+    .ke-card-autobus .ke-bus-num {
+      font-size: 28px; font-weight: 900; color: var(--azul); letter-spacing: -1px; line-height: 1;
+    }
+    .ke-card-autobus .ke-bus-placas {
+      font-size: 11px; font-weight: 700; letter-spacing: .08em;
+      color: var(--muted); text-transform: uppercase; margin-top: 2px;
+    }
+    .ke-capacity-bar {
+      height: 6px; border-radius: 3px;
+      background: var(--border); overflow: hidden; margin-top: 4px;
+    }
+    .ke-capacity-fill {
+      height: 100%; border-radius: 3px;
+      background: linear-gradient(90deg, #1181c3, #3ba3e0);
+      transition: width .6s cubic-bezier(.25,.8,.25,1);
+    }
+
+    /* ── Tarjetas Ciudad ── */
+    .ke-card-ciudad .ke-ciudad-name {
+      font-size: 17px; font-weight: 900; color: var(--text); line-height: 1.2;
+    }
+    .ke-card-ciudad .ke-ciudad-icon {
+      width: 38px; height: 38px; border-radius: 12px;
+      background: rgba(17,129,195,.1); color: var(--azul);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; flex-shrink: 0;
+    }
+
+    @media (max-width: 767px) {
+      .kv-grid { grid-template-columns: 1fr; }
+      .kv-resumen { gap: 8px; padding: 12px; }
+      .kv-resumen-value { font-size: 17px; }
+    }
   </style>
 </head>
 <body>
@@ -539,6 +705,7 @@
             <option value="conductor">Conductor</option>
             <option value="autobus">Autobús</option>
             <option value="ciudad">Ciudad</option>
+            <option value="ventas">Ventas</option>
           </select>
         </div>
         <div class="filtro-group">
@@ -581,13 +748,50 @@
           <label>Ciudad origen</label>
           <select id="ke-ciudad"><option value="">Todas</option></select>
         </div>
+        <div class="filtro-group" id="ke-ventas-wrap-filtros" style="display:none">
+          <label>Tipo de usuario</label>
+          <select id="ke-ventas-sujeto-tipo" onchange="keVentasSujetoTipoChange()">
+            <option value="taquillero">Taquillero</option>
+            <option value="cliente">Cliente (app)</option>
+          </select>
+        </div>
+        <div class="filtro-group" id="ke-ventas-sujeto-wrap" style="display:none">
+          <label>Seleccionar</label>
+          <select id="ke-ventas-sujeto-id" onchange="keOnSujetoChange()">
+            <option value="">— Todos —</option>
+          </select>
+        </div>
+        <div class="filtro-group" id="ke-ventas-ruta-wrap" style="display:none">
+          <label>Ruta</label>
+          <select id="ke-ventas-ruta" onchange="cargarKpiEspecificos(false)">
+            <option value="">— Todas —</option>
+          </select>
+        </div>
+        <div class="filtro-group" id="ke-ventas-taquillero-wrap" style="display:none">
+          <label>Taquillero</label>
+          <select id="ke-ventas-taquillero" onchange="keOnTaquilleroChange()">
+            <option value="">— Todos —</option>
+          </select>
+        </div>
         <button class="btn btn-naranja" onclick="cargarKpiEspecificos(true)">Aplicar</button>
         <button class="btn btn-gray btn-sm" onclick="cargarKpiEspecificos(false)">↺ BD</button>
         <button class="btn btn-primary btn-sm" onclick="exportarCSV()">⬇ CSV</button>
       </div>
-      <div class="info-bar" id="ke-info"></div>
-      <div class="tbl-wrap">
+      <div class="info-bar" id="ke-info" style="display:flex;align-items:center;justify-content:space-between">
+        <span id="ke-info-text"></span>
+        <div id="ke-view-btns" style="display:none">
+          <button class="gvt-btn active" id="ke-vbtn-cards" onclick="setKeView('cards')" title="Vista tarjetas"><svg width="14" height="14" viewBox="0 0 16 16"><rect x="1" y="1" width="6" height="6" rx="1" fill="currentColor"/><rect x="9" y="1" width="6" height="6" rx="1" fill="currentColor"/><rect x="1" y="9" width="6" height="6" rx="1" fill="currentColor"/><rect x="9" y="9" width="6" height="6" rx="1" fill="currentColor"/></svg></button>
+          <button class="gvt-btn" id="ke-vbtn-tabla" onclick="setKeView('tabla')" title="Vista tabla"><svg width="14" height="14" viewBox="0 0 16 16"><rect x="1" y="1" width="14" height="3" rx="1" fill="currentColor"/><rect x="1" y="6" width="14" height="2" rx="1" fill="currentColor" opacity=".6"/><rect x="1" y="10" width="14" height="2" rx="1" fill="currentColor" opacity=".6"/><rect x="1" y="14" width="14" height="1" rx="1" fill="currentColor" opacity=".4"/></svg></button>
+        </div>
+      </div>
+      <div class="tbl-wrap" id="ke-tabla-wrap">
         <table id="ke-tabla"><thead><tr><th>Cargando...</th></tr></thead><tbody></tbody></table>
+      </div>
+      <div id="ke-ventas-wrap" style="display:none">
+        <div id="ke-ventas-cards"></div>
+        <div class="tbl-wrap" id="ke-ventas-tabla-wrap" style="display:none">
+          <table id="ke-ventas-tabla"><thead></thead><tbody></tbody></table>
+        </div>
       </div>
     </div>
 
@@ -638,11 +842,26 @@
 
     <!-- ════ HISTORIAL ════ -->
     <div id="page-historial" class="page">
-      <h2 class="page-title">Historial de Viajes</h2>
+      <div class="page-header-row">
+        <h2 class="page-title" style="margin:0">Historial de Viajes</h2>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="exportarHistorialCSV()">⬇ CSV</button>
+          <div class="gestion-view-toggle">
+            <button class="gvt-btn active" id="hist-vbtn-cards" onclick="setHistView('cards')" title="Vista tarjetas">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".6"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".6"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".3"/></svg>
+              Tarjetas
+            </button>
+            <button class="gvt-btn" id="hist-vbtn-tabla" onclick="setHistView('tabla')" title="Vista tabla">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none"><rect x="1" y="2" width="14" height="2.5" rx="1" fill="currentColor"/><rect x="1" y="6.5" width="14" height="2.5" rx="1" fill="currentColor" opacity=".6"/><rect x="1" y="11" width="14" height="2.5" rx="1" fill="currentColor" opacity=".3"/></svg>
+              Tabla
+            </button>
+          </div>
+        </div>
+      </div>
       <div class="filtros-row" style="margin-bottom:10px;">
         <div class="filtro-group">
           <label>Origen</label>
-          <select id="hist-origen" onchange="filtrarHistorial()">
+          <select id="hist-origen" onchange="onHistOrigenChange()">
             <option value="">-- Todas --</option>
           </select>
         </div>
@@ -681,6 +900,12 @@
       <div class="info-bar" id="hist-info"></div>
       <div id="hist-cards-container">
         <div style="text-align:center;padding:40px"><span class="spinner"></span></div>
+      </div>
+      <div class="tbl-wrap" id="hist-tabla-wrap" style="display:none;">
+        <table id="hist-tabla">
+          <thead><tr><th>Cargando…</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
     </div>
 

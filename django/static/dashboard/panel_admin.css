@@ -689,10 +689,27 @@ tbody td { padding: 9px 12px; }
   border-radius: 14px;
   margin-bottom: 12px;
   overflow: hidden;
-  transition: box-shadow .2s, transform .15s;
+  transition: box-shadow .22s cubic-bezier(.25,.8,.25,1),
+              transform .18s cubic-bezier(.25,.8,.25,1),
+              border-color .18s;
   animation: fadeIn .35s ease both;
+  position: relative;
 }
-.viaje-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.08); transform: translateY(-2px); }
+.viaje-card::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(17,129,195,.04) 0%, transparent 60%);
+  opacity: 0;
+  transition: opacity .22s;
+  pointer-events: none;
+  border-radius: 14px;
+}
+.viaje-card:hover {
+  box-shadow: 0 10px 32px rgba(17,129,195,.13), 0 2px 8px rgba(0,0,0,.06);
+  transform: translateY(-3px);
+  border-color: rgba(17,129,195,.25);
+}
+.viaje-card:hover::after { opacity: 1; }
 .viaje-card-inner  { display: flex; align-items: stretch; }
 .viaje-card-stripe { width: 6px; flex-shrink: 0; background: var(--azul); border-radius: 14px 0 0 14px; }
 .viaje-card-body   { flex: 1; padding: 14px 18px; min-width: 0; }
@@ -712,7 +729,22 @@ tbody td { padding: 9px 12px; }
 }
 .viaje-card-actions .btn { font-size: 12px; padding: 8px 14px; white-space: nowrap; text-align: center; }
 
-/* === MODAL AUTOBÚS === */
+/* === HISTORIAL TABLA === */
+#hist-tabla { width: 100%; }
+#hist-tabla th { white-space: nowrap; }
+#hist-tabla td { vertical-align: middle; }
+#hist-tabla .ht-badge {
+  display: inline-block; border-radius: 20px; padding: 2px 9px;
+  font-size: 11px; font-weight: 700;
+}
+#hist-tabla .ht-badge-fin  { background: #f0f3f8; color: var(--muted); }
+#hist-tabla .ht-badge-ruta { background: #e3f2fd; color: #1565c0; }
+#hist-tabla .ht-badge-disp { background: #e8f5e9; color: #2e7d32; }
+#hist-tabla .ht-badge-can  { background: #ffebee; color: #c62828; }
+#hist-tabla .ht-btn-wrap   { display: flex; gap: 6px; flex-wrap: nowrap; }
+#hist-tabla .ht-btn-wrap .btn { font-size: 11px; padding: 5px 10px; white-space: nowrap; }
+
+
 .bus-info-grid  { display: grid; }
 .bus-info-row   { display: flex; justify-content: space-between; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
 .bus-info-row:last-child { border-bottom: none; }
