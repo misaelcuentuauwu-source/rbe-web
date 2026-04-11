@@ -17,24 +17,22 @@ let kgCharts          = {};
 let pasajerosActuales  = [];
 let pasajerosViajeInfo = {};
 let salidasData        = [];
-let rutasDuracion      = {};   // FIX: declarado correctamente con let desde el principio
+let rutasDuracion      = {};
 let _fotoFile          = null;
-let gestionView        = 'tabla';   // 'tabla' | 'cards'
-let gestionLastData    = null;      // cache para re-render sin re-fetch
-let gestionModo        = 'db';      // 'db' | 'legible'
+let gestionView        = 'tabla';
+let gestionLastData    = null;
+let gestionModo        = 'db';
 
 // ── Helpers ────────────────────────────
 const csrfHeaders = () => ({ 'Content-Type':'application/json', 'X-CSRFToken': CSRF });
 const fmt   = dt => dt ? dt.replace('T',' ').substring(0,16) : '—';
 const today = ()  => new Date().toISOString().split('T')[0];
 
-// FIX: helper para formatear fecha local sin conversión UTC
 function toLocalDatetimeString(date) {
   const pad = n => String(n).padStart(2,'0');
   return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-// FIX: parsear string datetime-local como hora LOCAL (no UTC)
 function parseDatetimeLocal(str) {
   if (!str) return null;
   const [datePart, timePart] = str.split('T');
@@ -137,7 +135,14 @@ function showPage(id) {
   if (id==='salidas')         cargarSalidas();
   if (id==='historial')       cargarHistorial();
   if (id==='kpi-generales')   cargarKpiGenerales();
-  if (id==='kpi-especificos') { cargarKpiOpciones(); cargarKpiEspecificos(false); }
+  if (id==='kpi-especificos') {
+    const t = document.getElementById('ke-tipo').value;
+    keView = (t === 'ventas') ? 'cards' : 'tabla';
+    document.getElementById('ke-view-btns').style.display = '';
+    document.getElementById('ke-vbtn-cards').classList.toggle('active', keView === 'cards');
+    document.getElementById('ke-vbtn-tabla').classList.toggle('active', keView === 'tabla');
+    cargarKpiOpciones(); cargarKpiEspecificos(false);
+  }
   if (id==='configuracion')   cargarConfig();
   afterNav();
 }
@@ -147,7 +152,6 @@ function showGestion(tabla) {
   document.getElementById('gestion-title').textContent =
     'Gestión — ' + tabla.charAt(0).toUpperCase() + tabla.slice(1);
   tablaActual.nombre = tabla;
-  // Si la nueva tabla no tiene modo legible, forzar DB
   if (!TABLAS_CON_LEGIBLE.has(tabla)) gestionModo = 'db';
   recargarGestion();
 }
@@ -380,14 +384,44 @@ function keTipoChange() {
   document.getElementById('ke-conductor-wrap').style.display = t==='conductor' ? '' : 'none';
   document.getElementById('ke-autobus-wrap').style.display   = t==='autobus'   ? '' : 'none';
   document.getElementById('ke-ciudad-wrap').style.display    = t==='ciudad'    ? '' : 'none';
+  document.getElementById('ke-ventas-wrap-filtros').style.display = t==='ventas' ? '' : 'none';
+  // Toggle visible para todos los tipos; default según tipo
+  document.getElementById('ke-view-btns').style.display = '';
+  keView = (t === 'ventas') ? 'cards' : 'tabla';
+  document.getElementById('ke-vbtn-cards').classList.toggle('active', keView === 'cards');
+  document.getElementById('ke-vbtn-tabla').classList.toggle('active', keView === 'tabla');
+  if (t !== 'ventas') {
+    document.getElementById('ke-ventas-sujeto-wrap').style.display    = 'none';
+    document.getElementById('ke-ventas-ruta-wrap').style.display       = 'none';
+    document.getElementById('ke-ventas-taquillero-wrap').style.display = 'none';
+  }
+  if (t === 'ventas') {
+    const tipoSuj = document.getElementById('ke-ventas-sujeto-tipo').value;
+    const items = tipoSuj === 'taquillero'
+      ? (window._keFiltros?.taquilleros || [])
+      : (window._keFiltros?.clientes    || []);
+    document.getElementById('ke-ventas-sujeto-wrap').style.display = items.length ? '' : 'none';
+    document.getElementById('ke-ventas-ruta-wrap').style.display   = (window._keFiltros?.rutas?.length) ? '' : 'none';
+    document.getElementById('ke-ventas-taquillero-wrap').style.display = 'none';
+  }
   cargarKpiEspecificos(false);
 }
 
 async function cargarKpiOpciones() {
   const d = await fetch('/api/kpi/filtros/').then(r=>r.json());
+  window._keFiltros = d;
   fillSelect('ke-conductor', d.conductores, 'Todos');
   fillSelect('ke-autobus',   d.autobuses,   'Todos');
   fillSelect('ke-ciudad',    d.ciudades,    'Todas');
+  const selId = document.getElementById('ke-ventas-sujeto-id');
+  selId.innerHTML = '<option value="">— Todos —</option>' +
+    (d.taquilleros||[]).map(i => `<option value="${i.value}">${i.label}</option>`).join('');
+  const selRuta = document.getElementById('ke-ventas-ruta');
+  selRuta.innerHTML = '<option value="">— Todas —</option>' +
+    (d.rutas||[]).map(i => `<option value="${i.value}">${i.label}</option>`).join('');
+  const selTaq = document.getElementById('ke-ventas-taquillero');
+  selTaq.innerHTML = '<option value="">— Todos —</option>' +
+    (d.taquilleros||[]).map(i => `<option value="${i.value}">${i.label}</option>`).join('');
 }
 
 function fillSelect(id, items, ph) {
@@ -416,12 +450,111 @@ async function cargarKpiEspecificos(aplicar) {
   if (c)  url += `&conductor=${c}`;
   if (a)  url += `&autobus=${a}`;
   if (ci) url += `&ciudad=${ci}`;
+  if (tipo === 'ventas') {
+    const st  = document.getElementById('ke-ventas-sujeto-tipo').value;
+    const si  = document.getElementById('ke-ventas-sujeto-id').value;
+    const ri  = document.getElementById('ke-ventas-ruta').value;
+    if (st) url += `&sujeto_tipo=${st}`;
+    if (si) url += `&sujeto_id=${si}`;
+    if (ri) url += `&ruta_id=${ri}`;
+    // ── CAMBIO 2: ya no enviamos vendedor_id porque el filtro taquillero
+    //    no existe en modo cliente. En modo taquillero sujeto_id ya lo cubre. ──
+  }
   const d = await fetch(url).then(r=>r.json());
   keData  = d.rows;
   renderKeTablo(tipo, d.rows);
 }
 
+// ════ KPI VENTAS — tipo de usuario ══════════════
+
+function keVentasSujetoTipoChange() {
+  const tipo = document.getElementById('ke-ventas-sujeto-tipo').value;
+  const selItems = document.getElementById('ke-ventas-sujeto-id');
+  const items = tipo === 'taquillero'
+    ? (window._keFiltros?.taquilleros || [])
+    : (window._keFiltros?.clientes    || []);
+  selItems.innerHTML = '<option value="">— Todos —</option>' +
+    items.map(i => `<option value="${i.value}">${i.label}</option>`).join('');
+  const tipoActivo = document.getElementById('ke-tipo').value;
+  document.getElementById('ke-ventas-sujeto-wrap').style.display = (items.length && tipoActivo === 'ventas') ? '' : 'none';
+  // ── CAMBIO 3: el filtro taquillero NUNCA se muestra, independientemente del tipo ──
+  document.getElementById('ke-ventas-taquillero-wrap').style.display = 'none';
+  // Resetear selects al cambiar modo
+  document.getElementById('ke-ventas-sujeto-id').value  = '';
+  _keUnlockSujetoFilter();
+  cargarKpiEspecificos(false);
+}
+
+// ── Cambio de sujeto individual ──────────────────────────────────────────────
+function keOnSujetoChange() {
+  cargarKpiEspecificos(false);
+}
+
+// ── keOnTaquilleroChange ya no tiene efecto visible pero la dejamos
+//    por si el HTML la referencia en algún onchange residual ──
+function keOnTaquilleroChange() {
+  // no-op: el filtro taquillero está oculto permanentemente en modo cliente
+}
+
+// ── Desbloquear el select de sujeto (sin exclusión mutua ya que taquillero no existe) ──
+function _keUnlockSujetoFilter() {
+  const siEl = document.getElementById('ke-ventas-sujeto-id');
+  siEl.disabled = false; siEl.style.opacity = ''; siEl.title = '';
+}
+
+// Mantenemos _keApplyMutualExclusion y _keUnlockBothFilters como stubs
+// por si quedaron referencias en el HTML, pero ya no hacen nada relevante.
+function _keApplyMutualExclusion(origen) {
+  // no-op: la exclusión mutua ya no aplica porque el filtro taquillero está oculto
+}
+function _keUnlockBothFilters() {
+  _keUnlockSujetoFilter();
+}
+
+const _MESES_CORTOS = ['','Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function _fmtVentaFecha(s) {
+  try {
+    const d = new Date(s);
+    const pad = n => String(n).padStart(2,'0');
+    return `${d.getDate()} ${_MESES_CORTOS[d.getMonth()+1]} ${d.getFullYear()}  ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch(_) { return s ? s.substring(0,10) : '—'; }
+}
+
+let keView = 'tabla'; // default tabla; ventas arranca en cards
+
+function setKeView(v) {
+  keView = v;
+  document.getElementById('ke-vbtn-cards').classList.toggle('active', v === 'cards');
+  document.getElementById('ke-vbtn-tabla').classList.toggle('active', v === 'tabla');
+  renderKeTablo(document.getElementById('ke-tipo').value, keData);
+}
+
+// alias legacy para no romper nada que lo llame desde otro lado
+function setKeVentasView(v) { setKeView(v); }
+
 function renderKeTablo(tipo, rows) {
+  if (tipo === 'ventas') { renderKeVentas(rows); return; }
+
+  if (keView === 'cards') {
+    document.getElementById('ke-tabla-wrap').style.display = 'none';
+    document.getElementById('ke-ventas-wrap').style.display = '';
+    document.getElementById('ke-ventas-tabla-wrap').style.display = 'none';
+    document.getElementById('ke-info-text').textContent = `Resultados: ${rows.length} registro(s)`;
+    const wrap = document.getElementById('ke-ventas-cards');
+    if (!rows.length) {
+      wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div><p>Sin datos para los filtros seleccionados.</p></div>`;
+      return;
+    }
+    if      (tipo === 'boletos')   wrap.innerHTML = renderKeBoletoCards(rows);
+    else if (tipo === 'conductor') wrap.innerHTML = renderKeConductorCards(rows);
+    else if (tipo === 'autobus')   wrap.innerHTML = renderKeAutobusCards(rows);
+    else                           wrap.innerHTML = renderKeCiudadCards(rows);
+    return;
+  }
+
+  // Vista tabla (comportamiento original)
+  document.getElementById('ke-ventas-wrap').style.display = 'none';
   const tbl = document.getElementById('ke-tabla');
   let h=[], map;
   if (tipo==='boletos') {
@@ -437,24 +570,286 @@ function renderKeTablo(tipo, rows) {
     h   = ['Ciudad','Salida','Viaje','Destino','Autobús','Matrícula','Operador'];
     map = r=>[r.ciudad,fmt(r.salida),r.viaje,r.destino,r.autobus,r.matricula,r.operador];
   }
-  tbl.querySelector('thead').innerHTML =
-    `<tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>`;
+  document.getElementById('ke-tabla-wrap').style.display = '';
+  tbl.querySelector('thead').innerHTML = `<tr>${h.map(x=>`<th>${x}</th>`).join('')}</tr>`;
   tbl.querySelector('tbody').innerHTML =
     rows.map(r=>`<tr>${map(r).map(v=>`<td>${v??'—'}</td>`).join('')}</tr>`).join('') ||
     `<tr><td colspan="${h.length}" style="text-align:center;color:var(--muted);padding:24px">Sin datos</td></tr>`;
-  document.getElementById('ke-info').textContent = `Resultados: ${rows.length} registro(s)`;
+  document.getElementById('ke-info-text').textContent = `Resultados: ${rows.length} registro(s)`;
+}
+
+/* ── Tarjetas: Boletos ── */
+function renderKeBoletoCards(rows) {
+  return `<div class="kv-grid">${rows.map((r,i) => {
+    const pct = r.vendidos != null && (r.vendidos + r.disponibles) > 0
+      ? Math.round(r.vendidos / (r.vendidos + r.disponibles) * 100) : 0;
+    const pillClass = pct >= 90 ? 'warn' : pct >= 60 ? 'accent' : 'ok';
+    return `
+    <div class="kv-card ke-card-boleto" style="animation-delay:${Math.min(i*.04,.5)}s">
+      <div class="ke-card-header">
+        <div>
+          <div class="ke-card-ruta">
+            <span class="ke-orig">● ${r.origin_city||'—'}</span>
+            <span class="ke-arr">┄▶</span>
+            <span class="ke-dest">📍 ${r.dest_city||'—'}</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:3px">🚌 ${r.bus_number||'—'} &nbsp;·&nbsp; 🕐 ${fmt(r.departure)}</div>
+        </div>
+        <div class="ke-card-stat">
+          <span class="ke-stat-num">${r.vendidos??'—'}</span>
+          <span class="ke-stat-label">vendidos</span>
+        </div>
+      </div>
+      <div class="kv-card-sep"></div>
+      <div class="ke-card-meta">
+        <span class="ke-meta-pill ${pillClass}">🎟 ${r.vendidos??0} / ${(r.vendidos??0)+(r.disponibles??0)} asientos</span>
+        <span class="ke-meta-pill">🪑 ${r.disponibles??'—'} libres</span>
+        <span class="ke-meta-pill accent">ID #${r.trip_id||'—'}</span>
+      </div>
+      <div class="ke-capacity-bar">
+        <div class="ke-capacity-fill" style="width:${pct}%"></div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ── Tarjetas: Conductor ── */
+function renderKeConductorCards(rows) {
+  return `<div class="kv-grid">${rows.map((r,i) => {
+    const nombre = `${r.con_nombre||''} ${r.con_ap1||''}`.trim() || '—';
+    return `
+    <div class="kv-card ke-card-conductor" style="animation-delay:${Math.min(i*.04,.5)}s">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="ke-con-avatar">🧑‍✈️</div>
+        <div class="ke-con-info">
+          <div class="ke-con-name">${nombre}</div>
+          <div class="ke-con-id">Viaje #${r.trip_id||'—'}</div>
+        </div>
+      </div>
+      <div class="kv-card-sep"></div>
+      <div class="ke-card-ruta">
+        <span class="ke-orig">● ${r.origin_city||'—'}</span>
+        <span class="ke-arr">┄▶</span>
+        <span class="ke-dest">📍 ${r.dest_city||'—'}</span>
+      </div>
+      <div class="ke-card-meta">
+        <span class="ke-meta-pill accent">🚌 ${r.bus_number||'—'}</span>
+        <span class="ke-meta-pill">🕐 ${fmt(r.departure)}</span>
+        <span class="ke-meta-pill">🏁 ${fmt(r.arrival)}</span>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ── Tarjetas: Autobús ── */
+function renderKeAutobusCards(rows) {
+  return `<div class="kv-grid">${rows.map((r,i) => `
+    <div class="kv-card ke-card-autobus" style="animation-delay:${Math.min(i*.04,.5)}s">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+        <div>
+          <div class="ke-bus-num">#${r.bus_number||'—'}</div>
+          <div class="ke-bus-placas">${r.placas||'sin placa'}</div>
+        </div>
+        <div class="ke-meta-pill accent" style="margin-top:4px">🪑 ${r.numasientos||'—'} asientos</div>
+      </div>
+      <div class="kv-card-sep"></div>
+      <div class="ke-card-meta">
+        <span class="ke-meta-pill">🚗 ${r.marca_nombre||'—'}</span>
+        <span class="ke-meta-pill">📋 ${r.modelo_nombre||'—'}</span>
+        <span class="ke-meta-pill">📅 ${r.modelo_ano||'—'}</span>
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+/* ── Tarjetas: Ciudad ── */
+function renderKeCiudadCards(rows) {
+  return `<div class="kv-grid">${rows.map((r,i) => `
+    <div class="kv-card ke-card-ciudad" style="animation-delay:${Math.min(i*.04,.5)}s">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="ke-ciudad-icon">🏙️</div>
+        <div>
+          <div class="ke-ciudad-name">${r.ciudad||'—'}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">Viaje #${r.viaje||'—'}</div>
+        </div>
+      </div>
+      <div class="kv-card-sep"></div>
+      <div class="ke-card-meta">
+        <span class="ke-meta-pill accent">🕐 ${fmt(r.salida)}</span>
+        <span class="ke-meta-pill">📍 → ${r.destino||'—'}</span>
+        <span class="ke-meta-pill">🚌 ${r.autobus||'—'}</span>
+      </div>
+      <div class="ke-card-meta">
+        <span class="ke-meta-pill">🪪 ${r.matricula||'—'}</span>
+        <span class="ke-meta-pill">👤 ${r.operador||'—'}</span>
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+function renderKeVentas(rows) {
+  document.getElementById('ke-tabla-wrap').style.display = 'none';
+  document.getElementById('ke-ventas-wrap').style.display = '';
+  const wrap = document.getElementById('ke-ventas-cards');
+  const tipoSujeto = document.getElementById('ke-ventas-sujeto-tipo').value;
+  const esCliente  = tipoSujeto === 'cliente';
+  const total = rows.length;
+
+  document.getElementById('ke-info-text').textContent = esCliente
+    ? `Resultados: ${total} compra(s)`
+    : `Resultados: ${total} venta(s)`;
+
+  if (!rows.length) {
+    wrap.innerHTML = `<div class="empty-state"><div class="empty-icon">🧾</div><p>${esCliente ? 'Este cliente no tiene compras registradas.' : 'Sin ventas para los filtros seleccionados.'}</p></div>`;
+    document.getElementById('ke-ventas-tabla-wrap').style.display = 'none';
+    return;
+  }
+
+  const totalMonto = rows.reduce((s,r) => s + (parseFloat(r.monto)||0), 0);
+  const totalPax   = rows.reduce((s,r) => s + (parseInt(r.num_pasajeros)||0), 0);
+
+  const labelVentas  = esCliente ? 'Compras'      : 'Ventas';
+  const labelPax     = esCliente ? 'Boletos'       : 'Pasajeros';
+  const labelTotal   = esCliente ? 'Total gastado' : 'Total recaudado';
+
+  const resumenHtml = `
+    <div class="kv-resumen">
+      <div class="kv-resumen-item">
+        <span class="kv-resumen-label">${labelTotal}</span>
+        <span class="kv-resumen-value kv-verde">${pesos(totalMonto)}</span>
+      </div>
+      <div class="kv-resumen-item">
+        <span class="kv-resumen-label">${labelVentas}</span>
+        <span class="kv-resumen-value">${rows.length}</span>
+      </div>
+      <div class="kv-resumen-item">
+        <span class="kv-resumen-label">${labelPax}</span>
+        <span class="kv-resumen-value">${totalPax}</span>
+      </div>
+      <div class="kv-resumen-item">
+        <span class="kv-resumen-label">Promedio</span>
+        <span class="kv-resumen-value">${pesos(rows.length ? totalMonto/rows.length : 0)}</span>
+      </div>
+    </div>`;
+
+  if (keView === 'tabla') {
+    wrap.innerHTML = resumenHtml;
+    document.getElementById('ke-ventas-tabla-wrap').style.display = '';
+    const tbl = document.getElementById('ke-ventas-tabla');
+    const hCols = ['Folio','Fecha venta','Viaje (salida)','Origen','Destino','Estado','Boletos','Método pago','Vendedor','Monto (MXN)'];
+    tbl.querySelector('thead').innerHTML = `<tr>${hCols.map(h=>`<th>${h}</th>`).join('')}</tr>`;
+    tbl.querySelector('tbody').innerHTML = rows.map(v => {
+      const monto = parseFloat(v.monto||0).toFixed(2);
+      const vendedor = v.vendedor_nombre || 'App';
+      return `<tr>
+        <td>#${v.folio}</td>
+        <td>${(v.fecha||'').substring(0,16).replace('T',' ')}</td>
+        <td>${_fmtVentaFecha(v.hora_salida)}</td>
+        <td>${v.origen||'—'}</td>
+        <td>${v.destino||'—'}</td>
+        <td>${v.estado||'—'}</td>
+        <td style="text-align:center">${v.num_pasajeros}</td>
+        <td>${v.metodo_pago||'—'}</td>
+        <td>${vendedor}</td>
+        <td style="text-align:right;font-weight:600">$${monto}</td>
+      </tr>`;
+    }).join('') || `<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:24px">Sin datos</td></tr>`;
+  } else {
+    document.getElementById('ke-ventas-tabla-wrap').style.display = 'none';
+    wrap.innerHTML = resumenHtml + `
+    <div class="kv-grid">
+      ${rows.map((v,i) => {
+        const esTarjeta = (v.metodo_pago||'').toLowerCase().includes('tarjeta');
+        const estadoClass = {
+          'disponible':'kv-estado-disp','en ruta':'kv-estado-ruta',
+          'finalizado':'kv-estado-fin','cancelado':'kv-estado-can'
+        }[(v.estado||'').toLowerCase()] || 'kv-estado-otro';
+        const monto = parseFloat(v.monto||0).toFixed(2);
+        const vendedorChip = (!esCliente && v.vendedor_nombre)
+          ? `<span class="kv-chip kv-chip-vend">👤 ${v.vendedor_nombre}</span>`
+          : '';
+        return `
+        <div class="kv-card" style="animation-delay:${Math.min(i*.04,.5)}s">
+          <div class="kv-card-top">
+            <span class="kv-folio">Folio #${v.folio}</span>
+            ${v.estado ? `<span class="kv-estado ${estadoClass}">${v.estado}</span>` : ''}
+            <span class="kv-fecha-venta">${_fmtVentaFecha(v.fecha)}</span>
+          </div>
+          <div class="kv-ruta">
+            <span class="kv-origen">● ${v.origen||'—'}</span>
+            <span class="kv-flecha">┄┄┄▶</span>
+            <span class="kv-destino">📍 ${v.destino||'—'}</span>
+          </div>
+          <div class="kv-fechas">
+            <span>${esCliente ? '🛒' : '🧾'} ${esCliente ? 'Compra' : 'Venta'}: <b>${(v.fecha||'').substring(0,10)}</b></span>
+            <span>🚌 Viaje: <b>${_fmtVentaFecha(v.hora_salida)}</b></span>
+          </div>
+          <div class="kv-card-sep"></div>
+          <div class="kv-card-bottom">
+            <div class="kv-chips">
+              <span class="kv-chip">👥 ${v.num_pasajeros} ${esCliente ? 'boleto(s)' : 'pax'}</span>
+              <span class="kv-chip">${esTarjeta ? '💳' : '💵'} ${v.metodo_pago}</span>
+              ${vendedorChip}
+            </div>
+            <div class="kv-monto">
+              <span class="kv-monto-num">$${monto}</span>
+              <span class="kv-monto-cur">MXN</span>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
 }
 
 function exportarCSV() {
-  if (!keData.length) { toast('No hay datos','err'); return; }
+  if (!keData.length) { toast('No hay datos', 'err'); return; }
   const tipo = document.getElementById('ke-tipo').value;
-  const hd   = Object.keys(keData[0]);
-  const csv  = [hd.join(','),
-    ...keData.map(r=>hd.map(h=>`"${(r[h]??'').toString().replace(/"/g,'""')}"`).join(','))].join('\n');
+  let csv, filename;
+
+  if (tipo === 'ventas') {
+    const tipoSujeto = document.getElementById('ke-ventas-sujeto-tipo').value;
+    const esCliente  = tipoSujeto === 'cliente';
+    const cols = [
+      { key: 'folio',          label: 'Folio' },
+      { key: 'fecha',          label: 'Fecha de venta' },
+      { key: 'hora_salida',    label: 'Fecha/hora del viaje' },
+      { key: 'origen',         label: 'Origen' },
+      { key: 'destino',        label: 'Destino' },
+      { key: 'estado',         label: 'Estado del viaje' },
+      { key: 'num_pasajeros',  label: 'Boletos' },
+      { key: 'metodo_pago',    label: 'Método de pago' },
+      { key: 'vendedor_nombre',label: esCliente ? 'Vendedor' : 'Taquillero' },
+      { key: 'monto',          label: 'Monto (MXN)' },
+    ];
+    const esc = v => `"${(v??'').toString().replace(/"/g,'""')}"`;
+    csv = [
+      cols.map(c => esc(c.label)).join(','),
+      ...keData.map(r => cols.map(c => esc(r[c.key])).join(','))
+    ].join('\r\n');
+    const desde = document.getElementById('ke-fecha')?.value || '';
+    const rutaSel = document.getElementById('ke-ventas-ruta');
+    const rutaLabel = rutaSel?.options[rutaSel.selectedIndex]?.text || '';
+    const sujetoSel = document.getElementById('ke-ventas-sujeto-id');
+    const sujetoLabel = sujetoSel?.options[sujetoSel.selectedIndex]?.text || '';
+    const parts = ['ventas'];
+    if (desde) parts.push(desde);
+    if (rutaLabel && rutaLabel !== '— Todas —') parts.push(rutaLabel.replace(/[^a-zA-Z0-9áéíóúÁÉÍÓÚ ]/g,'-').trim());
+    if (sujetoLabel && sujetoLabel !== '— Todos —') parts.push(sujetoLabel.split(' ')[0]);
+    filename = parts.join('_').replace(/\s+/g,'_') + '.csv';
+  } else {
+    const hd = Object.keys(keData[0]);
+    csv = [hd.join(','),
+      ...keData.map(r => hd.map(h => `"${(r[h]??'').toString().replace(/"/g,'""')}"`).join(','))
+    ].join('\r\n');
+    filename = `kpi_${tipo}.csv`;
+  }
+
+  const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+  const blob = new Blob([bom, csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
-  a.download = `kpi_${tipo}.csv`;
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
   a.click();
+  toast('CSV exportado');
 }
 
 // ════ SALIDAS ══════════════════════════
@@ -463,7 +858,6 @@ async function cargarSalidas() {
   document.getElementById('salidas-container').innerHTML = '<span class="spinner"></span>';
   const d  = await fetch('/api/salidas/').then(r=>r.json());
   salidasData = d.rows || [];
-  // Poblar selects con todas las ciudades que aparecen como origen O destino
   const todasCiudades = [...new Set([
     ...salidasData.map(r=>r.origen_ciudad),
     ...salidasData.map(r=>r.destino_ciudad)
@@ -473,7 +867,6 @@ async function cargarSalidas() {
   selOrig.innerHTML = '<option value="">-- Todas --</option>' + todasCiudades.map(c=>`<option value="${c}">${c}</option>`).join('');
   selDest.innerHTML = '<option value="">-- Todas --</option>' + todasCiudades.map(c=>`<option value="${c}">${c}</option>`).join('');
   document.getElementById('sal-fecha').value = today();
-  // Auto-seleccionar ciudad del taquillero en origen al primer cargue
   if (TAQ_DATA.ciudad) {
     const match = [...selOrig.options].find(o => o.value.toLowerCase() === TAQ_DATA.ciudad.toLowerCase());
     if (match) selOrig.value = match.value;
@@ -482,10 +875,9 @@ async function cargarSalidas() {
 }
 
 function poblarFiltrosSalidas() {
-  // No-op: la población ahora se hace en cargarSalidas para no pisar el filtro activo
+  // no-op: población en cargarSalidas
 }
 
-// Cuando cambia origen: excluir esa misma ciudad del destino
 function onSalOrigenChange() {
   const origenVal = document.getElementById('sal-origen').value.toLowerCase();
   const selDest   = document.getElementById('sal-destino');
@@ -494,12 +886,10 @@ function onSalOrigenChange() {
     ...salidasData.map(r=>r.origen_ciudad),
     ...salidasData.map(r=>r.destino_ciudad)
   ].filter(Boolean))].sort();
-  // Excluir la ciudad seleccionada como origen
   const opciones = origenVal
     ? todasCiudades.filter(c => c.toLowerCase() !== origenVal)
     : todasCiudades;
   selDest.innerHTML = '<option value="">-- Todas --</option>' + opciones.map(c=>`<option value="${c}">${c}</option>`).join('');
-  // Restaurar destino previo si sigue siendo válido
   if (prevDest && prevDest.toLowerCase() !== origenVal) selDest.value = prevDest;
   aplicarFiltrosSalidas();
 }
@@ -510,20 +900,12 @@ function setSalidasView(v) {
   salidasView = v;
   document.getElementById('sal-vbtn-cards').classList.toggle('active', v === 'cards');
   document.getElementById('sal-vbtn-tabla').classList.toggle('active', v === 'tabla');
-  // Re-render con los datos actuales
-  const trips = salidasData.filter(r => {
-    const origenSel = document.getElementById('sal-origen').value.trim().toLowerCase();
-    const destSel   = document.getElementById('sal-destino').value.trim().toLowerCase();
-    return (!origenSel || (r.origen_ciudad||'').toLowerCase() === origenSel)
-        && (!destSel   || (r.destino_ciudad||'').toLowerCase() === destSel);
-  });
   aplicarFiltrosSalidas();
 }
 
 function aplicarFiltrosSalidas() {
   const fechaSel  = document.getElementById('sal-fecha').value;
   const origenSel = document.getElementById('sal-origen').value.trim().toLowerCase();
-  // FIX: usar siempre destino_ciudad (era inconsistente: a veces dest_city, a veces destino_ciudad)
   const destSel   = document.getElementById('sal-destino').value.trim().toLowerCase();
   const precision = document.getElementById('sal-precision').checked;
   let filtered    = salidasData;
@@ -577,11 +959,8 @@ function renderSalidaCards(trips, closestDate) {
       : '';
 
   if (salidasView === 'tabla') {
-    // Ocultar columna Origen siempre que haya un solo origen (ya se muestra arriba en el header)
-    // Ocultar columna Destino cuando hay un solo destino (filtro activo o solo uno)
     const mostrarOrigen  = !soloUnOrigen;
     const mostrarDestino = !soloUnDestino;
-
     const filas = trips.map(r => `
       <tr>
         <td>${r.numero}</td>
@@ -625,7 +1004,6 @@ function renderSalidaCards(trips, closestDate) {
   }
 }
 
-
 function verDetalleSalida(r) {
   document.getElementById('modal-det-salida-body').innerHTML = `
     <div style="margin-bottom:18px;">
@@ -657,17 +1035,12 @@ function verDetalleSalida(r) {
 
 async function abrirModalViaje() {
   const d = await fetch('/api/viaje/opciones/').then(r=>r.json());
-
-  // FIX: limpiar y reconstruir rutasDuracion correctamente
   rutasDuracion = {};
   d.rutas.forEach(r => { rutasDuracion[String(r.value)] = r.duracion || ''; });
-
   fillSelect('mv-ruta',      d.rutas,      'Seleccionar...');
   fillSelect('mv-autobus',   d.autobuses,  'Seleccionar...');
   fillSelect('mv-conductor', d.conductores,'Seleccionar...');
   fillSelect('mv-estado',    d.estados,    'Seleccionar...');
-
-  // FIX: usar toLocalDatetimeString para que la hora del input sea hora local
   const now = new Date();
   now.setMinutes(Math.ceil(now.getMinutes()/15)*15, 0, 0);
   document.getElementById('mv-salida').value          = toLocalDatetimeString(now);
@@ -682,33 +1055,25 @@ function calcularLlegadaAuto() {
   const salidaStr = document.getElementById('mv-salida').value;
   const displayEl = document.getElementById('mv-llegada-display');
   const hiddenEl  = document.getElementById('mv-llegada');
-
   if (!rutaId || !salidaStr) {
     displayEl.value = 'Selecciona ruta y hora de salida…';
     hiddenEl.value  = '';
     return;
   }
-
   const minutos = parseDuracionAMinutos(rutasDuracion[String(rutaId)] || '');
   if (!minutos) {
     displayEl.value = 'Duración de ruta no disponible';
     hiddenEl.value  = '';
     return;
   }
-
-  // FIX: parsear como hora local (no UTC) para que el cálculo sea correcto
   const salida = parseDatetimeLocal(salidaStr);
   if (!salida || isNaN(salida.getTime())) {
     displayEl.value = 'Fecha de salida inválida';
     hiddenEl.value  = '';
     return;
   }
-
   const llegada = new Date(salida.getTime() + minutos * 60000);
-
-  // FIX: guardar en hora local, no en UTC
   hiddenEl.value = toLocalDatetimeString(llegada);
-
   const opts = { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' };
   displayEl.value = llegada.toLocaleDateString('es-MX', opts) +
     '  (+' + (minutos >= 60
@@ -719,21 +1084,15 @@ function calcularLlegadaAuto() {
 function parseDuracionAMinutos(dur) {
   if (!dur) return 0;
   dur = String(dur).trim().toLowerCase();
-
-  // Formato HH:MM  →  "2:30", "0:45"
   if (/^\d+:\d+$/.test(dur)) {
     const [h, m] = dur.split(':').map(Number);
     return (h * 60) + (m || 0);
   }
-
-  // Formato Xh Ym  →  "2h50m", "0h45m", "3h", "45m", "1h15m"
   const hMatch  = dur.match(/(\d+)\s*h/);
   const mMatch  = dur.match(/(\d+)\s*m/);
   const horas   = hMatch ? parseInt(hMatch[1]) : 0;
   const minutos = mMatch ? parseInt(mMatch[1]) : 0;
   if (hMatch || mMatch) return (horas * 60) + minutos;
-
-  // Fallback: número solo → minutos directos
   const n = parseInt(dur);
   return isNaN(n) ? 0 : n;
 }
@@ -764,12 +1123,12 @@ async function cargarHistorial() {
     const res = await fetch('/api/historial/panel/', { headers: { 'Accept': 'application/json' } });
     if (res.status === 401) {
       document.getElementById('hist-cards-container').innerHTML =
-        '<div class="empty-state"><p>Sesi\u00f3n expirada. <a href="/login/">Vuelve a iniciar sesi\u00f3n</a>.</p></div>';
+        '<div class="empty-state"><p>Sesión expirada. <a href="/login/">Vuelve a iniciar sesión</a>.</p></div>';
       return;
     }
     if (!res.ok) {
       document.getElementById('hist-cards-container').innerHTML =
-        `<div class="empty-state"><p>Error del servidor (${res.status}). Intenta recargar la p\u00e1gina.</p></div>`;
+        `<div class="empty-state"><p>Error del servidor (${res.status}). Intenta recargar la página.</p></div>`;
       return;
     }
     const d = await res.json();
@@ -790,22 +1149,18 @@ async function cargarHistorial() {
     document.getElementById('hist-estado').innerHTML =
       '<option value="">Todos</option>' + uniq(r => r.estado).map(v => `<option value="${v}">${v}</option>`).join('');
 
-    // Poblar origen con todas las ciudades
     const selOrig = document.getElementById('hist-origen');
     selOrig.innerHTML = '<option value="">-- Todas --</option>' +
       todasCiudades.map(c => `<option value="${c}">${c}</option>`).join('');
 
-    // Poblar destino (inicialmente todas)
     const selDest = document.getElementById('hist-destino');
     selDest.innerHTML = '<option value="">-- Todas --</option>' +
       todasCiudades.map(c => `<option value="${c}">${c}</option>`).join('');
 
-    // Auto-seleccionar ciudad del taquillero en origen
     if (TAQ_DATA.ciudad) {
       const match = [...selOrig.options].find(o => o.value.toLowerCase() === TAQ_DATA.ciudad.toLowerCase());
       if (match) {
         selOrig.value = match.value;
-        // Excluir esa ciudad del destino
         _actualizarDestinosHistorial(match.value, '');
       }
     }
@@ -819,22 +1174,17 @@ async function cargarHistorial() {
   }
 }
 
-// Actualiza las opciones del select destino excluyendo la ciudad de origen seleccionada
 function _actualizarDestinosHistorial(origenVal, prevDest) {
   const todasCiudades = [...new Set([
     ...historialData.map(r => r.origen_ciudad),
     ...historialData.map(r => r.destino_ciudad)
   ].filter(Boolean))].sort();
-
   const selDest = document.getElementById('hist-destino');
   const opciones = origenVal
     ? todasCiudades.filter(c => c.toLowerCase() !== origenVal.toLowerCase())
     : todasCiudades;
-
   selDest.innerHTML = '<option value="">-- Todas --</option>' +
     opciones.map(c => `<option value="${c}">${c}</option>`).join('');
-
-  // Restaurar destino previo si sigue siendo válido
   if (prevDest && prevDest.toLowerCase() !== origenVal.toLowerCase()) {
     selDest.value = prevDest;
   }
@@ -886,7 +1236,8 @@ function _aplicarFechaHistorial(subset, fecha) {
 function _renderHistInfoAndCards(rows, fechaHint) {
   const hint = fechaHint ? ` — más cercano al ${document.getElementById('hist-fecha').value} (${fechaHint})` : '';
   document.getElementById('hist-info').textContent = `Mostrando ${rows.length} de ${historialData.length} viajes${hint}`;
-  renderHistorialCards(rows);
+  if (histView === 'tabla') renderHistorialTabla(rows);
+  else renderHistorialCards(rows);
 }
 
 function limpiarFiltrosHistorial() {
@@ -900,14 +1251,12 @@ function limpiarFiltrosHistorial() {
   if (track) track.classList.remove('active');
   if (txt)   txt.innerHTML = 'Precisión: <b>Cercana</b>';
 
-  // Restaurar origen a la ciudad del taquillero
   const selOrig = document.getElementById('hist-origen');
   selOrig.value = '';
   if (TAQ_DATA.ciudad) {
     const match = [...selOrig.options].find(o => o.value.toLowerCase() === TAQ_DATA.ciudad.toLowerCase());
     if (match) selOrig.value = match.value;
   }
-  // Actualizar destinos excluyendo el origen restaurado
   _actualizarDestinosHistorial(selOrig.value, '');
 
   historialBase = historialData;
@@ -930,7 +1279,90 @@ function initPrecisionToggle(cbId, trackId, txtId, labelId) {
   sync();
 }
 
+let histView = 'cards';
+
+function setHistView(v) {
+  histView = v;
+  document.getElementById('hist-vbtn-cards').classList.toggle('active', v === 'cards');
+  document.getElementById('hist-vbtn-tabla').classList.toggle('active', v === 'tabla');
+  if (v === 'tabla') {
+    document.getElementById('hist-cards-container').style.display = 'none';
+    document.getElementById('hist-tabla-wrap').style.display = '';
+    renderHistorialTabla(historialFiltered);
+  } else {
+    document.getElementById('hist-tabla-wrap').style.display = 'none';
+    document.getElementById('hist-cards-container').style.display = '';
+    renderHistorialCards(historialFiltered);
+  }
+}
+
+function _estadoBadgeHist(estado) {
+  const e = (estado||'').toLowerCase();
+  if (e.includes('finaliz')) return `<span class="ht-badge ht-badge-fin">${estado}</span>`;
+  if (e.includes('ruta'))    return `<span class="ht-badge ht-badge-ruta">${estado}</span>`;
+  if (e.includes('dispon'))  return `<span class="ht-badge ht-badge-disp">${estado}</span>`;
+  if (e.includes('cancel'))  return `<span class="ht-badge ht-badge-can">${estado}</span>`;
+  return `<span class="ht-badge ht-badge-fin">${estado||'—'}</span>`;
+}
+
+function renderHistorialTabla(rows) {
+  document.getElementById('hist-cards-container').style.display = 'none';
+  document.getElementById('hist-tabla-wrap').style.display = '';
+  const tbl = document.getElementById('hist-tabla');
+  const cols = ['Viaje','Ruta','Origen','Destino','Salida','Llegada','Estado','Operador','Autobús','Asientos','Pasajeros','Acciones'];
+  tbl.querySelector('thead').innerHTML =
+    `<tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr>`;
+  if (!rows.length) {
+    tbl.querySelector('tbody').innerHTML =
+      `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--muted);padding:32px">Sin viajes para los filtros seleccionados.</td></tr>`;
+    return;
+  }
+  tbl.querySelector('tbody').innerHTML = rows.map(r => `<tr>
+    <td style="font-weight:700;color:var(--azul)">#${r.numero}</td>
+    <td style="color:var(--muted)">Ruta #${r.ruta??'—'}</td>
+    <td>${r.origen_terminal??r.origen_ciudad??'—'}</td>
+    <td>${r.destino_terminal??r.destino_ciudad??'—'}</td>
+    <td style="white-space:nowrap">${fmt(r.fecHoraSalida)}</td>
+    <td style="white-space:nowrap">${fmt(r.fecHoraEntrada)}</td>
+    <td>${_estadoBadgeHist(r.estado)}</td>
+    <td>${r.conductor??'—'}</td>
+    <td style="white-space:nowrap">${r.autobus_num?'#'+r.autobus_num:'—'}${r.autobus_placas?' · '+r.autobus_placas:''}</td>
+    <td style="text-align:center">${r.asientos_total??'—'}</td>
+    <td style="text-align:center;font-weight:700">${r.pasajeros_count??'—'}</td>
+    <td>
+      <div class="ht-btn-wrap">
+        <button class="btn btn-naranja" onclick="verAutobus(${r.numero},${r.autobus_num??'null'})">Autobús</button>
+        <button class="btn btn-primary"  onclick="verPasajeros(${r.numero})">Pasajeros</button>
+      </div>
+    </td>
+  </tr>`).join('');
+}
+
+function exportarHistorialCSV() {
+  if (!historialFiltered.length) { toast('No hay viajes para exportar', 'err'); return; }
+  const esc = v => `"${(v??'').toString().replace(/"/g,'""')}"`;
+  const header = ['Viaje','Ruta','Origen terminal','Ciudad origen','Destino terminal','Ciudad destino',
+                  'Salida','Llegada','Estado','Operador','Autobús #','Matrícula','Asientos','Pasajeros'];
+  const rows = historialFiltered.map(r => [
+    r.numero, r.ruta??'',
+    r.origen_terminal??'', r.origen_ciudad??'',
+    r.destino_terminal??'', r.destino_ciudad??'',
+    r.fecHoraSalida??'', r.fecHoraEntrada??'',
+    r.estado??'', r.conductor??'',
+    r.autobus_num??'', r.autobus_placas??'',
+    r.asientos_total??'', r.pasajeros_count??''
+  ].map(esc).join(','));
+  const csv = [header.map(esc).join(','), ...rows].join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8'}));
+  a.download = `historial_viajes_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  toast(`CSV exportado — ${historialFiltered.length} viaje(s)`);
+}
+
 function renderHistorialCards(rows) {
+  document.getElementById('hist-tabla-wrap').style.display = 'none';
+  document.getElementById('hist-cards-container').style.display = '';
   const container = document.getElementById('hist-cards-container');
   if (!rows.length) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><p>No se encontraron viajes.</p></div>`;
@@ -1048,8 +1480,6 @@ function exportarPasajerosCSV() {
 // ════ GESTIÓN CRUD ══════════════════════
 
 const COLS_IMAGEN = new Set(['foto']);
-
-// Columnas que se omiten en la vista tarjetas por ser poco legibles o redundantes
 const COLS_OCULTAS_CARDS = new Set(['serieVIN', 'serievin', 'firebase_uid', 'clave', 'contrasena']);
 
 function setGestionView(view) {
@@ -1058,7 +1488,6 @@ function setGestionView(view) {
   document.getElementById('gvt-cards').classList.toggle('active', view === 'cards');
   document.getElementById('gestion-tabla-wrap').style.display = view === 'tabla' ? '' : 'none';
   document.getElementById('gestion-cards-wrap').style.display = view === 'cards' ? '' : 'none';
-  // Re-renderizar con datos cacheados si los hay
   if (gestionLastData) {
     if (view === 'tabla') renderGestionTabla(gestionLastData);
     else                  renderGestionCards(gestionLastData);
@@ -1076,8 +1505,6 @@ function celdaGestion(col, val) {
   return `<td>${val??'—'}</td>`;
 }
 
-// ════ TOGGLE DB / LEGIBLE ═══════════════
-// Tablas que tienen modo legible implementado en el backend
 const TABLAS_CON_LEGIBLE = new Set([
   'modelo', 'ruta', 'viaje', 'asiento', 'viaje_asiento',
   'taquillero', 'ticket', 'pago'
@@ -1085,21 +1512,14 @@ const TABLAS_CON_LEGIBLE = new Set([
 
 function onDbToggleChange() {
   const chk = document.getElementById('db-toggle-chk');
-
-  // Si intenta activar legible en tabla sin soporte → revertir y avisar
   if (chk.checked && !TABLAS_CON_LEGIBLE.has(tablaActual.nombre)) {
     chk.checked = false;
     toast('No es necesario este modo aquí', 'err');
     return;
   }
-
   gestionModo = chk.checked ? 'legible' : 'db';
-
-  // Actualizar estilos de labels
   document.getElementById('db-toggle-lbl-db').classList.toggle('active', !chk.checked);
   document.getElementById('db-toggle-lbl-leg').classList.toggle('active', chk.checked);
-
-  // Recargar datos con el nuevo modo
   recargarGestion();
 }
 
@@ -1114,14 +1534,11 @@ function _syncDbToggleUI() {
 async function recargarGestion() {
   const tabla = tablaActual.nombre;
   if (!tabla) return;
-  // Mostrar buscador y toggle
   document.getElementById('gestion-search-wrap').style.display = '';
   _syncDbToggleUI();
-  // Limpiar búsqueda al recargar
   const inp = document.getElementById('gestion-search');
   inp.value = '';
   document.getElementById('gestion-search-clear').style.display = 'none';
-  // Mostrar spinner en la vista activa
   document.getElementById('gestion-tbody').innerHTML = '<tr><td colspan="20"><span class="spinner"></span></td></tr>';
   document.getElementById('gestion-cards-wrap').innerHTML = '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
 
@@ -1131,7 +1548,6 @@ async function recargarGestion() {
 
   gestionLastData = d;
 
-  // Badge de modo en el info-bar
   const badge = `<span class="modo-badge ${gestionModo}">${gestionModo === 'legible' ? '🔤 Legible' : '🗄 DB'}</span>`;
   document.getElementById('gestion-info').innerHTML = `${d.rows.length} registro(s)${badge}`;
 
@@ -1139,7 +1555,6 @@ async function recargarGestion() {
   else                         renderGestionCards(d);
 }
 
-// ════ BUSCADOR DE GESTIÓN ════════════════
 function _infoBadge() {
   return `<span class="modo-badge ${gestionModo}">${gestionModo === 'legible' ? '🔤 Legible' : '🗄 DB'}</span>`;
 }
@@ -1147,27 +1562,20 @@ function _infoBadge() {
 function filtrarGestion() {
   const q = document.getElementById('gestion-search').value.trim().toLowerCase();
   document.getElementById('gestion-search-clear').style.display = q ? '' : 'none';
-
   if (!gestionLastData) return;
-
   if (!q) {
-    // Sin búsqueda: mostrar todo sin highlights
     if (gestionView === 'tabla') renderGestionTabla(gestionLastData);
     else                         renderGestionCards(gestionLastData);
     document.getElementById('gestion-info').innerHTML = `${gestionLastData.rows.length} registro(s)${_infoBadge()}`;
     return;
   }
-
-  // Filtrar filas que tengan al menos una celda que contenga el término
   const filtradas = gestionLastData.rows.filter(row =>
     Object.values(row).some(v => v !== null && String(v).toLowerCase().includes(q))
   );
-
   const datFiltrada = { cols: gestionLastData.cols, rows: filtradas };
   const total = gestionLastData.rows.length;
   document.getElementById('gestion-info').innerHTML =
     `${filtradas.length} resultado(s) de ${total} registro(s)${_infoBadge()}`;
-
   if (gestionView === 'tabla') renderGestionTabla(datFiltrada, q);
   else                         renderGestionCards(datFiltrada, q);
 }
@@ -1178,7 +1586,6 @@ function limpiarBusqueda() {
   filtrarGestion();
 }
 
-// Resalta el término buscado dentro de un texto
 function highlightMatch(text, q) {
   if (!q || !text) return text ?? '—';
   const str = String(text);
@@ -1233,28 +1640,22 @@ function renderGestionCards(d, q = '') {
   wrap.innerHTML = `<div class="gestion-cards-grid">${d.rows.map((row, idx) => {
     const pkVal   = row[pk];
     const pkLabel = `${pk.charAt(0).toUpperCase() + pk.slice(1)} #${pkVal}`;
-
-    // Foto si existe
     const fotoCol = d.cols.find(c => COLS_IMAGEN.has(c));
     const fotoVal = fotoCol ? row[fotoCol] : null;
     const fotoHtml = fotoVal && fotoVal !== '—'
       ? `<img class="gc-card-foto" src="${fotoVal.startsWith('http') ? fotoVal : '/media/'+fotoVal}"
            onerror="this.style.display='none'" onclick="verFotoGrande('${fotoVal.startsWith('http') ? fotoVal : '/media/'+fotoVal}')">`
       : '';
-
-    // Campos visibles (excluir PK, foto, y cols ocultas)
     const camposCols = d.cols.filter(c =>
       c !== pk &&
       !COLS_IMAGEN.has(c) &&
       !COLS_OCULTAS_CARDS.has(c)
     );
-
     const camposHtml = camposCols.map(c => `
       <div class="gc-field">
         <span class="gc-field-key">${c}</span>
         <span class="gc-field-val">${highlightMatch(row[c], q)}</span>
       </div>`).join('');
-
     return `
       <div class="gc-card" style="animation-delay:${Math.min(idx*.03,.3)}s">
         <div class="gc-card-header">
@@ -1282,12 +1683,10 @@ function verFotoGrande(url) {
 async function abrirInsertar() {
   const tabla = tablaActual.nombre;
   if (!tabla) { toast('Selecciona una tabla','err'); return; }
-
   try {
     const esq   = await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
     const datos = await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
     const pkCol = esq.columnas.find(c => c.Key === 'PRI')?.Field;
-
     let nextId = '';
     if (pkCol && datos.rows?.length) {
       const max = Math.max(...datos.rows.map(r => parseInt(r[pkCol]) || 0));
@@ -1295,17 +1694,13 @@ async function abrirInsertar() {
     } else {
       nextId = 1;
     }
-
     tablaActual.esquema = esq;
     tablaActual.modo    = 'insertar';
     tablaActual.nextId  = nextId;
-
     document.getElementById('crud-modal-title').textContent  = `Insertar en ${tabla}`;
     document.getElementById('crud-submit-btn').textContent   = 'Insertar';
-
     renderCrudForm(esq, null);
     abrirModal('modal-crud');
-
   } catch (e) {
     toast('Error al preparar formulario','err');
     console.error(e);
@@ -1329,21 +1724,16 @@ async function abrirEditar(tabla, pk, pkv) {
 function renderCrudForm(esq, vals) {
   const c = document.getElementById('crud-form-fields');
   c.innerHTML = '';
-
   esq.columnas.forEach(col => {
     const name = col.Field;
     let val = vals ? (vals[name] ?? '') : '';
     const isPK = col.Key === 'PRI';
-
     if (!vals && isPK && tablaActual.nextId) {
       val = tablaActual.nextId;
     }
-
     const isEditing = tablaActual.modo === 'editar';
     const div = document.createElement('div');
     div.className = 'form-field';
-
-    // ── FOREIGN KEYS ───────────────────
     if (esq.fk_map[name]) {
       const opts = esq.opciones[name] || [];
       div.innerHTML = `
@@ -1356,16 +1746,12 @@ function renderCrudForm(esq, vals) {
             </option>`).join('')}
         </select>
       `;
-    }
-    // ── INPUT CON TIPO ESTRICTO POR COLUMNA ───────────────────
-    else {
+    } else {
       const readOnly = isPK && isEditing;
       const colType  = col.Type.toLowerCase();
-
       let inputType  = 'text';
       let extraAttrs = '';
       let placeholder = '';
-
       if (colType === 'date') {
         inputType   = 'date';
         placeholder = 'YYYY-MM-DD';
@@ -1403,8 +1789,6 @@ function renderCrudForm(esq, vals) {
           placeholder = col.Type;
         }
       }
-
-      // ── Formatear valor existente para inputs de fecha ──
       if (val) {
         if (inputType === 'datetime-local') {
           val = String(val).replace(' ', 'T').substring(0, 16);
@@ -1412,7 +1796,6 @@ function renderCrudForm(esq, vals) {
           val = String(val).substring(0, 10);
         }
       }
-
       div.innerHTML = `
         <label>${name}</label>
         <input
@@ -1425,7 +1808,6 @@ function renderCrudForm(esq, vals) {
         />
       `;
     }
-
     c.appendChild(div);
   });
 }

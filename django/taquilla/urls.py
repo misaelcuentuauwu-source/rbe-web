@@ -37,6 +37,7 @@ urlpatterns = [
     path('api/viaje/opciones/',      views.agregar_viaje_opciones, name='viaje_opciones'),
     path('api/viaje/agregar/',       views.agregar_viaje,          name='agregar_viaje'),
     # KPIs
+    path('api/ventas/sujetos/',    views.api_ventas_sujetos,     name='api_ventas_sujetos'),
     path('api/kpi/generales/',       views.kpi_generales,          name='kpi_generales'),
     path('api/kpi/especificos/',     views.kpi_especificos,        name='kpi_especificos'),
     path('api/kpi/filtros/',         views.kpi_filtros_opciones,   name='kpi_filtros'),
