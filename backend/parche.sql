@@ -172,7 +172,7 @@ CREATE TABLE taquillero (
     taqSegundoApell VARCHAR(30),
     fechaContrato DATE NOT NULL,
     usuario VARCHAR(20) NOT NULL,
-    contrasena VARCHAR(20) NOT NULL,
+    contrasena VARCHAR(255) NOT NULL,
     terminal INT NOT NULL,
     foto  VARCHAR(200),  
     supervisa BOOLEAN,
@@ -194,6 +194,7 @@ CREATE TABLE ticket (
     precio DECIMAL(10,2) NOT NULL,
     fechaEmision DATETIME NOT NULL,
     asiento INT NOT NULL,
+    etiqueta_asiento VARCHAR(10),
     viaje INT NOT NULL,
     pasajero INT NOT NULL,
     tipopasajero INT NOT NULL,
@@ -443,7 +444,7 @@ INSERT INTO taquillero (registro, taqNombre, taqPrimerApell, taqSegundoApell, fe
 (19, 'Miriam',   'Castillo', 'Perez',     '2023-09-30', 'mcastillo', 'MC23',     7, 1),
 (20, 'Luis',     'Navarro',  'Beltran',   '2024-03-21', 'lnavarro',  'LN24',     7, 0),
 (21, 'Sofia',    'Avila',    'Torres',    '2025-01-13', 'savila',    'SA25',     7, 0),
-(22, 'Salvador', 'Garcia',   'Bojorquez', '2025-12-01', 'sgarcia',   'salvador', 1, 1),
+(22, 'Salvador', 'Garcia',   'Bojorquez', '2025-12-01', 'rodavlas',   '172509', 1, 1),
 (23, 'Admin',    'Za',       NULL,        '2026-02-21', 'za',        'za',       1, 1);
 
 -- ── Pasajeros (sin columna edad) ──────────────────────────────
