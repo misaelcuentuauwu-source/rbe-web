@@ -127,14 +127,21 @@ function showPage(id) {
   document.getElementById('topbar-title').textContent = {
     'kpi-generales'   : 'KPIs Generales',
     'kpi-especificos' : 'KPIs Específicos',
+    'reporte-ventas'  : 'Reporte de Ventas',
     'salidas'         : 'Salidas',
     'historial'       : 'Historial de Viajes',
     'gestion'         : 'Gestión',
     'configuracion'   : 'Configuración'
   }[id] || id;
+  // Ocultar FAB modo asistido cuando no estamos en Gestión→viaje
+  if (id !== 'gestion') {
+    const fab = document.getElementById('fab-modo-asistido');
+    if (fab) fab.style.display = 'none';
+  }
   if (id==='salidas')         cargarSalidas();
   if (id==='historial')       cargarHistorial();
   if (id==='kpi-generales')   cargarKpiGenerales();
+  if (id==='reporte-ventas')  rvIniciarOpciones();
   if (id==='kpi-especificos') {
     const t = document.getElementById('ke-tipo').value;
     keView = (t === 'ventas') ? 'cards' : 'tabla';
@@ -153,6 +160,9 @@ function showGestion(tabla) {
     'Gestión — ' + tabla.charAt(0).toUpperCase() + tabla.slice(1);
   tablaActual.nombre = tabla;
   if (!TABLAS_CON_LEGIBLE.has(tabla)) gestionModo = 'db';
+  // Ocultar FAB si no es viaje; recargarGestion lo mostrará si aplica
+  const fab = document.getElementById('fab-modo-asistido');
+  if (fab) fab.style.display = 'none';
   recargarGestion();
 }
 
@@ -869,7 +879,12 @@ async function cargarSalidas() {
   document.getElementById('sal-fecha').value = today();
   if (TAQ_DATA.ciudad) {
     const match = [...selOrig.options].find(o => o.value.toLowerCase() === TAQ_DATA.ciudad.toLowerCase());
-    if (match) selOrig.value = match.value;
+    if (match) {
+      selOrig.value = match.value;
+      // Quitar el origen del destino para evitar origen=destino
+      const opcionesDest = todasCiudades.filter(c => c.toLowerCase() !== match.value.toLowerCase());
+      selDest.innerHTML = '<option value="">-- Todas --</option>' + opcionesDest.map(c=>`<option value="${c}">${c}</option>`).join('');
+    }
   }
   aplicarFiltrosSalidas();
 }
@@ -1146,8 +1161,19 @@ async function cargarHistorial() {
       ...d.rows.map(r => r.destino_ciudad)
     ].filter(Boolean))].sort();
 
+    // Estados disponibles en los datos
+    const todosEstados = uniq(r => r.estado);
+    // Estados "históricos" (viajes que ya ocurrieron)
+    const estadosHistoricos = ['cancelado','finalizado','completado','terminado','en curso'];
+    const estadosDefault = todosEstados.filter(e => estadosHistoricos.includes(e.toLowerCase()));
+
     document.getElementById('hist-estado').innerHTML =
-      '<option value="">Todos</option>' + uniq(r => r.estado).map(v => `<option value="${v}">${v}</option>`).join('');
+      '<option value="__historico__">Todos (histórico)</option>' +
+      '<option value="">Todos (general)</option>' +
+      todosEstados.map(v => `<option value="${v}">${v}</option>`).join('');
+
+    // Seleccionar "Todos (histórico)" por default
+    document.getElementById('hist-estado').value = '__historico__';
 
     const selOrig = document.getElementById('hist-origen');
     selOrig.innerHTML = '<option value="">-- Todas --</option>' +
@@ -1202,9 +1228,24 @@ function filtrarHistorial() {
   const es = document.getElementById('hist-estado').value;
   const or = document.getElementById('hist-origen').value;
   const de = document.getElementById('hist-destino').value;
+
+  // Estados que se consideran "históricos" (ya ocurrieron o fueron cancelados)
+  const ESTADOS_HISTORICOS = ['cancelado','finalizado','completado','terminado','en curso'];
+
   historialBase = historialData.filter(r => {
     const txt = [r.origen_ciudad,r.destino_ciudad,r.conductor,r.autobus_placas,String(r.numero),String(r.autobus_num)].join(' ').toLowerCase();
-    return txt.includes(q) && (!es||r.estado===es) && (!or||r.origen_ciudad===or) && (!de||r.destino_ciudad===de);
+    const pasaTexto  = txt.includes(q);
+    const pasaOrigen = !or || r.origen_ciudad === or;
+    const pasaDest   = !de || r.destino_ciudad === de;
+    let pasaEstado;
+    if (es === '__historico__') {
+      pasaEstado = ESTADOS_HISTORICOS.includes((r.estado||'').toLowerCase());
+    } else if (es === '') {
+      pasaEstado = true; // todos general
+    } else {
+      pasaEstado = r.estado === es;
+    }
+    return pasaTexto && pasaOrigen && pasaDest && pasaEstado;
   });
   const fecha = document.getElementById('hist-fecha').value;
   if (fecha) { _aplicarFechaHistorial(historialBase, fecha); }
@@ -1241,9 +1282,10 @@ function _renderHistInfoAndCards(rows, fechaHint) {
 }
 
 function limpiarFiltrosHistorial() {
-  ['hist-search','hist-estado','hist-fecha'].forEach(id=>{
+  ['hist-search','hist-fecha'].forEach(id=>{
     document.getElementById(id).value = '';
   });
+  document.getElementById('hist-estado').value = '__historico__';
   const cb    = document.getElementById('hist-precision');
   const track = document.getElementById('hist-precision-track');
   const txt   = document.getElementById('hist-precision-text');
@@ -1545,7 +1587,7 @@ function _syncDbToggleUI() {
   document.getElementById('db-toggle-wrap').style.display = 'flex';
 }
 
-async function recargarGestion() {
+async function recargarGestion(limit) {
   const tabla = tablaActual.nombre;
   if (!tabla) return;
   document.getElementById('gestion-search-wrap').style.display = '';
@@ -1555,19 +1597,44 @@ async function recargarGestion() {
   document.getElementById('gestion-search-clear').style.display = 'none';
   document.getElementById('gestion-tbody').innerHTML = '<tr><td colspan="20"><span class="spinner"></span></td></tr>';
   document.getElementById('gestion-cards-wrap').innerHTML = '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
+  document.getElementById('gestion-ver-todos-wrap').style.display = 'none';
 
-  const url = `/api/crud/${tabla}/leer/?modo=${gestionModo}`;
+  // FAB modo asistido: solo visible desde Salidas programadas, nunca en Gestión
+  const fabAsistido = document.getElementById('fab-modo-asistido');
+  if (fabAsistido) fabAsistido.style.display = 'none';
+
+  const lim = limit || 500;
+  const url = `/api/crud/${tabla}/leer/?modo=${gestionModo}&limit=${lim}`;
   const d = await fetch(url).then(r=>r.json());
   if (d.error) { toast(d.error,'err'); return; }
 
   gestionLastData = d;
 
   const badge = `<span class="modo-badge ${gestionModo}">${gestionModo === 'legible' ? '🔤 Legible' : '🗄 DB'}</span>`;
-  document.getElementById('gestion-info').innerHTML = `${d.rows.length} registro(s)${badge}`;
+  const totalReal = d.total_real ?? d.rows.length;
+  const hayMas    = totalReal > d.rows.length;
+  document.getElementById('gestion-info').innerHTML =
+    `${d.rows.length} de ${totalReal} registro(s)${badge}`;
+
+  // Botón "Ver todos" si hay registros ocultos por el límite
+  if (hayMas) {
+    document.getElementById('ver-todos-count').textContent = totalReal;
+    document.getElementById('gestion-ver-todos-wrap').style.display = '';
+  }
 
   if (gestionView === 'tabla') renderGestionTabla(d);
   else                         renderGestionCards(d);
 }
+
+function verTodosRegistros() {
+  recargarGestion(5000);
+}
+
+function abrirModoAsistido() {
+  // Abre el modal de viaje asistido (el mismo de Salidas programadas)
+  abrirModalViaje();
+}
+
 
 function _infoBadge() {
   return `<span class="modo-badge ${gestionModo}">${gestionModo === 'legible' ? '🔤 Legible' : '🗄 DB'}</span>`;
@@ -1703,21 +1770,23 @@ async function abrirInsertar() {
   const tabla = tablaActual.nombre;
   if (!tabla) { toast('Selecciona una tabla','err'); return; }
   try {
-    const esq   = await fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json());
-    const datos = await fetch(`/api/crud/${tabla}/leer/`).then(r=>r.json());
-    const pkCol = esq.columnas.find(c => c.Key === 'PRI')?.Field;
-    let nextId = '';
-    if (pkCol && datos.rows?.length) {
-      const max = Math.max(...datos.rows.map(r => parseInt(r[pkCol]) || 0));
-      nextId = max + 1;
-    } else {
-      nextId = 1;
-    }
+    const [esq, pkInfo] = await Promise.all([
+      fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json()),
+      fetch(`/api/crud/${tabla}/next_pk/`).then(r=>r.json()),
+    ]);
+
     tablaActual.esquema = esq;
     tablaActual.modo    = 'insertar';
-    tablaActual.nextId  = nextId;
-    document.getElementById('crud-modal-title').textContent  = `Insertar en ${tabla}`;
-    document.getElementById('crud-submit-btn').textContent   = 'Insertar';
+    tablaActual.nextId  = pkInfo.ok ? pkInfo.next_id : 1;
+    tablaActual.pkCol   = pkInfo.ok ? pkInfo.pk_col  : null;
+
+    document.getElementById('crud-modal-title').textContent = `Insertar en ${tabla}`;
+    document.getElementById('crud-submit-btn').textContent  = 'Insertar';
+
+    // Mostrar/ocultar botón modo asistido dentro del modal
+    const btnAs = document.getElementById('crud-btn-asistido');
+    if (btnAs) btnAs.style.display = tabla === 'viaje' ? '' : 'none';
+
     renderCrudForm(esq, null);
     abrirModal('modal-crud');
   } catch (e) {
@@ -1740,9 +1809,37 @@ async function abrirEditar(tabla, pk, pkv) {
   abrirModal('modal-crud');
 }
 
+// Campos de cuenta_pasajero que viven en Firebase — advertencia al editar
+const CAMPOS_FIREBASE = {
+  clave:        { nivel: 'peligro', msg: 'La contraseña se gestiona en Firebase Authentication. Modificarla aquí <strong>no actualiza Firebase</strong> y puede impedir que el usuario inicie sesión en la app.' },
+  firebase_uid: { nivel: 'peligro', msg: 'Este UID es generado por Firebase. Cambiarlo manualmente <strong>romperá el acceso</strong> del usuario en la app móvil.' },
+  proveedor:    { nivel: 'info',    msg: 'Este campo indica el método de login (local / google). Cámbialo solo si sabes lo que haces; un valor incorrecto puede bloquear el acceso desde la app.' },
+  correo:       { nivel: 'info',    msg: 'Cambiar el correo aquí no lo actualiza en Firebase. El usuario seguirá entrando con el correo anterior desde la app hasta que se sincronice.' },
+};
+
 function renderCrudForm(esq, vals) {
-  const c = document.getElementById('crud-form-fields');
+  const c     = document.getElementById('crud-form-fields');
+  const tabla = tablaActual.nombre;
   c.innerHTML = '';
+
+  // [CAM-1] Banner general para cuenta_pasajero
+  if (tabla === 'cuenta_pasajero') {
+    const banner = document.createElement('div');
+    banner.style.cssText = `
+      background:#fff8e1;border:1.5px solid #f59e0b;border-radius:8px;
+      padding:10px 14px;margin-bottom:14px;font-size:13px;color:#92400e;
+      display:flex;gap:10px;align-items:flex-start;line-height:1.5;`;
+    banner.innerHTML = `
+      <span style="font-size:18px;flex-shrink:0">⚠️</span>
+      <div>
+        <strong>Tabla sincronizada con Firebase</strong><br>
+        Algunos campos de esta tabla están controlados por Firebase Authentication
+        (la autenticación de la app móvil). Modifica solo los campos que no afecten
+        el inicio de sesión, como la foto. Los campos críticos muestran una advertencia individual.
+      </div>`;
+    c.appendChild(banner);
+  }
+
   esq.columnas.forEach(col => {
     const name = col.Field;
     let val = vals ? (vals[name] ?? '') : '';
@@ -1840,6 +1937,22 @@ function renderCrudForm(esq, vals) {
         />
       `;
     }
+    // [CAM-1] Advertencia individual por campo de cuenta_pasajero
+    if (tabla === 'cuenta_pasajero' && CAMPOS_FIREBASE[name]) {
+      const fw = CAMPOS_FIREBASE[name];
+      const alertDiv = document.createElement('div');
+      const bgColor  = fw.nivel === 'peligro' ? '#fff0f0' : '#f0f7ff';
+      const bdColor  = fw.nivel === 'peligro' ? '#f87171' : '#93c5fd';
+      const txColor  = fw.nivel === 'peligro' ? '#991b1b' : '#1e40af';
+      const icon     = fw.nivel === 'peligro' ? '🚫' : 'ℹ️';
+      alertDiv.style.cssText = `
+        background:${bgColor};border:1px solid ${bdColor};border-radius:6px;
+        padding:7px 12px;margin-bottom:2px;font-size:12px;color:${txColor};
+        display:flex;gap:8px;align-items:flex-start;line-height:1.5;`;
+      alertDiv.innerHTML = `<span style="flex-shrink:0">${icon}</span><span>${fw.msg}</span>`;
+      c.appendChild(alertDiv);
+    }
+
     c.appendChild(div);
   });
 }
@@ -1851,21 +1964,105 @@ async function submitCrud() {
   campos.forEach(el => {
     if (el.readOnly || el.disabled) return;
     const v = el.value.trim();
-    // Campo contrasena vacio en modo editar: no incluirlo (no cambiar)
     const esPassVacio = (el.dataset.field === 'contrasena' || el.dataset.field === 'clave')
                         && v === '' && tablaActual.modo === 'editar';
     if (esPassVacio) return;
     data[el.dataset.field] = v==='' ? null : v;
   });
-  if (tablaActual.modo==='insertar') {
+
+  // [CAM-3] Validación de fechas para viaje (frontend)
+  if (tabla === 'viaje') {
+    const salida  = data['fecHoraSalida'] || data['fechorasalida'];
+    const llegada = data['fecHoraEntrada'] || data['fechoraentrada'];
+    if (salida && llegada) {
+      const dtSal = new Date(salida.replace(' ','T'));
+      const dtLle = new Date(llegada.replace(' ','T'));
+      if (isNaN(dtSal) || isNaN(dtLle)) {
+        toast('Formato de fecha inválido.', 'err'); return;
+      }
+      if (dtLle <= dtSal) {
+        toast('⚠️ La llegada debe ser posterior a la salida.', 'err'); return;
+      }
+    }
+  }
+
+  if (tablaActual.modo === 'insertar') {
+    // [CAM-PK] Verificar si la PK propuesta está ocupada antes de enviar
+    const pkCol = tablaActual.pkCol;
+    if (pkCol && data[pkCol] !== null && data[pkCol] !== undefined) {
+      const pkVal = String(data[pkCol]).trim();
+      if (pkVal !== '') {
+        const chk = await fetch(`/api/crud/${tabla}/next_pk/?propuesto=${encodeURIComponent(pkVal)}`).then(r=>r.json());
+        if (chk.ok && chk.ocupado) {
+          // Mostrar diálogo de confirmación
+          const confirmado = await _dialogoPkOcupado(pkVal, chk.next_id);
+          if (!confirmado) return;           // usuario canceló
+          data[pkCol] = chk.next_id;         // reemplazar con el ID libre
+          // Actualizar el campo visible en el formulario
+          const inp = document.querySelector(`#crud-form-fields [data-field="${pkCol}"]`);
+          if (inp) inp.value = chk.next_id;
+        }
+      }
+    }
+
     const d = await fetch(`/api/crud/${tabla}/insertar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify(data)}).then(r=>r.json());
-    d.ok ? (toast('Registro insertado'), cerrarModal('modal-crud'), recargarGestion()) : toast('Error: '+d.error,'err');
+    d.ok ? (toast('Registro insertado ✓'), cerrarModal('modal-crud'), recargarGestion()) : toast('Error: '+d.error,'err');
   } else {
     data.__pk_name__  = tablaActual.pkName;
     data.__pk_value__ = tablaActual.pkValue;
     const d = await fetch(`/api/crud/${tabla}/actualizar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify(data)}).then(r=>r.json());
-    d.ok ? (toast('Registro actualizado'), cerrarModal('modal-crud'), recargarGestion()) : toast('Error: '+d.error,'err');
+    d.ok ? (toast('Registro actualizado ✓'), cerrarModal('modal-crud'), recargarGestion()) : toast('Error: '+d.error,'err');
   }
+}
+
+// Diálogo de confirmación cuando la PK propuesta ya está ocupada
+function _dialogoPkOcupado(pkOcupada, pkLibre) {
+  return new Promise(resolve => {
+    // Eliminar diálogo previo si existiera
+    document.getElementById('_dlg-pk-ocupada')?.remove();
+
+    const dlg = document.createElement('div');
+    dlg.id = '_dlg-pk-ocupada';
+    dlg.style.cssText = `
+      position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;
+      background:rgba(0,0,0,.45);`;
+    dlg.innerHTML = `
+      <div style="background:var(--bg,#fff);border-radius:14px;padding:28px 32px;max-width:380px;
+                  width:90%;box-shadow:0 8px 40px rgba(0,0,0,.22);font-family:inherit;">
+        <div style="font-size:22px;margin-bottom:10px">⚠️</div>
+        <div style="font-weight:700;font-size:16px;margin-bottom:8px;color:var(--text,#1a2b3c)">
+          ID ${pkOcupada} ya está en uso
+        </div>
+        <div style="font-size:14px;color:var(--muted,#6b8fa8);margin-bottom:22px;line-height:1.6">
+          El número <b>${pkOcupada}</b> ya existe en la tabla.<br>
+          ¿Quieres usar el <b style="color:var(--azul,#1181c3)">${pkLibre}</b> (siguiente disponible)?
+        </div>
+        <div style="display:flex;gap:10px;justify-content:flex-end">
+          <button id="_dlg-pk-cancel"
+            style="padding:8px 18px;border-radius:8px;border:1.5px solid var(--border,#e2e8f0);
+                   background:transparent;cursor:pointer;font-size:14px;color:var(--text,#1a2b3c)">
+            Cancelar
+          </button>
+          <button id="_dlg-pk-ok"
+            style="padding:8px 18px;border-radius:8px;border:none;background:var(--azul,#1181c3);
+                   color:#fff;cursor:pointer;font-size:14px;font-weight:600">
+            Usar ${pkLibre}
+          </button>
+        </div>
+      </div>`;
+
+    document.body.appendChild(dlg);
+
+    document.getElementById('_dlg-pk-ok').onclick = () => {
+      dlg.remove(); resolve(true);
+    };
+    document.getElementById('_dlg-pk-cancel').onclick = () => {
+      dlg.remove(); resolve(false);
+    };
+    dlg.addEventListener('click', e => {
+      if (e.target === dlg) { dlg.remove(); resolve(false); }
+    });
+  });
 }
 
 async function eliminarReg(tabla, pk, pkv) {
@@ -2036,3 +2233,320 @@ function irAEclipse() { window.location.href = '/elipse/'; }
 
   showPage('kpi-generales');
 })();
+// ════════════════════════════════════════════════════════════════
+//  REPORTE DE VENTAS
+// ════════════════════════════════════════════════════════════════
+
+let rvDatos = null; // guarda última respuesta para CSV
+
+function rvFmt(n) {
+  const v = parseFloat(n) || 0;
+  return '$' + v.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Poblar selects de ruta y taquillero la primera vez que se abre el módulo
+let rvOpcionesListas = false;
+function rvCargarOpciones(data) {
+  if (rvOpcionesListas) return;
+  const selRuta = document.getElementById('rv-ruta');
+  const selTaq  = document.getElementById('rv-taquillero');
+  (data.opciones_rutas || []).forEach(r => {
+    const o = document.createElement('option');
+    o.value = r.value; o.textContent = r.label;
+    selRuta.appendChild(o);
+  });
+  (data.opciones_taquilleros || []).forEach(r => {
+    const o = document.createElement('option');
+    o.value = r.value; o.textContent = r.label;
+    selTaq.appendChild(o);
+  });
+  rvOpcionesListas = true;
+}
+
+function generarReporteVentas() {
+  const desde      = document.getElementById('rv-desde').value;
+  const hasta      = document.getElementById('rv-hasta').value;
+  const rutaId     = document.getElementById('rv-ruta').value;
+  const taqId      = document.getElementById('rv-taquillero').value;
+
+  // ── Validación de fechas ──────────────────────────────────────────────
+  if (desde && hasta && desde > hasta) {
+    // Marcar visualmente
+    const elDesde = document.getElementById('rv-desde');
+    const elHasta = document.getElementById('rv-hasta');
+    elDesde.style.borderColor = '#e53e3e';
+    elHasta.style.borderColor = '#e53e3e';
+    toast('La fecha de inicio no puede ser mayor que la fecha fin.', 'err');
+    setTimeout(() => {
+      elDesde.style.borderColor = '';
+      elHasta.style.borderColor = '';
+    }, 2500);
+    return;
+  }
+  if (!desde && hasta) {
+    document.getElementById('rv-desde').style.borderColor = '#e53e3e';
+    toast('Ingresa también una fecha de inicio.', 'err');
+    setTimeout(() => { document.getElementById('rv-desde').style.borderColor = ''; }, 2500);
+    return;
+  }
+  if (desde && !hasta) {
+    document.getElementById('rv-hasta').style.borderColor = '#e53e3e';
+    toast('Ingresa también una fecha de fin.', 'err');
+    setTimeout(() => { document.getElementById('rv-hasta').style.borderColor = ''; }, 2500);
+    return;
+  }
+
+  // Mostrar loading
+  document.getElementById('rv-empty').style.display     = 'none';
+  document.getElementById('rv-resultado').style.display = 'none';
+  document.getElementById('rv-loading').style.display   = 'block';
+  document.getElementById('rv-btn-csv').style.display   = 'none';
+
+  const params = new URLSearchParams();
+  if (desde)  params.set('desde',         desde);
+  if (hasta)  params.set('hasta',         hasta);
+  if (rutaId) params.set('ruta_id',       rutaId);
+  if (taqId)  params.set('taquillero_id', taqId);
+
+  fetch('/api/reporte/ventas/?' + params.toString())
+    .then(r => r.json())
+    .then(data => {
+      rvDatos = data;
+      rvCargarOpciones(data);
+      rvRenderResumen(data.resumen);
+      rvRenderTablaSimple('rv-tabla-ruta',
+        data.por_ruta,
+        ['ruta', 'boletos', 'ingresos'],
+        ['Ruta', 'Boletos', 'Ingresos'],
+        { ingresos: true }
+      );
+      rvRenderTablaSimple('rv-tabla-taquillero',
+        data.por_taquillero,
+        ['taquillero', 'boletos', 'transacciones', 'ingresos'],
+        ['Taquillero', 'Boletos', 'Transacciones', 'Ingresos'],
+        { ingresos: true }
+      );
+      rvRenderTablaSimple('rv-tabla-tipo',
+        data.por_tipo,
+        ['tipo_pasajero', 'descuento_pct', 'boletos', 'ingresos'],
+        ['Tipo', 'Descuento %', 'Boletos', 'Ingresos'],
+        { ingresos: true }
+      );
+      rvRenderDetalle(data.detalle);
+
+      document.getElementById('rv-loading').style.display   = 'none';
+      document.getElementById('rv-resultado').style.display = 'block';
+      document.getElementById('rv-btn-csv').style.display   = '';
+    })
+    .catch(err => {
+      document.getElementById('rv-loading').style.display = 'none';
+      document.getElementById('rv-empty').style.display   = 'block';
+      toast('Error al generar el reporte: ' + err.message, 'err');
+    });
+}
+
+function rvRenderResumen(r) {
+  if (!r) return;
+  const totalRec  = parseFloat(r.ingresos_totales) || 0;
+  const efectivo  = parseFloat(r.total_efectivo)   || 0;
+  const tarjeta   = parseFloat(r.total_tarjeta)    || 0;
+  // Calcular % solo sobre la base real (efectivo + tarjeta), no sobre ingresos_totales
+  const baseReal  = efectivo + tarjeta;
+  const pctEfec   = baseReal > 0 ? Math.round(efectivo / baseReal * 100) : 0;
+  const pctTarj   = baseReal > 0 ? (100 - pctEfec) : 0;
+  const splitLabel = baseReal > 0
+    ? `${pctEfec}% efectivo · ${pctTarj}% tarjeta`
+    : 'Sin transacciones';
+
+  document.getElementById('rv-resumen-cards').innerHTML = `
+    <div class="eco-stat-card eco-green">
+      <div class="eco-stat-icon">💵</div>
+      <div class="eco-stat-body">
+        <div class="eco-stat-label">Ingresos totales</div>
+        <div class="eco-stat-value">${rvFmt(r.ingresos_totales)}</div>
+        <div class="eco-stat-sub">${r.total_transacciones || 0} transacciones</div>
+      </div>
+    </div>
+    <div class="eco-stat-card eco-blue">
+      <div class="eco-stat-icon">🎫</div>
+      <div class="eco-stat-body">
+        <div class="eco-stat-label">Boletos vendidos</div>
+        <div class="eco-stat-value">${r.total_boletos || 0}</div>
+        <div class="eco-stat-sub">Promedio ${rvFmt(r.promedio_boleto)} / boleto</div>
+      </div>
+    </div>
+    <div class="eco-stat-card eco-orange">
+      <div class="eco-stat-icon">💳</div>
+      <div class="eco-stat-body">
+        <div class="eco-stat-label">Efectivo vs Tarjeta</div>
+        <div class="eco-split-row">
+          <div class="eco-split-item">
+            <span class="eco-split-dot dot-cash"></span>
+            <span class="eco-split-label">Efectivo</span>
+            <span class="eco-split-val">${rvFmt(r.total_efectivo)}</span>
+          </div>
+          <div class="eco-split-item">
+            <span class="eco-split-dot dot-card"></span>
+            <span class="eco-split-label">Tarjeta</span>
+            <span class="eco-split-val">${rvFmt(r.total_tarjeta)}</span>
+          </div>
+        </div>
+        <div class="eco-bar-split">
+          <div class="eco-bar-efectivo" style="width:${pctEfec}%"></div>
+          <div class="eco-bar-tarjeta"  style="width:${pctTarj}%"></div>
+        </div>
+        <div class="eco-stat-sub">${splitLabel}</div>
+      </div>
+    </div>
+  `;
+}
+
+function rvRenderTablaSimple(tableId, rows, keys, headers, moneyKeys) {
+  const tbody = document.querySelector('#' + tableId + ' tbody');
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="' + keys.length + '" style="text-align:center;color:var(--muted);padding:16px;">Sin datos</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r =>
+    '<tr>' + keys.map(k => {
+      const val = r[k] !== null && r[k] !== undefined ? r[k] : '—';
+      const isMoney = moneyKeys && moneyKeys[k];
+      if (isMoney) return `<td class="rv-monto">${rvFmt(val)}</td>`;
+      return `<td>${val}</td>`;
+    }).join('') + '</tr>'
+  ).join('');
+}
+
+function rvRenderDetalle(rows) {
+  const tbody = document.querySelector('#rv-tabla-detalle tbody');
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:16px;">Sin datos</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><span class="rv-folio">#${r.folio}</span></td>
+      <td>${r.fecha || '—'}</td>
+      <td>${r.ruta || '—'}</td>
+      <td>${r.taquillero || '—'}</td>
+      <td>${r.metodo_pago || '—'}</td>
+      <td>${r.boletos || 0}</td>
+      <td class="rv-monto">${rvFmt(r.monto)}</td>
+    </tr>
+  `).join('');
+}
+
+function limpiarReporteVentas() {
+  document.getElementById('rv-desde').value    = '';
+  document.getElementById('rv-hasta').value    = '';
+  document.getElementById('rv-ruta').value     = '';
+  document.getElementById('rv-taquillero').value = '';
+  document.getElementById('rv-resultado').style.display = 'none';
+  document.getElementById('rv-btn-csv').style.display   = 'none';
+  document.getElementById('rv-empty').style.display     = 'block';
+  rvDatos = null;
+}
+
+function exportarReporteCSV() {
+  if (!rvDatos) return;
+
+  const desde = document.getElementById('rv-desde').value || 'todo';
+  const hasta = document.getElementById('rv-hasta').value || 'todo';
+
+  // ── Hoja 1: Resumen ──────────────────────────────────────────
+  const r = rvDatos.resumen || {};
+  let csv = 'REPORTE DE VENTAS\n';
+  csv += `Período:,${desde} al ${hasta}\n\n`;
+  csv += 'RESUMEN GENERAL\n';
+  csv += 'Concepto,Valor\n';
+  csv += `Ingresos totales,"${rvFmt(r.ingresos_totales)}"\n`;
+  csv += `Total boletos vendidos,${r.total_boletos || 0}\n`;
+  csv += `Total transacciones,${r.total_transacciones || 0}\n`;
+  csv += `Promedio por boleto,"${rvFmt(r.promedio_boleto)}"\n`;
+  csv += `Total efectivo,"${rvFmt(r.total_efectivo)}"\n`;
+  csv += `Total tarjeta,"${rvFmt(r.total_tarjeta)}"\n\n`;
+
+  // ── Hoja 2: Por ruta ─────────────────────────────────────────
+  csv += 'DESGLOSE POR RUTA\n';
+  csv += 'Ruta,Boletos,Ingresos\n';
+  (rvDatos.por_ruta || []).forEach(row => {
+    csv += `"${row.ruta}",${row.boletos},"${rvFmt(row.ingresos)}"\n`;
+  });
+  csv += '\n';
+
+  // ── Hoja 3: Por taquillero ───────────────────────────────────
+  csv += 'DESGLOSE POR TAQUILLERO\n';
+  csv += 'Taquillero,Boletos,Transacciones,Ingresos\n';
+  (rvDatos.por_taquillero || []).forEach(row => {
+    csv += `"${row.taquillero}",${row.boletos},${row.transacciones},"${rvFmt(row.ingresos)}"\n`;
+  });
+  csv += '\n';
+
+  // ── Hoja 4: Por tipo de pasajero ─────────────────────────────
+  csv += 'DESGLOSE POR TIPO DE PASAJERO\n';
+  csv += 'Tipo,Descuento %,Boletos,Ingresos\n';
+  (rvDatos.por_tipo || []).forEach(row => {
+    csv += `"${row.tipo_pasajero}",${row.descuento_pct}%,${row.boletos},"${rvFmt(row.ingresos)}"\n`;
+  });
+  csv += '\n';
+
+  // ── Hoja 5: Detalle ──────────────────────────────────────────
+  csv += 'DETALLE DE VENTAS\n';
+  csv += 'Folio,Fecha,Ruta,Taquillero,Método Pago,Boletos,Monto\n';
+  (rvDatos.detalle || []).forEach(row => {
+    csv += `${row.folio},"${row.fecha}","${row.ruta}","${row.taquillero}","${row.metodo_pago}",${row.boletos},"${rvFmt(row.monto)}"\n`;
+  });
+
+  // ── Descarga ─────────────────────────────────────────────────
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `reporte_ventas_${desde}_${hasta}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('CSV descargado correctamente', 'ok');
+}
+
+// Cargar opciones del reporte la primera vez que se abre la página
+// (sin ejecutar el reporte — solo poblar los selects)
+function rvIniciarOpciones() {
+  // Pre-llenar fechas con el mes actual si están vacías
+  const elDesde = document.getElementById('rv-desde');
+  const elHasta = document.getElementById('rv-hasta');
+  if (!elDesde.value) {
+    const now  = new Date();
+    const yyyy = now.getFullYear();
+    const mm   = String(now.getMonth() + 1).padStart(2, '0');
+    const dd   = String(now.getDate()).padStart(2, '0');
+    const primerDia = `${yyyy}-${mm}-01`;
+    const hoy       = `${yyyy}-${mm}-${dd}`;
+    elDesde.value = primerDia;
+    elHasta.value = hoy;
+  }
+
+  // Validación en tiempo real: no dejar fecha fin menor a fecha inicio
+  elDesde.addEventListener('change', () => {
+    if (elHasta.value && elDesde.value > elHasta.value) {
+      elHasta.value = elDesde.value;
+    }
+    elDesde.style.borderColor = '';
+    elHasta.style.borderColor = '';
+  });
+  elHasta.addEventListener('change', () => {
+    if (elDesde.value && elHasta.value < elDesde.value) {
+      elHasta.value = elDesde.value;
+      toast('La fecha fin se ajustó para no ser menor a la fecha inicio.', 'ok');
+    }
+    elDesde.style.borderColor = '';
+    elHasta.style.borderColor = '';
+  });
+
+  if (rvOpcionesListas) return;
+  fetch('/api/reporte/ventas/')
+    .then(r => r.json())
+    .then(data => rvCargarOpciones(data))
+    .catch(() => {});
+}

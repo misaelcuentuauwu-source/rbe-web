@@ -15,6 +15,9 @@ python manage.py migrate
 
 __RECUERDA PRENDER XAMPP__
 
+comando para ejecutar el encriptador de contraseñas
+python Salvador/migrar_contrasenas.py
+
 iniciar el server:
 python manage.py runserver
 

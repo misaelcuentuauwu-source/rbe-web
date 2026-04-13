@@ -65,6 +65,33 @@
       color: #7a5c00;
     }
 
+    /* ── FAB Modo asistido ── */
+    #fab-modo-asistido {
+      position: fixed;
+      bottom: 28px;
+      right: 32px;
+      z-index: 900;
+      background: var(--azul, #1181c3);
+      color: #fff;
+      border: none;
+      border-radius: 50px;
+      padding: 13px 22px 13px 18px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(17,129,195,.35);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background .18s, transform .15s, box-shadow .18s;
+    }
+    #fab-modo-asistido:hover {
+      background: #0d6fa8;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(17,129,195,.45);
+    }
+    #fab-modo-asistido:active { transform: translateY(0); }
+
     /* ── Toggle DB / Legible ── */
     .db-toggle-wrap {
       display: none;
@@ -492,6 +519,38 @@
     .elim-opt[data-modo='restrict'].active { border-color: #1181C3 !important; background: rgba(17,129,195,.07) !important; }
     .elim-opt[data-modo='cascade'].active  { border-color: #d9534f !important; background: rgba(217,83,79,.07) !important; }
     .elim-opt[data-modo='setnull'].active  { border-color: #e89b25 !important; background: rgba(232,155,37,.07) !important; }
+
+    /* ── Reporte de Ventas — tablas ── */
+    .rv-tabla {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 13px;
+    }
+    .rv-tabla thead tr {
+      background: rgba(17,129,195,.07);
+    }
+    .rv-tabla th {
+      padding: 9px 12px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      color: var(--muted, #6b8fa8);
+      border-bottom: 2px solid var(--border, #e2e8f0);
+      white-space: nowrap;
+    }
+    .rv-tabla td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--border, #e2e8f0);
+      color: var(--text, #1a2b3c);
+      vertical-align: middle;
+    }
+    .rv-tabla tbody tr:last-child td { border-bottom: none; }
+    .rv-tabla tbody tr:hover { background: rgba(17,129,195,.04); }
+    .rv-monto { font-weight: 800; color: #22c55e; }
+    .rv-folio { font-size: 11px; font-weight: 700; color: var(--azul,#1181c3); background: rgba(17,129,195,.08); padding: 2px 7px; border-radius: 20px; }
 </style>
 </head>
 <body>
@@ -513,6 +572,9 @@
     </button>
     <button class="nav-btn" onclick="showPage('kpi-especificos')">
       <span class="icon">🔍</span><span class="label">KPIs Específicos</span>
+    </button>
+    <button class="nav-btn" onclick="showPage('reporte-ventas')">
+      <span class="icon">📑</span><span class="label">Reporte de Ventas</span>
     </button>
     <button class="nav-btn" onclick="showPage('salidas')">
       <span class="icon">🚌</span><span class="label">Salidas</span>
@@ -960,6 +1022,12 @@
         </div>
       </div>
       <div class="info-bar" id="gestion-info"></div>
+      <div id="gestion-ver-todos-wrap" style="display:none;margin:0 0 8px 0;">
+        <button class="btn btn-sm" id="btn-ver-todos" onclick="verTodosRegistros()"
+          style="background:var(--naranja,#e06d30);color:#fff;border:none;border-radius:6px;padding:5px 14px;font-size:13px;cursor:pointer;">
+          ↓ Ver todos los registros (<span id="ver-todos-count"></span>)
+        </button>
+      </div>
       <div class="tbl-wrap" id="gestion-tabla-wrap">
         <table id="gestion-tabla">
           <thead id="gestion-thead"></thead>
@@ -967,6 +1035,12 @@
         </table>
       </div>
       <div id="gestion-cards-wrap" style="display:none"></div>
+
+      <!-- FAB: Modo asistido — solo visible en tabla viaje -->
+      <button id="fab-modo-asistido" onclick="abrirModoAsistido()" style="display:none"
+        title="Agregar viaje con modo asistido">
+        🚌<span id="fab-label"> Modo asistido</span>
+      </button>
     </div>
 
     <!-- ════ CONFIGURACIÓN ════ -->
@@ -1006,6 +1080,117 @@
         <button class="btn btn-primary" onclick="guardarConfig()">Guardar cambios</button>
       </div>
     </div>
+
+    <!-- ════ REPORTE DE VENTAS ════ -->
+    <div id="page-reporte-ventas" class="page">
+      <div class="page-header-row">
+        <h2 class="page-title" style="margin:0">📑 Reporte de Ventas</h2>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" id="rv-btn-csv" onclick="exportarReporteCSV()" style="display:none">⬇ Exportar CSV</button>
+        </div>
+      </div>
+
+      <!-- Filtros -->
+      <div class="filtros-row" id="rv-filtros">
+        <div class="filtro-group">
+          <label>Fecha inicio</label>
+          <input type="date" id="rv-desde">
+        </div>
+        <div class="filtro-group">
+          <label>Fecha fin</label>
+          <input type="date" id="rv-hasta">
+        </div>
+        <div class="filtro-group">
+          <label>Ruta (opcional)</label>
+          <select id="rv-ruta"><option value="">— Todas —</option></select>
+        </div>
+        <div class="filtro-group">
+          <label>Taquillero (opcional)</label>
+          <select id="rv-taquillero"><option value="">— Todos —</option></select>
+        </div>
+        <button class="btn btn-naranja" onclick="generarReporteVentas()">Generar reporte</button>
+        <button class="btn btn-gray btn-sm" onclick="limpiarReporteVentas()">Limpiar</button>
+      </div>
+
+      <!-- Estado vacío / loading -->
+      <div id="rv-empty" style="text-align:center;padding:60px 20px;color:var(--muted);">
+        <div style="font-size:48px;margin-bottom:12px;">📊</div>
+        <div style="font-size:16px;font-weight:700;margin-bottom:6px;">Selecciona los filtros y genera el reporte</div>
+        <div style="font-size:13px;">Puedes dejar los filtros vacíos para ver todos los datos.</div>
+      </div>
+      <div id="rv-loading" style="display:none;text-align:center;padding:40px;"><span class="spinner"></span></div>
+
+      <!-- Resultado -->
+      <div id="rv-resultado" style="display:none;">
+
+        <!-- Resumen -->
+        <div class="eco-section-header" style="margin-top:0;">
+          <span class="eco-section-icon">💰</span>
+          <span class="eco-section-label">Resumen General</span>
+          <div class="eco-section-line"></div>
+        </div>
+        <div class="eco-stats-row" id="rv-resumen-cards"></div>
+
+        <!-- Desglose por ruta -->
+        <div class="eco-section-header">
+          <span class="eco-section-icon">🛣️</span>
+          <span class="eco-section-label">Desglose por Ruta</span>
+          <div class="eco-section-line"></div>
+        </div>
+        <div class="tbl-wrap">
+          <table class="rv-tabla" id="rv-tabla-ruta">
+            <thead><tr><th>Ruta</th><th>Boletos</th><th>Ingresos</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Desglose por taquillero -->
+        <div class="eco-section-header">
+          <span class="eco-section-icon">🧑‍💼</span>
+          <span class="eco-section-label">Desglose por Taquillero</span>
+          <div class="eco-section-line"></div>
+        </div>
+        <div class="tbl-wrap">
+          <table class="rv-tabla" id="rv-tabla-taquillero">
+            <thead><tr><th>Taquillero</th><th>Boletos</th><th>Transacciones</th><th>Ingresos</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Desglose por tipo de pasajero -->
+        <div class="eco-section-header">
+          <span class="eco-section-icon">🎫</span>
+          <span class="eco-section-label">Desglose por Tipo de Pasajero</span>
+          <div class="eco-section-line"></div>
+        </div>
+        <div class="tbl-wrap">
+          <table class="rv-tabla" id="rv-tabla-tipo">
+            <thead><tr><th>Tipo</th><th>Descuento</th><th>Boletos</th><th>Ingresos</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <!-- Detalle completo -->
+        <div class="eco-section-header">
+          <span class="eco-section-icon">📋</span>
+          <span class="eco-section-label">Detalle de Ventas</span>
+          <div class="eco-section-line"></div>
+        </div>
+        <div class="tbl-wrap">
+          <table class="rv-tabla" id="rv-tabla-detalle">
+            <thead>
+              <tr>
+                <th>Folio</th><th>Fecha</th><th>Ruta</th>
+                <th>Taquillero</th>
+                <th>Método Pago</th><th>Boletos</th><th>Monto</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+      </div><!-- /rv-resultado -->
+    </div><!-- /page-reporte-ventas -->
 
   </div><!-- /content -->
 </div><!-- /main -->
@@ -1090,6 +1275,7 @@
     <div id="crud-form-fields"></div>
     <div class="modal-actions">
       <button class="btn btn-gray"    onclick="cerrarModal('modal-crud')">Cancelar</button>
+      <button class="btn btn-primary" id="crud-btn-asistido" onclick="cerrarModal('modal-crud');abrirModoAsistido()" style="display:none">🚌 Modo asistido</button>
       <button class="btn btn-naranja" id="crud-submit-btn" onclick="submitCrud()">Guardar</button>
     </div>
   </div>
@@ -1129,6 +1315,6 @@
       ciudad:   '{{ taquillero.terminal.ciudad.nombre }}',
     };
   </script>
-  <script src="{% static 'dashboard/panel_admin.js' %}?v=12"></script>
+  <script src="{% static 'dashboard/panel_admin.js' %}?v=15"></script>
 </body>
 </html>

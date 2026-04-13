@@ -28,6 +28,7 @@ urlpatterns = [
     # CRUD genérico
     path('api/crud/<str:tabla>/leer/',       views.crud_leer,       name='crud_leer'),
     path('api/crud/<str:tabla>/esquema/',    views.crud_esquema,    name='crud_esquema'),
+    path('api/crud/<str:tabla>/next_pk/',    views.crud_next_pk,    name='crud_next_pk'),
     path('api/crud/<str:tabla>/insertar/',   views.crud_insertar,   name='crud_insertar'),
     path('api/crud/<str:tabla>/actualizar/', views.crud_actualizar, name='crud_actualizar'),
     path('api/crud/<str:tabla>/eliminar/',   views.crud_eliminar,   name='crud_eliminar'),
@@ -41,6 +42,7 @@ urlpatterns = [
     path('api/kpi/generales/',       views.kpi_generales,          name='kpi_generales'),
     path('api/kpi/especificos/',     views.kpi_especificos,        name='kpi_especificos'),
     path('api/kpi/filtros/',         views.kpi_filtros_opciones,   name='kpi_filtros'),
+    path('api/reporte/ventas/',      views.reporte_ventas,         name='reporte_ventas'),
     # Detalle autobus y pasajeros (usados desde panel_admin.html)
     path('api/autobus/detalle/<int:bus_id>/',   views.autobus_detalle, name='autobus_detalle'),
     path('api/viaje/pasajeros/<int:viaje_id>/', views.viaje_pasajeros, name='viaje_pasajeros'),

@@ -6,4 +6,4 @@ sqlparse==0.5.5
 djangorestframework==3.15.2
 gunicorn==21.2.0
 whitenoise==6.7.0
-bcrypt
+bcrypt==4.2.1

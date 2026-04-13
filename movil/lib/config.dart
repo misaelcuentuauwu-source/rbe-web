@@ -7,13 +7,13 @@ class Config {
   //static const String baseUrl = 'http://192.168.1.17:8000';
 
   //Salvador
-  //static const String baseUrl = 'http://10.42.0.1:8000';  
+  //static const String baseUrl = 'http://10.42.0.1:8000';
 
   //pc fernando
   //static const String baseUrl = 'http://192.168.12.237:8000';
 
   //pc de misa(linux)
-  //static const String baseUrl = 'http://192.168.0.5:8000';
+  static const String baseUrl = 'http://192.168.0.5:8000';
 
   //servidor host
   //static const String baseUrl = 'https://rbe-web-production.up.railway.app';
