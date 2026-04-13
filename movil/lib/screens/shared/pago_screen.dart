@@ -179,6 +179,54 @@ class _PagoScreenState extends State<PagoScreen> {
             ),
           );
         }
+      } else if (response.statusCode == 409) {
+        // FA 6.1: Uno o más asientos fueron tomados por otra compra concurrente
+        final error = jsonDecode(response.body);
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.event_seat, color: Colors.orange, size: 26),
+                  SizedBox(width: 8),
+                  Text(
+                    'Asientos no disponibles',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: Text(
+                error['error'] ??
+                    'Uno o más asientos ya fueron tomados por otro usuario. '
+                        'Por favor selecciona otros asientos.',
+                style: const TextStyle(fontSize: 14),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop(); // cierra el diálogo
+                    // Regresa a la pantalla de selección de asientos (FA 6.1 paso 11)
+                    // Hacemos pop hasta salir de pago_screen — el usuario
+                    // quedará en seat_selection_screen para elegir de nuevo.
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text(
+                    'Seleccionar otros asientos',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
       } else {
         final error = jsonDecode(response.body);
         _mostrarError(error['error'] ?? 'Error al procesar el pago');

@@ -1308,173 +1308,187 @@ def reporte_ventas(request):
       - Desglose por tipo de pasajero
     Filtros opcionales: desde, hasta, ruta_id, taquillero_id
     """
-    desde        = request.GET.get('desde', '')
-    hasta        = request.GET.get('hasta', '')
-    ruta_id      = request.GET.get('ruta_id', '')
-    taquillero_id = request.GET.get('taquillero_id', '')
+    try:
+        desde         = request.GET.get('desde', '')
+        hasta         = request.GET.get('hasta', '')
+        ruta_id       = request.GET.get('ruta_id', '')
+        taquillero_id = request.GET.get('taquillero_id', '')
 
-    from django.db import connection
+        from django.db import connection
 
-    # ── Construir WHERE dinámico ──────────────────────────────────────────
-    conditions = []
-    params_base = []
+        # ── Construir WHERE dinámico ──────────────────────────────────────────
+        conditions  = []
+        params_base = []
 
-    if desde and hasta:
-        conditions.append("DATE(p.fechapago) BETWEEN %s AND %s")
-        params_base.extend([desde, hasta])
-    if ruta_id:
-        conditions.append("v.ruta = %s")
-        params_base.append(ruta_id)
-    if taquillero_id:
-        conditions.append("p.vendedor = %s")
-        params_base.append(taquillero_id)
+        if desde and hasta:
+            conditions.append("DATE(p.fechapago) BETWEEN %s AND %s")
+            params_base.extend([desde, hasta])
+        if ruta_id:
+            conditions.append("v.ruta = %s")
+            params_base.append(ruta_id)
+        if taquillero_id:
+            conditions.append("p.vendedor = %s")
+            params_base.append(taquillero_id)
 
-    where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
 
-    def qall(sql, p):
+        def qall(sql, p):
+            with connection.cursor() as cur:
+                cur.execute(sql, p)
+                cols = [d[0] for d in cur.description]
+                rows = []
+                for r in cur.fetchall():
+                    row = dict(zip(cols, r))
+                    for k, v in row.items():
+                        if hasattr(v, 'isoformat'):
+                            row[k] = v.isoformat()
+                        elif hasattr(v, '__float__'):
+                            row[k] = float(v)
+                    rows.append(row)
+                return rows
+
+        # ── Resumen general ───────────────────────────────────────────────────
+        resumen_sql = f"""
+            SELECT
+                COUNT(t.codigo)                                              AS total_boletos,
+                COALESCE(SUM(t.precio), 0)                                  AS ingresos_totales,
+                COALESCE(AVG(t.precio), 0)                                  AS promedio_boleto,
+                COUNT(DISTINCT p.numero)                                     AS total_transacciones,
+                COALESCE(SUM(CASE WHEN p.tipo=1 THEN t.precio ELSE 0 END), 0) AS total_efectivo,
+                COALESCE(SUM(CASE WHEN p.tipo=2 THEN t.precio ELSE 0 END), 0) AS total_tarjeta
+            FROM ticket t
+            JOIN pago   p ON p.numero = t.pago
+            JOIN viaje  v ON v.numero = t.viaje
+            {where}
+        """
+        resumen_rows = qall(resumen_sql, params_base)
+        resumen = resumen_rows[0] if resumen_rows else {}
+
+        # ── Desglose por ruta ─────────────────────────────────────────────────
+        ruta_sql = f"""
+            SELECT
+                CONCAT(corig.nombre,' - ',cdest.nombre) AS ruta,
+                r.codigo                                AS ruta_id,
+                COUNT(t.codigo)                         AS boletos,
+                COALESCE(SUM(t.precio), 0)              AS ingresos
+            FROM ticket t
+            JOIN pago      p    ON p.numero   = t.pago
+            JOIN viaje     v    ON v.numero   = t.viaje
+            JOIN ruta      r    ON r.codigo   = v.ruta
+            JOIN terminal  tor  ON tor.numero = r.origen
+            JOIN terminal  tdes ON tdes.numero= r.destino
+            JOIN ciudad    corig ON corig.clave = tor.ciudad
+            JOIN ciudad    cdest ON cdest.clave = tdes.ciudad
+            {where}
+            GROUP BY r.codigo
+            ORDER BY ingresos DESC
+        """
+        por_ruta = qall(ruta_sql, params_base)
+
+        # ── Desglose por taquillero ───────────────────────────────────────────
+        taq_sql = f"""
+            SELECT
+                COALESCE(CONCAT(taq.taqNombre,' ',taq.taqPrimerApell), 'App / Sin taquillero') AS taquillero,
+                taq.registro                          AS taquillero_id,
+                COUNT(t.codigo)                       AS boletos,
+                COUNT(DISTINCT p.numero)              AS transacciones,
+                COALESCE(SUM(t.precio), 0)            AS ingresos
+            FROM ticket t
+            JOIN pago        p   ON p.numero   = t.pago
+            JOIN viaje       v   ON v.numero   = t.viaje
+            LEFT JOIN taquillero taq ON taq.registro = p.vendedor
+            {where}
+            GROUP BY taq.registro
+            ORDER BY ingresos DESC
+        """
+        por_taquillero = qall(taq_sql, params_base)
+
+        # ── Desglose por tipo de pasajero ─────────────────────────────────────
+        tipo_sql = f"""
+            SELECT
+                tp.descripcion  AS tipo_pasajero,
+                tp.descuento    AS descuento_pct,
+                COUNT(t.codigo) AS boletos,
+                COALESCE(SUM(t.precio), 0) AS ingresos
+            FROM ticket t
+            JOIN pago          p  ON p.numero  = t.pago
+            JOIN viaje         v  ON v.numero  = t.viaje
+            JOIN tipo_pasajero tp ON tp.num    = t.tipopasajero
+            {where}
+            GROUP BY tp.num
+            ORDER BY boletos DESC
+        """
+        por_tipo = qall(tipo_sql, params_base)
+
+        # ── Lista de boletos detallados por ticket ────────────────────────────
+        # CU05 RN: una fila por ticket con pasajero, tipo, asiento y monto
+        detalle_sql = f"""
+            SELECT
+                p.numero                                        AS folio,
+                DATE(p.fechapago)                               AS fecha,
+                CONCAT(corig.nombre,' - ',cdest.nombre)         AS nombre_ruta,
+                CONCAT('#',v.numero,' ',DATE(v.fecHoraSalida),
+                       ' ',TIME_FORMAT(v.fecHoraSalida,'%%H:%%i')) AS desc_viaje,
+                COALESCE(CONCAT(taq.taqNombre,' ',taq.taqPrimerApell),'App') AS nombre_taquillero,
+                CONCAT(pa.paNombre,' ',pa.paPrimerApell,
+                       COALESCE(CONCAT(' ',pa.paSegundoApell),''))  AS nombre_pasajero,
+                tp.descripcion                                  AS desc_tipo_pasajero,
+                COALESCE(t.etiqueta_asiento, CAST(a.numero AS CHAR)) AS num_asiento,
+                tpago.nombre                                    AS metodo_pago,
+                t.precio                                        AS monto
+            FROM ticket t
+            JOIN pago          p    ON p.numero      = t.pago
+            JOIN viaje         v    ON v.numero      = t.viaje
+            JOIN ruta          r    ON r.codigo      = v.ruta
+            JOIN terminal      tor  ON tor.numero    = r.origen
+            JOIN terminal      tdes ON tdes.numero   = r.destino
+            JOIN ciudad        corig ON corig.clave  = tor.ciudad
+            JOIN ciudad        cdest ON cdest.clave  = tdes.ciudad
+            JOIN tipo_pago     tpago ON tpago.numero = p.tipo
+            JOIN pasajero      pa   ON pa.num        = t.pasajero
+            JOIN tipo_pasajero tp   ON tp.num        = t.tipopasajero
+            JOIN asiento       a    ON a.numero      = t.asiento
+            LEFT JOIN taquillero taq ON taq.registro = p.vendedor
+            {where}
+            ORDER BY p.fechapago DESC, p.numero, t.codigo
+            LIMIT 5000
+        """
+        detalle = qall(detalle_sql, params_base)
+
+        # ── Opciones de filtros para los selects ──────────────────────────────
         with connection.cursor() as cur:
-            cur.execute(sql, p)
-            cols = [d[0] for d in cur.description]
-            rows = []
-            for r in cur.fetchall():
-                row = dict(zip(cols, r))
-                for k, v in row.items():
-                    if hasattr(v, 'isoformat'):
-                        row[k] = v.isoformat()
-                    elif hasattr(v, '__float__'):
-                        row[k] = float(v)
-                rows.append(row)
-            return rows
+            cur.execute("""
+                SELECT r.codigo, CONCAT(corig.nombre,' - ',cdest.nombre) AS label
+                FROM ruta r
+                JOIN terminal tor  ON r.origen  = tor.numero
+                JOIN terminal tdes ON r.destino = tdes.numero
+                JOIN ciudad corig  ON tor.ciudad = corig.clave
+                JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+                ORDER BY corig.nombre, cdest.nombre
+            """)
+            opciones_rutas = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
+            cur.execute("""
+                SELECT registro, CONCAT(taqNombre,' ',taqPrimerApell) AS nombre
+                FROM taquillero ORDER BY taqNombre
+            """)
+            opciones_taquilleros = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
 
-    # ── Resumen general ───────────────────────────────────────────────────
-    # NOTA: efectivo/tarjeta se calculan sobre pagos DISTINTOS para no
-    # multiplicar el monto por cada ticket del mismo pago.
-    resumen_sql = f"""
-        SELECT
-            COUNT(t.codigo)                                              AS total_boletos,
-            COALESCE(SUM(t.precio), 0)                                  AS ingresos_totales,
-            COALESCE(AVG(t.precio), 0)                                  AS promedio_boleto,
-            COUNT(DISTINCT p.numero)                                     AS total_transacciones,
-            COALESCE(SUM(CASE WHEN p.tipo=1 THEN t.precio ELSE 0 END), 0) AS total_efectivo,
-            COALESCE(SUM(CASE WHEN p.tipo=2 THEN t.precio ELSE 0 END), 0) AS total_tarjeta
-        FROM ticket t
-        JOIN pago   p ON p.numero = t.pago
-        JOIN viaje  v ON v.numero = t.viaje
-        {where}
-    """
-    resumen_rows = qall(resumen_sql, params_base)
-    resumen = resumen_rows[0] if resumen_rows else {}
+        return JsonResponse({
+            'resumen':               resumen,
+            'por_ruta':              por_ruta,
+            'por_taquillero':        por_taquillero,
+            'por_tipo':              por_tipo,
+            'detalle':               detalle,
+            'opciones_rutas':        opciones_rutas,
+            'opciones_taquilleros':  opciones_taquilleros,
+        })
 
-    # ── Desglose por ruta ─────────────────────────────────────────────────
-    ruta_sql = f"""
-        SELECT
-            CONCAT(corig.nombre, ' → ', cdest.nombre) AS ruta,
-            r.codigo                                   AS ruta_id,
-            COUNT(t.codigo)                            AS boletos,
-            COALESCE(SUM(t.precio), 0)                 AS ingresos
-        FROM ticket t
-        JOIN pago      p    ON p.numero   = t.pago
-        JOIN viaje     v    ON v.numero   = t.viaje
-        JOIN ruta      r    ON r.codigo   = v.ruta
-        JOIN terminal  tor  ON tor.numero = r.origen
-        JOIN terminal  tdes ON tdes.numero= r.destino
-        JOIN ciudad    corig ON corig.clave = tor.ciudad
-        JOIN ciudad    cdest ON cdest.clave = tdes.ciudad
-        {where}
-        GROUP BY r.codigo
-        ORDER BY ingresos DESC
-    """
-    por_ruta = qall(ruta_sql, params_base)
-
-    # ── Desglose por taquillero ───────────────────────────────────────────
-    taq_sql = f"""
-        SELECT
-            COALESCE(CONCAT(taq.taqNombre,' ',taq.taqPrimerApell), 'App / Sin taquillero') AS taquillero,
-            taq.registro                          AS taquillero_id,
-            COUNT(t.codigo)                       AS boletos,
-            COUNT(DISTINCT p.numero)              AS transacciones,
-            COALESCE(SUM(t.precio), 0)            AS ingresos
-        FROM ticket t
-        JOIN pago        p   ON p.numero   = t.pago
-        JOIN viaje       v   ON v.numero   = t.viaje
-        LEFT JOIN taquillero taq ON taq.registro = p.vendedor
-        {where}
-        GROUP BY taq.registro
-        ORDER BY ingresos DESC
-    """
-    por_taquillero = qall(taq_sql, params_base)
-
-    # ── Desglose por tipo de pasajero ─────────────────────────────────────
-    tipo_sql = f"""
-        SELECT
-            tp.descripcion  AS tipo_pasajero,
-            tp.descuento    AS descuento_pct,
-            COUNT(t.codigo) AS boletos,
-            COALESCE(SUM(t.precio), 0) AS ingresos
-        FROM ticket t
-        JOIN pago          p  ON p.numero  = t.pago
-        JOIN viaje         v  ON v.numero  = t.viaje
-        JOIN tipo_pasajero tp ON tp.num    = t.tipopasajero
-        {where}
-        GROUP BY tp.num
-        ORDER BY boletos DESC
-    """
-    por_tipo = qall(tipo_sql, params_base)
-
-    # ── Lista de boletos detallados (para tabla y CSV) ────────────────────
-    detalle_sql = f"""
-        SELECT
-            p.numero                                              AS folio,
-            DATE(p.fechapago)                                     AS fecha,
-            CONCAT(corig.nombre,' → ',cdest.nombre)              AS ruta,
-            COALESCE(CONCAT(taq.taqNombre,' ',taq.taqPrimerApell),'App') AS taquillero,
-            tpago.nombre                                          AS metodo_pago,
-            COUNT(t.codigo)                                       AS boletos,
-            COALESCE(SUM(t.precio), 0)                            AS monto
-        FROM ticket t
-        JOIN pago          p    ON p.numero    = t.pago
-        JOIN viaje         v    ON v.numero    = t.viaje
-        JOIN ruta          r    ON r.codigo    = v.ruta
-        JOIN terminal      tor  ON tor.numero  = r.origen
-        JOIN terminal      tdes ON tdes.numero = r.destino
-        JOIN ciudad        corig ON corig.clave = tor.ciudad
-        JOIN ciudad        cdest ON cdest.clave = tdes.ciudad
-        JOIN tipo_pago     tpago ON tpago.numero = p.tipo
-        LEFT JOIN taquillero taq ON taq.registro = p.vendedor
-        {where}
-        GROUP BY p.numero
-        ORDER BY p.fechapago DESC
-        LIMIT 2000
-    """
-    detalle = qall(detalle_sql, params_base)
-
-    # ── Opciones de filtros para los selects ──────────────────────────────
-    with connection.cursor() as cur:
-        cur.execute("""
-            SELECT r.codigo, CONCAT(corig.nombre,' → ',cdest.nombre) AS label
-            FROM ruta r
-            JOIN terminal tor  ON r.origen  = tor.numero
-            JOIN terminal tdes ON r.destino = tdes.numero
-            JOIN ciudad corig  ON tor.ciudad = corig.clave
-            JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
-            ORDER BY corig.nombre, cdest.nombre
-        """)
-        opciones_rutas = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
-        cur.execute("""
-            SELECT registro, CONCAT(taqNombre,' ',taqPrimerApell) AS nombre
-            FROM taquillero ORDER BY taqNombre
-        """)
-        opciones_taquilleros = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
-
-    return JsonResponse({
-        'resumen':          resumen,
-        'por_ruta':         por_ruta,
-        'por_taquillero':   por_taquillero,
-        'por_tipo':         por_tipo,
-        'detalle':          detalle,
-        'opciones_rutas':   opciones_rutas,
-        'opciones_taquilleros': opciones_taquilleros,
-    })
+    except Exception as e:
+        import traceback
+        return JsonResponse(
+            {'error': str(e), 'trace': traceback.format_exc()},
+            status=500
+        )
 
 
 @api_view(['GET'])
@@ -1885,13 +1899,48 @@ def api_comprar(request):
                 except Taquillero.DoesNotExist:
                     vendedor = None
 
+            viaje = Viaje.objects.get(numero=viaje_id)
+
+            # ── FA 6.1: Validar disponibilidad de asientos con bloqueo de fila ──
+            # SELECT FOR UPDATE bloquea cada fila de viaje_asiento dentro de la
+            # transacción, impidiendo que otra compra concurrente tome el mismo
+            # asiento entre la selección del usuario y la confirmación del pago.
+            from django.db import connection as _conn
+            asientos_solicitados = [p['asiento_id'] for p in pasajeros]
+            asientos_ya_ocupados = []
+
+            with _conn.cursor() as cur:
+                for asiento_num in asientos_solicitados:
+                    cur.execute(
+                        """
+                        SELECT ocupado FROM viaje_asiento
+                        WHERE asiento = %s AND viaje = %s
+                        FOR UPDATE
+                        """,
+                        [asiento_num, viaje_id]
+                    )
+                    row = cur.fetchone()
+                    if row is None or row[0] == 1:
+                        asientos_ya_ocupados.append(asiento_num)
+
+            if asientos_ya_ocupados:
+                # Retornamos 409 Conflict para que el móvil distinga este caso
+                return Response(
+                    {
+                        'error': 'Uno o más asientos ya no están disponibles. '
+                                 'Por favor selecciona otros asientos.',
+                        'asientos_ocupados': asientos_ya_ocupados,
+                        'codigo': 'ASIENTOS_OCUPADOS',
+                    },
+                    status=409
+                )
+
             pago = Pago.objects.create(
                 fechapago=timezone.now(),
                 monto=monto_total,
                 tipo=TipoPago.objects.get(numero=tipo_pago_id),
                 vendedor=vendedor
             )
-            viaje = Viaje.objects.get(numero=viaje_id)
             tickets_creados = []
 
             es_primer_pasajero = True
@@ -1924,18 +1973,17 @@ def api_comprar(request):
                 precio_final     = float(precio_base) * (1 - descuento / 100)
                 asiento          = Asiento.objects.get(numero=p['asiento_id'])
                 ticket = Ticket.objects.create(
-    precio=precio_final,
-    fechaemision=timezone.now(),
-    asiento=asiento,
-    viaje=viaje,
-    pasajero=pasajero,
-    tipopasajero=tipo_pasajero,
-    pago=pago,
-    etiqueta_asiento=p.get('asiento_etiqueta')  # 👈 ESTA ES LA CLAVE
-)
+                    precio=precio_final,
+                    fechaemision=timezone.now(),
+                    asiento=asiento,
+                    viaje=viaje,
+                    pasajero=pasajero,
+                    tipopasajero=tipo_pasajero,
+                    pago=pago,
+                    etiqueta_asiento=p.get('asiento_etiqueta')
+                )
                 tickets_creados.append(ticket)
-                from django.db import connection
-                with connection.cursor() as cur:
+                with _conn.cursor() as cur:
                     cur.execute(
                         "UPDATE viaje_asiento SET ocupado = 1 WHERE asiento = %s AND viaje = %s",
                         [asiento.numero, viaje.numero]

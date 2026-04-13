@@ -2420,17 +2420,19 @@ function rvRenderTablaSimple(tableId, rows, keys, headers, moneyKeys) {
 function rvRenderDetalle(rows) {
   const tbody = document.querySelector('#rv-tabla-detalle tbody');
   if (!rows || rows.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:16px;">Sin datos</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:16px;">Sin datos</td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(r => `
     <tr>
       <td><span class="rv-folio">#${r.folio}</span></td>
       <td>${r.fecha || '—'}</td>
-      <td>${r.ruta || '—'}</td>
-      <td>${r.taquillero || '—'}</td>
+      <td>${r.nombre_ruta || '—'}</td>
+      <td>${r.nombre_taquillero || '—'}</td>
+      <td>${r.nombre_pasajero || '—'}</td>
+      <td>${r.desc_tipo_pasajero || '—'}</td>
+      <td style="text-align:center">${r.num_asiento || '—'}</td>
       <td>${r.metodo_pago || '—'}</td>
-      <td>${r.boletos || 0}</td>
       <td class="rv-monto">${rvFmt(r.monto)}</td>
     </tr>
   `).join('');
@@ -2490,11 +2492,11 @@ function exportarReporteCSV() {
   });
   csv += '\n';
 
-  // ── Hoja 5: Detalle ──────────────────────────────────────────
-  csv += 'DETALLE DE VENTAS\n';
-  csv += 'Folio,Fecha,Ruta,Taquillero,Método Pago,Boletos,Monto\n';
+  // ── Hoja 5: Detalle por boleto individual ────────────────────
+  csv += 'DETALLE DE BOLETOS\n';
+  csv += 'Folio,Fecha,Viaje,Ruta,Taquillero,Pasajero,Tipo Pasajero,Asiento,Metodo Pago,Monto\n';
   (rvDatos.detalle || []).forEach(row => {
-    csv += `${row.folio},"${row.fecha}","${row.ruta}","${row.taquillero}","${row.metodo_pago}",${row.boletos},"${rvFmt(row.monto)}"\n`;
+    csv += `${row.folio},"${row.fecha}","${row.desc_viaje}","${row.nombre_ruta}","${row.nombre_taquillero}","${row.nombre_pasajero}","${row.desc_tipo_pasajero}","${row.num_asiento}","${row.metodo_pago}","${rvFmt(row.monto)}"\n`;
   });
 
   // ── Descarga ─────────────────────────────────────────────────
