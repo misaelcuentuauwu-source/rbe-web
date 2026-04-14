@@ -683,7 +683,25 @@ class _PagoScreenState extends State<PagoScreen> {
                     ],
                     validator: (val) {
                       if (val == null || val.isEmpty) return 'Requerido';
-                      if (val.length < 5) return 'Inválida';
+                      if (val.length < 5) return 'Fecha inválida';
+
+                      final partes = val.split('/');
+                      if (partes.length != 2) return 'Formato inválido';
+
+                      final mes = int.tryParse(partes[0]);
+                      final anio = int.tryParse(partes[1]);
+
+                      if (mes == null || anio == null) return 'Fecha inválida';
+                      if (mes < 1 || mes > 12) return 'Mes inválido';
+
+                      final ahora = DateTime.now();
+                      final anioCompleto = 2000 + anio;
+
+                      // La tarjeta vence al final del mes indicado
+                      final vencimiento = DateTime(anioCompleto, mes + 1, 1);
+
+                      if (vencimiento.isBefore(ahora)) return 'Tarjeta vencida';
+
                       return null;
                     },
                   ),

@@ -3,6 +3,10 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../config.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import '../../utils/transitions.dart';
+import '../cliente/home_screen.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -18,6 +22,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _contrasenaController = TextEditingController();
   bool _obscurePassword = true;
   bool _cargando = false;
+  bool _cargandoGoogle = false;
 
   static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
@@ -132,6 +137,62 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
+  Future<void> _loginConGoogle() async {
+    setState(() => _cargandoGoogle = true);
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        setState(() => _cargandoGoogle = false);
+        return;
+      }
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      final userCredential = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
+      final user = userCredential.user;
+
+      if (user != null && mounted) {
+        final response = await http
+            .post(
+              Uri.parse('${Config.baseUrl}/api/cliente/google-login/'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({
+                'firebase_uid': user.uid,
+                'correo': user.email,
+                'nombre': user.displayName ?? '',
+                'foto': user.photoURL ?? '',
+                'proveedor': 'google',
+              }),
+            )
+            .timeout(const Duration(seconds: 10));
+
+        final data = jsonDecode(response.body);
+        if (response.statusCode == 200 && mounted) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            AppRoutes.fadeSlideUp(HomeClienteScreen(cliente: data)),
+            (route) => false,
+          );
+        } else {
+          _mostrarError(data['error'] ?? 'Error al registrarse con Google');
+        }
+      }
+    } catch (e) {
+      _mostrarError('Error con Google: $e');
+    } finally {
+      if (mounted) setState(() => _cargandoGoogle = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -236,6 +297,60 @@ class _SignupScreenState extends State<SignupScreen> {
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1,
                       ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(child: Divider(color: Colors.grey.shade300)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'o continúa con',
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                ),
+              ),
+              Expanded(child: Divider(color: Colors.grey.shade300)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: OutlinedButton(
+              onPressed: _cargandoGoogle ? null : _loginConGoogle,
+              style: OutlinedButton.styleFrom(
+                side: BorderSide(color: Colors.grey.shade300),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: _cargandoGoogle
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Image.network(
+                          'https://www.google.com/favicon.ico',
+                          height: 20,
+                          width: 20,
+                          errorBuilder: (_, __, ___) =>
+                              const Icon(Icons.g_mobiledata, size: 24),
+                        ),
+                        const SizedBox(width: 10),
+                        const Text(
+                          'Continuar con Google',
+                          style: TextStyle(
+                            color: Color(0xFF1C2D3A),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
             ),
           ),

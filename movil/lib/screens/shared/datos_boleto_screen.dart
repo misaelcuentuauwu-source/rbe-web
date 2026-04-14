@@ -207,6 +207,9 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     }
 
     if (tipo == 'Estudiante') {
+      // Si es el contacto principal y no hay adultos, siempre pide contacto
+      if (esContacto && !pasajerosList.any((x) => x['tipo'] == 'Adulto'))
+        return true;
       return edad != null && edad >= 12;
     }
 
@@ -729,6 +732,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                     label: 'Edad',
                     icono: Icons.cake_outlined,
                     soloNumeros: true,
+                    maxLength: 2,
                     onChanged: (_) => setState(() {}),
                     validator: (val) => _validarEdad(val, tipo),
                   ),
@@ -745,6 +749,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                 label: 'Teléfono de contacto',
                 icono: Icons.phone_outlined,
                 soloNumeros: true,
+                maxLength: 10,
                 validator: (val) {
                   if (val == null || val.trim().isEmpty) return 'Requerido';
                   if (val.trim().length < 10) return 'Mín. 10 dígitos';
@@ -856,6 +861,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     required String? Function(String?)? validator,
     bool soloNumeros = false,
     bool esCorreo = false,
+    int? maxLength, // ← agregar
     void Function(String)? onChanged,
   }) {
     return TextFormField(
@@ -868,8 +874,11 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       inputFormatters: soloNumeros
           ? [FilteringTextInputFormatter.digitsOnly]
           : null,
+      maxLength: maxLength, // ← agregar
       onChanged: onChanged,
-      decoration: _inputDeco(label: label, icono: icono),
+      decoration: _inputDeco(label: label, icono: icono).copyWith(
+        counterText: maxLength != null ? '' : null, // oculta el contador
+      ),
       validator: validator,
     );
   }

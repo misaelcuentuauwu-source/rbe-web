@@ -22,7 +22,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
   bool _cargando = false;
   bool _cargandoGoogle = false;
-  bool _cargandoFacebook = false;
 
   static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
@@ -188,69 +187,6 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // ── Login con Facebook ─────────────────────────────────────
-  Future<void> _loginConFacebook() async {
-    setState(() => _cargandoFacebook = true);
-    try {
-      await FacebookAuth.instance.logOut();
-
-      final LoginResult result = await FacebookAuth.instance.login(
-        permissions: ['email', 'public_profile'],
-      );
-
-      if (result.status == LoginStatus.cancelled) {
-        setState(() => _cargandoFacebook = false);
-        return;
-      }
-
-      if (result.status != LoginStatus.success) {
-        _mostrarError('Error al iniciar sesión con Facebook');
-        return;
-      }
-
-      final OAuthCredential credential = FacebookAuthProvider.credential(
-        result.accessToken!.tokenString,
-      );
-
-      final userCredential = await FirebaseAuth.instance.signInWithCredential(
-        credential,
-      );
-      final user = userCredential.user;
-
-      if (user != null && mounted) {
-        final response = await http
-            .post(
-              Uri.parse('${Config.baseUrl}/api/cliente/google-login/'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({
-                'firebase_uid': user.uid,
-                'correo': user.email ?? '',
-                'nombre': user.displayName ?? '',
-                'foto': user.photoURL ?? '',
-                'proveedor': 'facebook',
-              }),
-            )
-            .timeout(const Duration(seconds: 10));
-
-        final data = jsonDecode(response.body);
-        if (response.statusCode == 200 && mounted) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            AppRoutes.fadeSlideUp(HomeClienteScreen(cliente: data)),
-            (route) => false,
-          );
-        } else {
-          _mostrarError(
-            data['error'] ?? 'Error al iniciar sesión con Facebook',
-          );
-        }
-      }
-    } catch (e) {
-      _mostrarError('Error con Facebook: $e');
-    } finally {
-      if (mounted) setState(() => _cargandoFacebook = false);
-    }
-  }
 
   void _mostrarError(String mensaje) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -403,44 +339,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(width: 10),
                         const Text(
                           'Continuar con Google',
-                          style: TextStyle(
-                            color: Color(0xFF1C2D3A),
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: OutlinedButton(
-              onPressed: _cargandoFacebook ? null : _loginConFacebook,
-              style: OutlinedButton.styleFrom(
-                side: BorderSide(color: Colors.grey.shade300),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-              child: _cargandoFacebook
-                  ? const SizedBox(
-                      height: 22,
-                      width: 22,
-                      child: CircularProgressIndicator(strokeWidth: 2.5),
-                    )
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.facebook,
-                          color: Colors.blue.shade700,
-                          size: 22,
-                        ),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'Continuar con Facebook',
                           style: TextStyle(
                             color: Color(0xFF1C2D3A),
                             fontWeight: FontWeight.w500,
