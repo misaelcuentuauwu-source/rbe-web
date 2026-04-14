@@ -843,6 +843,7 @@
           </select>
         </div>
         <button class="btn btn-naranja" onclick="cargarKpiEspecificos(true)">Aplicar</button>
+        <button class="btn btn-gray" onclick="limpiarFiltrosKpiEspecificos()">Limpiar</button>
         <button class="btn btn-gray btn-sm" onclick="cargarKpiEspecificos(false)">↺ BD</button>
         <button class="btn btn-primary btn-sm" onclick="exportarCSV()">⬇ CSV</button>
       </div>
@@ -1237,6 +1238,7 @@
     <div class="form-field"><label>Estado</label><select id="mv-estado"></select></div>
     <div class="modal-actions">
       <button class="btn btn-gray"    onclick="cerrarModal('modal-viaje')">Cancelar</button>
+      <button class="btn btn-secondary" onclick="abrirInsertarViajeAvanzado()" style="background:#6c757d;color:#fff;border:none;padding:9px 18px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;">⚙️ Modo avanzado</button>
       <button class="btn btn-success" onclick="submitViaje()">Agregar viaje</button>
     </div>
   </div>
@@ -1286,7 +1288,12 @@
   <div class="modal-box">
     <div class="modal-title" id="detalle-title">Detalle</div>
     <div id="detalle-body"></div>
-    <div class="modal-actions"><button class="btn btn-gray" onclick="cerrarModal('modal-detalle')">Cerrar</button></div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="cerrarModal('modal-detalle')">Cerrar</button>
+      <button id="detalle-btn-historial" class="btn btn-naranja" style="display:none">
+        📊 Historial de ventas
+      </button>
+    </div>
   </div>
 </div>
 
@@ -1316,6 +1323,6 @@
       ciudad:   '{{ taquillero.terminal.ciudad.nombre }}',
     };
   </script>
-  <script src="{% static 'dashboard/panel_admin.js' %}?v=19"></script>
+  <script src="{% static 'dashboard/panel_admin.js' %}?v=22"></script>
 </body>
 </html>

@@ -1769,6 +1769,13 @@ function verFotoGrande(url) {
 async function abrirInsertar() {
   const tabla = tablaActual.nombre;
   if (!tabla) { toast('Selecciona una tabla','err'); return; }
+
+  // ── VIAJE: el modo asistido es el principal; el CRUD libre es el "modo avanzado" ──
+  if (tabla === 'viaje') {
+    abrirModalViaje();
+    return;
+  }
+
   try {
     const [esq, pkInfo] = await Promise.all([
       fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json()),
@@ -1783,10 +1790,39 @@ async function abrirInsertar() {
     document.getElementById('crud-modal-title').textContent = `Insertar en ${tabla}`;
     document.getElementById('crud-submit-btn').textContent  = 'Insertar';
 
-    // Mostrar/ocultar botón modo asistido dentro del modal
+    // El botón "Modo asistido" no aplica aquí (viaje ya abre directo el asistido)
     const btnAs = document.getElementById('crud-btn-asistido');
-    if (btnAs) btnAs.style.display = tabla === 'viaje' ? '' : 'none';
+    if (btnAs) btnAs.style.display = 'none';
 
+    renderCrudForm(esq, null);
+    abrirModal('modal-crud');
+  } catch (e) {
+    toast('Error al preparar formulario','err');
+    console.error(e);
+  }
+}
+
+// Abre el CRUD libre (avanzado) para viaje — accesible desde el modal asistido
+async function abrirInsertarViajeAvanzado() {
+  const tabla = 'viaje';
+  try {
+    const [esq, pkInfo] = await Promise.all([
+      fetch(`/api/crud/${tabla}/esquema/`).then(r=>r.json()),
+      fetch(`/api/crud/${tabla}/next_pk/`).then(r=>r.json()),
+    ]);
+    tablaActual.esquema = esq;
+    tablaActual.modo    = 'insertar';
+    tablaActual.nextId  = pkInfo.ok ? pkInfo.next_id : 1;
+    tablaActual.pkCol   = pkInfo.ok ? pkInfo.pk_col  : null;
+    tablaActual.nombre  = tabla;
+
+    document.getElementById('crud-modal-title').textContent = `Insertar en ${tabla}`;
+    document.getElementById('crud-submit-btn').textContent  = 'Insertar';
+
+    const btnAs = document.getElementById('crud-btn-asistido');
+    if (btnAs) btnAs.style.display = 'none';
+
+    cerrarModal('modal-viaje');
     renderCrudForm(esq, null);
     abrirModal('modal-crud');
   } catch (e) {
@@ -1822,6 +1858,9 @@ function renderCrudForm(esq, vals) {
   const tabla = tablaActual.nombre;
   c.innerHTML = '';
 
+  // Limpiar archivo de foto pendiente al abrir un nuevo form
+  window._crudFotoFile = null;
+
   // [CAM-1] Banner general para cuenta_pasajero
   if (tabla === 'cuenta_pasajero') {
     const banner = document.createElement('div');
@@ -1850,6 +1889,59 @@ function renderCrudForm(esq, vals) {
     const isEditing = tablaActual.modo === 'editar';
     const div = document.createElement('div');
     div.className = 'form-field';
+
+    // ── TAQUILLERO: campo foto → file picker ──────────────────────────────────
+    if (tabla === 'taquillero' && name === 'foto') {
+      const fotoActual = val || '';
+      const fotoUrl    = fotoActual
+        ? (fotoActual.startsWith('http') ? fotoActual : `/media/${fotoActual}`)
+        : '';
+      div.innerHTML = `
+        <label>Foto</label>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${fotoUrl ? `<img id="crud-foto-preview" src="${fotoUrl}" alt="foto actual"
+            style="width:64px;height:64px;object-fit:cover;border-radius:50%;border:2px solid var(--border);display:block;" />` :
+            `<div id="crud-foto-preview" style="width:64px;height:64px;border-radius:50%;background:var(--bg);border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:24px;">📷</div>`}
+          <input type="file" id="crud-foto-input" accept="image/*"
+            style="font-size:13px;"
+            onchange="
+              const f = this.files[0];
+              if (!f) return;
+              window._crudFotoFile = f;
+              const prev = document.getElementById('crud-foto-preview');
+              const url  = URL.createObjectURL(f);
+              prev.outerHTML = '<img id=\\'crud-foto-preview\\' src=\\''+url+'\\' style=\\'width:64px;height:64px;object-fit:cover;border-radius:50%;border:2px solid var(--azul);display:block;\\' />';
+            " />
+          <small style="color:var(--muted);font-size:11px;">JPG, PNG, WEBP — máx. recomendado 2 MB</small>
+          <input type="hidden" data-field="foto" value="${fotoActual}" />
+        </div>
+      `;
+      c.appendChild(div);
+      return;
+    }
+
+    // ── TAQUILLERO: campo supervisa → toggle Sí / No ──────────────────────────
+    if (tabla === 'taquillero' && name === 'supervisa') {
+      const esSi = String(val) === '1' || String(val).toLowerCase() === 'true';
+      div.innerHTML = `
+        <label>Supervisa</label>
+        <div style="display:flex;align-items:center;gap:12px;padding:4px 0;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;font-weight:600;">
+            <input type="radio" data-field="supervisa" name="supervisa_radio" value="0"
+              ${!esSi ? 'checked' : ''} style="accent-color:var(--azul);width:16px;height:16px;" />
+            No
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;font-weight:600;">
+            <input type="radio" data-field="supervisa" name="supervisa_radio" value="1"
+              ${esSi ? 'checked' : ''} style="accent-color:var(--azul);width:16px;height:16px;" />
+            Sí (Supervisor)
+          </label>
+        </div>
+      `;
+      c.appendChild(div);
+      return;
+    }
+
     if (esq.fk_map[name]) {
       const opts = esq.opciones[name] || [];
       div.innerHTML = `
@@ -1963,10 +2055,20 @@ async function submitCrud() {
   const data   = {};
   campos.forEach(el => {
     if (el.readOnly || el.disabled) return;
+    // Saltar el input[type=file] — la foto se maneja aparte
+    if (el.type === 'file') return;
+    // Para supervisa con radios, tomar el seleccionado
+    if (el.type === 'radio') {
+      if (!el.checked) return;
+      data[el.dataset.field] = el.value;
+      return;
+    }
     const v = el.value.trim();
     const esPassVacio = (el.dataset.field === 'contrasena' || el.dataset.field === 'clave')
                         && v === '' && tablaActual.modo === 'editar';
     if (esPassVacio) return;
+    // Para foto de taquillero: si hay archivo pendiente, omitir el hidden (se sube después)
+    if (el.dataset.field === 'foto' && tabla === 'taquillero' && window._crudFotoFile) return;
     data[el.dataset.field] = v==='' ? null : v;
   });
 
@@ -1994,11 +2096,9 @@ async function submitCrud() {
       if (pkVal !== '') {
         const chk = await fetch(`/api/crud/${tabla}/next_pk/?propuesto=${encodeURIComponent(pkVal)}`).then(r=>r.json());
         if (chk.ok && chk.ocupado) {
-          // Mostrar diálogo de confirmación
           const confirmado = await _dialogoPkOcupado(pkVal, chk.next_id);
-          if (!confirmado) return;           // usuario canceló
-          data[pkCol] = chk.next_id;         // reemplazar con el ID libre
-          // Actualizar el campo visible en el formulario
+          if (!confirmado) return;
+          data[pkCol] = chk.next_id;
           const inp = document.querySelector(`#crud-form-fields [data-field="${pkCol}"]`);
           if (inp) inp.value = chk.next_id;
         }
@@ -2006,12 +2106,52 @@ async function submitCrud() {
     }
 
     const d = await fetch(`/api/crud/${tabla}/insertar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify(data)}).then(r=>r.json());
-    d.ok ? (toast('Registro insertado ✓'), cerrarModal('modal-crud'), recargarGestion()) : toast('Error: '+d.error,'err');
+    if (!d.ok) { toast('Error: '+d.error,'err'); return; }
+
+    // ── Subir foto de taquillero si se seleccionó una ──────────────────────
+    if (tabla === 'taquillero' && window._crudFotoFile) {
+      const taqId = data[tablaActual.pkCol] || d.registro;
+      // Obtener el ID real recién insertado
+      const pkUsado = data[tablaActual.pkCol];
+      if (pkUsado) {
+        await _subirFotoCrudTaquillero(pkUsado, window._crudFotoFile);
+      }
+      window._crudFotoFile = null;
+    }
+
+    toast('Registro insertado ✓');
+    cerrarModal('modal-crud');
+    recargarGestion();
   } else {
     data.__pk_name__  = tablaActual.pkName;
     data.__pk_value__ = tablaActual.pkValue;
     const d = await fetch(`/api/crud/${tabla}/actualizar/`,{method:'POST',headers:csrfHeaders(),body:JSON.stringify(data)}).then(r=>r.json());
-    d.ok ? (toast('Registro actualizado ✓'), cerrarModal('modal-crud'), recargarGestion()) : toast('Error: '+d.error,'err');
+    if (!d.ok) { toast('Error: '+d.error,'err'); return; }
+
+    // ── Subir foto de taquillero si se seleccionó una nueva ───────────────
+    if (tabla === 'taquillero' && window._crudFotoFile) {
+      await _subirFotoCrudTaquillero(tablaActual.pkValue, window._crudFotoFile);
+      window._crudFotoFile = null;
+    }
+
+    toast('Registro actualizado ✓');
+    cerrarModal('modal-crud');
+    recargarGestion();
+  }
+}
+
+// Sube la foto de un taquillero usando la API existente /api/taquillero/:id/foto/
+async function _subirFotoCrudTaquillero(taqId, file) {
+  try {
+    const form = new FormData();
+    form.append('foto', file);
+    const r = await fetch(`/api/taquillero/${taqId}/foto/`, { method: 'POST', body: form });
+    if (!r.ok) {
+      const err = await r.json().catch(()=>({error:'Error al subir foto'}));
+      toast('Foto no subida: ' + (err.error||'error'), 'err');
+    }
+  } catch(e) {
+    toast('Error al subir foto: ' + e.message, 'err');
   }
 }
 
@@ -2099,13 +2239,180 @@ async function confirmarEliminar() {
 }
 
 function verDetalle(cols, row) {
-  document.getElementById('detalle-title').textContent = `Detalle — ${tablaActual.nombre}`;
-  document.getElementById('detalle-body').innerHTML    = cols.map(c=>`
+  const tabla = tablaActual.nombre;
+  document.getElementById('detalle-title').textContent = `Detalle — ${tabla}`;
+
+  // ── Para taquillero: enriquecer datos antes de renderizar ─────────────────
+  if (tabla === 'taquillero') {
+    _verDetalleTaquillero(cols, row);
+    return;
+  }
+
+  document.getElementById('detalle-body').innerHTML = cols.map(c=>`
     <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--border)">
       <span style="font-weight:700;color:var(--muted);flex-shrink:0">${colLabel(c)}</span>
       <span style="text-align:right;word-break:break-all">${row[c]??'—'}</span>
     </div>`).join('');
+
+  // Botón historial solo para taquillero (aquí no aplica, pero por seguridad)
+  document.getElementById('detalle-btn-historial').style.display = 'none';
   abrirModal('modal-detalle');
+}
+
+async function _verDetalleTaquillero(cols, row) {
+  // Resolver nombre de terminal desde la API de esquema/opciones
+  let terminalNombre = row['terminal'] ?? '—';
+  let taqRegistro    = row['registro'] ?? null;
+
+  // Intentar obtener nombre legible de terminal
+  try {
+    const esq = await fetch('/api/crud/taquillero/esquema/').then(r=>r.json());
+    const optsTerminal = esq.opciones?.['terminal'] || [];
+    const match = optsTerminal.find(o => String(o.value) === String(row['terminal']));
+    if (match) terminalNombre = match.label;
+  } catch(e) { /* mantener el valor crudo */ }
+
+  const fotoVal = row['foto'] || '';
+  const fotoUrl = fotoVal && fotoVal !== '—'
+    ? (fotoVal.startsWith('http') ? fotoVal : `/media/${fotoVal}`)
+    : '';
+
+  const supervisaVal = String(row['supervisa']) === '1' ? 'Sí (Supervisor)' : 'No';
+
+  // Campos a mostrar (omitir contrasena, foto la mostramos aparte)
+  const OMITIR = new Set(['contrasena', 'foto', 'supervisa', 'terminal']);
+
+  let html = '';
+
+  // ── Foto en círculo centrado arriba ──────────────────────────────────────
+  if (fotoUrl) {
+    html += `
+      <div style="display:flex;justify-content:center;margin-bottom:16px;">
+        <img src="${fotoUrl}" alt="foto"
+          style="width:80px;height:80px;object-fit:cover;border-radius:50%;
+                 border:3px solid var(--azul,#1181c3);box-shadow:0 2px 12px rgba(17,129,195,.2);"
+          onerror="this.style.display='none'" />
+      </div>`;
+  }
+
+  // ── Campos normales ───────────────────────────────────────────────────────
+  cols.forEach(c => {
+    if (OMITIR.has(c)) return;
+    const esPass = c === 'contrasena' || c === 'clave';
+    const val = esPass ? '••••••' : (row[c] ?? '—');
+    html += `
+      <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--border)">
+        <span style="font-weight:700;color:var(--muted);flex-shrink:0">${colLabel(c)}</span>
+        <span style="text-align:right;word-break:break-all">${val}</span>
+      </div>`;
+  });
+
+  // ── Terminal (nombre legible) ─────────────────────────────────────────────
+  html += `
+    <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px dashed var(--border)">
+      <span style="font-weight:700;color:var(--muted);flex-shrink:0">terminal</span>
+      <span style="text-align:right">${terminalNombre}</span>
+    </div>`;
+
+  // ── Supervisa (Sí / No) ───────────────────────────────────────────────────
+  const supervisaBadge = String(row['supervisa']) === '1'
+    ? `<span style="background:#dbeafe;color:#1e40af;border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700;">✓ Supervisor</span>`
+    : `<span style="background:#f0f4f8;color:var(--muted);border-radius:20px;padding:2px 10px;font-size:12px;font-weight:700;">No</span>`;
+  html += `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;padding:7px 0;border-bottom:1px dashed var(--border)">
+      <span style="font-weight:700;color:var(--muted);flex-shrink:0">supervisa</span>
+      <span>${supervisaBadge}</span>
+    </div>`;
+
+  document.getElementById('detalle-body').innerHTML = html;
+
+  // ── Botón historial de ventas ─────────────────────────────────────────────
+  const btnHist = document.getElementById('detalle-btn-historial');
+  if (btnHist && taqRegistro) {
+    btnHist.style.display = '';
+    btnHist.onclick = () => irAHistorialTaquillero(taqRegistro, row);
+  } else if (btnHist) {
+    btnHist.style.display = 'none';
+  }
+
+  abrirModal('modal-detalle');
+}
+
+// Navega a KPIs Específicos → Ventas prefiltrando por el taquillero seleccionado
+async function irAHistorialTaquillero(taqId, row) {
+  cerrarModal('modal-detalle');
+
+  // 1. Navegar a la página de KPIs Específicos
+  showPage('kpi-especificos');
+
+  // 2. Esperar a que los selects se carguen
+  await cargarKpiOpciones();
+
+  // 3. Configurar filtros: tipo=ventas, sujeto_tipo=taquillero, sujeto_id=taqId, scope=todos
+  document.getElementById('ke-tipo').value                = 'ventas';
+  document.getElementById('ke-scope').value               = 'todos';
+  document.getElementById('ke-ventas-sujeto-tipo').value  = 'taquillero';
+
+  // Poblar el select de sujeto con taquilleros y seleccionar el correcto
+  const filtros = window._keFiltros || {};
+  const selId   = document.getElementById('ke-ventas-sujeto-id');
+  selId.innerHTML = '<option value="">— Todos —</option>' +
+    (filtros.taquilleros || []).map(i => `<option value="${i.value}">${i.label}</option>`).join('');
+  selId.value = String(taqId);
+
+  // Mostrar el selector de sujeto
+  document.getElementById('ke-ventas-sujeto-wrap').style.display = '';
+  document.getElementById('ke-ventas-wrap-filtros').style.display = '';
+  document.getElementById('ke-ventas-taquillero-wrap').style.display = 'none';
+
+  // Ocultar filtros de otros tipos
+  document.getElementById('ke-ventas-ruta-wrap').style.display =
+    (filtros.rutas?.length) ? '' : 'none';
+
+  // 4. Forzar vista cards y cargar
+  keView = 'cards';
+  document.getElementById('ke-view-btns').style.display = '';
+  document.getElementById('ke-vbtn-cards').classList.add('active');
+  document.getElementById('ke-vbtn-tabla').classList.remove('active');
+
+  await cargarKpiEspecificos(true);
+
+  toast(`Historial de ventas de ${row?.taqnombre ?? 'taquillero'} cargado`);
+}
+
+// Limpia todos los filtros de KPIs Específicos y recarga sin aplicar
+function limpiarFiltrosKpiEspecificos() {
+  document.getElementById('ke-tipo').value   = 'ventas';
+  document.getElementById('ke-scope').value  = 'todos';
+
+  // Ocultar controles de fecha/mes que dependen de scope
+  ['ke-fecha-wrap','ke-mes-wrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+
+  // Resetear filtros de ventas
+  const sujetoTipo = document.getElementById('ke-ventas-sujeto-tipo');
+  if (sujetoTipo) sujetoTipo.value = '';
+  const sujetoId = document.getElementById('ke-ventas-sujeto-id');
+  if (sujetoId) sujetoId.value = '';
+  const ruta = document.getElementById('ke-ventas-ruta');
+  if (ruta) ruta.value = '';
+
+  // Ocultar wraps opcionales
+  ['ke-ventas-sujeto-wrap','ke-ventas-ruta-wrap','ke-ventas-taquillero-wrap'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+
+  // Resetear otros filtros comunes (conductor, autobús, ciudad)
+  ['ke-conductor','ke-autobus','ke-ciudad'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+
+  cargarKpiEspecificos(false);
+  toast('Filtros de KPIs limpiados');
 }
 
 // ════ CONFIGURACIÓN ════════════════════
