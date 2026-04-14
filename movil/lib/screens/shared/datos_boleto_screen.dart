@@ -96,6 +96,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
 
   void _generarPasajeros() {
     pasajerosList = [];
+
     // El primer adulto siempre es el contacto principal
     if ((widget.pasajeros['adultos'] ?? 0) > 0) {
       pasajerosList.add(_crearPasajero('Adulto', esContacto: true));
@@ -115,9 +116,24 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     for (int i = 0; i < (widget.pasajeros['discapacidad'] ?? 0); i++) {
       pasajerosList.add(_crearPasajero('Discapacidad'));
     }
-    // Si no hay adultos, el primer pasajero de la lista es el contacto
+
+    // Si no hay adultos, se aplica prioridad de contacto:
+    // 1. Estudiante  2. INAPAM  3. Discapacidad
+    // (Niño nunca es contacto principal)
     if ((widget.pasajeros['adultos'] ?? 0) == 0 && pasajerosList.isNotEmpty) {
-      pasajerosList.first['esContacto'] = true;
+      final candidato = pasajerosList.firstWhere(
+        (p) => p['tipo'] == 'Estudiante',
+        orElse: () => pasajerosList.firstWhere(
+          (p) => p['tipo'] == 'INAPAM',
+          orElse: () => pasajerosList.firstWhere(
+            (p) => p['tipo'] == 'Discapacidad',
+            orElse: () => <String, dynamic>{},
+          ),
+        ),
+      );
+      if (candidato.isNotEmpty) {
+        candidato['esContacto'] = true;
+      }
     }
   }
 
@@ -195,32 +211,24 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
   /// - Discapacidad >= 12 → sí (igual que Estudiante)
   /// - Todo lo demás → no
   bool _necesitaContacto(Map<String, dynamic> p) {
+    // Solo el pasajero marcado como contacto muestra teléfono + correo.
+    if (!(p['esContacto'] as bool)) return false;
+
     final tipo = p['tipo'] as String;
-    final esContacto = p['esContacto'] as bool;
     final edad = _edadDe(p);
 
-    if (tipo == 'Adulto' && esContacto) return true;
+    // Adulto: siempre es contacto válido (ya fue validado >=18).
+    if (tipo == 'Adulto') return true;
 
-    if (tipo == 'Niño') {
-      final hayAdulto = pasajerosList.any((x) => x['tipo'] == 'Adulto');
-      return !hayAdulto && edad != null && edad >= 12;
-    }
-
-    if (tipo == 'Estudiante') {
-      // Si es el contacto principal y no hay adultos, siempre pide contacto
-      if (esContacto && !pasajerosList.any((x) => x['tipo'] == 'Adulto'))
-        return true;
-      return edad != null && edad >= 12;
-    }
-
-    // INAPAM: siempre requiere datos de contacto (adulto mayor)
+    // INAPAM: siempre válido como contacto (adulto mayor).
     if (tipo == 'INAPAM') return true;
 
-    // Discapacidad: igual que Estudiante — si viaja solo (>= 12) pide contacto
-    if (tipo == 'Discapacidad') {
+    // Estudiante o Discapacidad: solo si edad >= 12.
+    if (tipo == 'Estudiante' || tipo == 'Discapacidad') {
       return edad != null && edad >= 12;
     }
 
+    // Niño nunca es contacto principal.
     return false;
   }
 
@@ -252,10 +260,17 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
   bool _hayNinoMenorSinAdulto() {
     final hayAdulto = pasajerosList.any((p) => p['tipo'] == 'Adulto');
     if (hayAdulto) return false;
+
     return pasajerosList.any((p) {
-      if (p['tipo'] != 'Niño') return false;
+      final tipo = p['tipo'] as String;
       final edad = _edadDe(p);
-      return edad != null && edad < 12;
+      if (edad == null) return false;
+
+      // Niño, Estudiante o Discapacitado menor de 12 sin adulto → bloquear
+      if (tipo == 'Niño' || tipo == 'Estudiante' || tipo == 'Discapacidad') {
+        return edad < 12;
+      }
+      return false;
     });
   }
 

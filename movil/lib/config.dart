@@ -16,7 +16,7 @@ class Config {
   //static const String baseUrl = 'http://192.168.1.13:8000';
 
   //pc de misa(linux)
-  static const String baseUrl = 'http://192.168.0.5:8000';
+  static const String baseUrl = 'http://192.168.137.37:8000';
 
   //servidor host
   //static const String baseUrl = 'https://rbe-web-production.up.railway.app';

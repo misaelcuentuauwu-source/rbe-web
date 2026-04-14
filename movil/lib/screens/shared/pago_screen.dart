@@ -427,27 +427,83 @@ class _PagoScreenState extends State<PagoScreen> {
           ),
           const SizedBox(height: 14),
           Divider(color: Colors.grey.shade100, height: 1),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Icon(Icons.people_outline, size: 16, color: Colors.grey.shade400),
-              const SizedBox(width: 8),
-              Text(
-                'Pasajeros',
-                style: TextStyle(fontSize: 13, color: textoSecundario),
+          const SizedBox(height: 12),
+
+          // ── Desglose por pasajero ────────────────────────────────
+          ...widget.pasajeros.asMap().entries.map((entry) {
+            final index = entry.key;
+            final p = entry.value;
+            final tipo = p['tipo'] as String? ?? 'Adulto';
+            final descuento = p['descuento'] as int? ?? 0;
+            final precioUnitario = p['precio_unitario'] as double? ?? 0;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Text(
+                    'Pasajero ${index + 1}',
+                    style: TextStyle(fontSize: 12, color: textoSecundario),
+                  ),
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: azul.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      tipo,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: azul,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (descuento > 0) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '-$descuento%',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                  const Spacer(),
+                  Text(
+                    '\$${precioUnitario.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: textoPrincipal,
+                    ),
+                  ),
+                ],
               ),
-              const Spacer(),
-              Text(
-                '${widget.pasajeros.length}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: textoPrincipal,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
+            );
+          }),
+
+          const SizedBox(height: 4),
+          Divider(color: Colors.grey.shade100, height: 1),
+          const SizedBox(height: 12),
+
+          // ── Total ────────────────────────────────────────────────
           Row(
             children: [
               Icon(
