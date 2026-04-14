@@ -25,6 +25,13 @@ iniciarlo para movil:
 python manage.py runserver 0.0.0.0:8000
 
 
+--prender conexion lan para movil--
+# 1. Crear hotspot
+Linux:  nmcli device wifi hotspot ifname wlp0s20f3 ssid "RBE-local" password "12345678"
+
+
+
+
 
 --en dado caso la api de elipse este caida pueden ir a esta pagina
 https://console.groq.com/
