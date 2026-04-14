@@ -528,7 +528,7 @@
       font-size: 13px;
     }
     .rv-tabla thead tr {
-      background: rgba(17,129,195,.07);
+      background: var(--azul, #1181c3);
     }
     .rv-tabla th {
       padding: 9px 12px;
@@ -537,8 +537,8 @@
       font-weight: 700;
       letter-spacing: .05em;
       text-transform: uppercase;
-      color: var(--muted, #6b8fa8);
-      border-bottom: 2px solid var(--border, #e2e8f0);
+      color: #ffffff;
+      border-bottom: none;
       white-space: nowrap;
     }
     .rv-tabla td {
@@ -1323,6 +1323,6 @@
       ciudad:   '{{ taquillero.terminal.ciudad.nombre }}',
     };
   </script>
-  <script src="{% static 'dashboard/panel_admin.js' %}?v=22"></script>
+  <script src="{% static 'dashboard/panel_admin.js' %}?v=21"></script>
 </body>
 </html>

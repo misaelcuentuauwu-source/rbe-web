@@ -718,7 +718,7 @@ class _AnimatedBusRouteState extends State<_AnimatedBusRoute>
               style: TextStyle(color: Colors.white60, fontSize: 12),
             ),
             Text(
-              'La Paz',
+              'Tecate',
               style: TextStyle(color: Colors.white60, fontSize: 12),
             ),
           ],
