@@ -887,6 +887,7 @@ def salidas_json(request):
 @admin_requerido
 def historial_json(request):
     from django.db import connection
+    now = datetime.now()
     with connection.cursor() as cur:
         cur.execute("""
             SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
@@ -911,7 +912,7 @@ def historial_json(request):
             GROUP BY v.numero
             ORDER BY v.fecHoraSalida DESC
             LIMIT 2000
-        """, [])
+        """)
         cols = [d[0] for d in cur.description]
         rows = []
         for r in cur.fetchall():
@@ -919,6 +920,26 @@ def historial_json(request):
             for k, v in row.items():
                 if hasattr(v, 'isoformat'):
                     row[k] = v.isoformat()
+
+            # ── Calcular estado dinámico según fecha/hora actual ──
+            estado_bd = (row.get('estado') or '').lower()
+            # Solo recalcular si el estado en BD no es ya un estado terminal
+            if estado_bd not in ('cancelado', 'finalizado', 'completado', 'terminado'):
+                salida  = row.get('fecHoraSalida')
+                entrada = row.get('fecHoraEntrada')
+                if salida and entrada:
+                    try:
+                        dt_salida  = datetime.fromisoformat(salida)
+                        dt_entrada = datetime.fromisoformat(entrada)
+                        if now >= dt_entrada:
+                            row['estado'] = 'Finalizado'
+                        elif now >= dt_salida:
+                            row['estado'] = 'En ruta'
+                        else:
+                            row['estado'] = 'Disponible'
+                    except (ValueError, TypeError):
+                        pass  # si la fecha es inválida, dejar el estado de la BD
+
             rows.append(row)
     return JsonResponse({'rows': rows})
 
@@ -1646,18 +1667,18 @@ def viaje_pasajeros(request, viaje_id):
                 return JsonResponse({'error': f'Viaje #{viaje_id} no encontrado'}, status=404)
             origen, destino, salida, autobus = info
             cur.execute("""
-                SELECT
-                    CONCAT(p.paNombre, ' ', p.paPrimerApell,
-                           CASE WHEN p.paSegundoApell IS NOT NULL
-                                THEN CONCAT(' ', p.paSegundoApell) ELSE '' END) AS nombre_completo,
-                    TIMESTAMPDIFF(YEAR, p.fechaNacimiento, CURDATE()) AS edad,
-                    t.codigo  AS numero_boleto,
-                    t.asiento AS numero_asiento
-                FROM ticket t
-                JOIN pasajero p ON t.pasajero = p.num
-                WHERE t.viaje = %s
-                ORDER BY t.asiento ASC, p.paNombre ASC
-            """, [viaje_id])
+    SELECT
+        CONCAT(p.paNombre, ' ', p.paPrimerApell,
+               CASE WHEN p.paSegundoApell IS NOT NULL
+                    THEN CONCAT(' ', p.paSegundoApell) ELSE '' END) AS nombre_completo,
+        TIMESTAMPDIFF(YEAR, p.fechaNacimiento, CURDATE()) AS edad,
+        t.codigo AS numero_boleto,
+        COALESCE(t.etiqueta_asiento, CAST(t.asiento AS CHAR)) AS numero_asiento
+    FROM ticket t
+    JOIN pasajero p ON t.pasajero = p.num
+    WHERE t.viaje = %s
+    ORDER BY t.asiento ASC, p.paNombre ASC
+""", [viaje_id])
             cols = [d[0] for d in cur.description]
             pasajeros = [dict(zip(cols, r)) for r in cur.fetchall()]
         salida_str = salida.isoformat() if hasattr(salida, 'isoformat') else str(salida)
