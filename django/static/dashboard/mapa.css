@@ -1,0 +1,156 @@
+/* ════════════════════════════════
+   MAPA — Estilos
+   django/static/dashboard/mapa.css
+════════════════════════════════ */
+
+/* ── Contenedor principal ── */
+#mapa-leaflet {
+  width: 100%;
+  height: 520px;
+  border-radius: 16px;
+  border: 1.5px solid var(--border, #e2e8f0);
+  overflow: hidden;
+  box-shadow: 0 2px 12px rgba(0,0,0,.07);
+  z-index: 0;
+}
+
+/* ── Panel de leyenda / estado ── */
+.mapa-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.mapa-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.mapa-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted, #6b8fa8);
+}
+
+.mapa-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mapa-legend-dot.en-ruta    { background: #1181c3; }
+.mapa-legend-dot.disponible { background: #22c55e; }
+.mapa-legend-dot.otro       { background: #94a3b8; }
+
+/* ── Badge contador ── */
+.mapa-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(17,129,195,.09);
+  color: var(--azul, #1181c3);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* ── Botón actualizar ── */
+.mapa-btn-refresh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  background: var(--azul, #1181c3);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  transition: background .18s, transform .15s;
+}
+.mapa-btn-refresh:hover  { background: #0d6fa8; transform: translateY(-1px); }
+.mapa-btn-refresh:active { transform: translateY(0); }
+.mapa-btn-refresh.girando svg { animation: girar .7s linear infinite; }
+
+@keyframes girar { to { transform: rotate(360deg); } }
+
+/* ── Popup Leaflet personalizado ── */
+.mapa-popup {
+  font-family: 'DM Sans', sans-serif;
+  min-width: 200px;
+}
+.mapa-popup-titulo {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--azul, #1181c3);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mapa-popup-fila {
+  font-size: 12px;
+  color: #334155;
+  margin-bottom: 3px;
+  display: flex;
+  gap: 6px;
+}
+.mapa-popup-key {
+  font-weight: 700;
+  color: #6b8fa8;
+  min-width: 70px;
+  flex-shrink: 0;
+}
+.mapa-popup-estado {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+.mapa-popup-estado.en-ruta    { background:#dbeafe; color:#1565c0; }
+.mapa-popup-estado.disponible { background:#e8f5e9; color:#2e7d32; }
+.mapa-popup-estado.otro       { background:#f1f5f9; color:#475569; }
+
+/* ── Offline banner ── */
+.mapa-offline-banner {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  background: #fff7ed;
+  border: 1.5px solid #fed7aa;
+  border-radius: 10px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  margin-bottom: 10px;
+}
+.mapa-offline-banner.visible { display: flex; }
+
+/* ── Skeleton mientras carga ── */
+.mapa-skeleton {
+  width: 100%;
+  height: 520px;
+  border-radius: 16px;
+  background: linear-gradient(90deg, #f0f4f8 25%, #e2e8f0 50%, #f0f4f8 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

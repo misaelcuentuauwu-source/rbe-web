@@ -8,6 +8,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   {% load static %}
   <link rel="stylesheet" href="{% static 'dashboard/panel_admin.css' %}?v=8">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="{% static 'dashboard/mapa.css' %}">
   <style>
     /* ── Buscador de gestión ── */
     .gestion-search-wrap {
@@ -579,6 +581,9 @@
     <button class="nav-btn" onclick="showPage('salidas')">
       <span class="icon">🚌</span><span class="label">Salidas</span>
     </button>
+    <button class="nav-btn" onclick="showPage('mapa'); inicializarMapa()">
+      <span class="icon">🗺️</span><span class="label">Mapa en vivo</span>
+    </button>
     <button class="nav-btn" onclick="showPage('historial')">
       <span class="icon">📋</span><span class="label">Historial de Viajes</span>
     </button>
@@ -909,6 +914,48 @@
       <div class="info-bar" id="sal-info"></div>
       <div id="salidas-container"><span class="spinner"></span></div>
     </div>
+
+    <!-- ════ MAPA EN VIVO ════ -->
+    <div id="page-mapa" class="page">
+      <h2 class="page-title">🗺️ Mapa en vivo</h2>
+
+      <!-- Banner offline -->
+      <div class="mapa-offline-banner" id="mapa-offline-banner">
+        ⚠️ Sin conexión — mostrando tiles en caché
+      </div>
+
+      <!-- Toolbar -->
+      <div class="mapa-toolbar">
+        <div class="mapa-legend">
+          <div class="mapa-legend-item">
+            <span class="mapa-legend-dot en-ruta"></span> En ruta
+          </div>
+          <div class="mapa-legend-item">
+            <span class="mapa-legend-dot disponible"></span> Disponible
+          </div>
+          <div class="mapa-legend-item">
+            <span class="mapa-legend-dot otro"></span> Otro estado
+          </div>
+          <div class="mapa-badge">
+            🚌 <span id="mapa-count">— viajes activos</span>
+          </div>
+        </div>
+        <button class="mapa-btn-refresh" id="mapa-btn-refresh" onclick="cargarViajesMapa()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.5"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+          Actualizar
+        </button>
+      </div>
+
+      <!-- Mapa -->
+      <div id="mapa-leaflet"></div>
+    </div>
+    <!-- ════ /MAPA EN VIVO ════ -->
+
 
     <!-- ════ HISTORIAL ════ -->
     <div id="page-historial" class="page">
@@ -1324,5 +1371,7 @@
     };
   </script>
   <script src="{% static 'dashboard/panel_admin.js' %}?v=21"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="{% static 'dashboard/mapa.js' %}"></script>
 </body>
 </html>
