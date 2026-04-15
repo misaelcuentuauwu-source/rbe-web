@@ -2623,8 +2623,8 @@ function generarReporteVentas() {
       rvRenderResumen(data.resumen);
       rvRenderTablaSimple('rv-tabla-ruta',
         data.por_ruta,
-        ['ruta', 'boletos', 'ingresos'],
-        ['Ruta', 'Boletos', 'Ingresos'],
+        ['ruta', 'duracion', 'boletos', 'ingresos'],
+        ['Ruta', 'Duración', 'Boletos', 'Ingresos'],
         { ingresos: true }
       );
       rvRenderTablaSimple('rv-tabla-taquillero',

@@ -1305,7 +1305,8 @@ def kpi_filtros_opciones(request):
         clientes = [{'value': r[0], 'label': f"{r[1]} ({r[2]})"} for r in cur.fetchall()]
         cur.execute('''
             SELECT r.codigo,
-                   CONCAT(corig.nombre, ' > ', cdest.nombre) AS label
+                   CONCAT(corig.nombre, ' > ', cdest.nombre) AS label,
+                   r.duracion
             FROM ruta r
             JOIN terminal tor  ON r.origen  = tor.numero
             JOIN terminal tdes ON r.destino = tdes.numero
@@ -1313,7 +1314,7 @@ def kpi_filtros_opciones(request):
             JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
             ORDER BY corig.nombre, cdest.nombre
         ''')
-        rutas = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
+        rutas = [{'value': r[0], 'label': f"{r[1]} ({r[2]})"} for r in cur.fetchall()]
     return JsonResponse({'conductores': conductores, 'autobuses': autobuses, 'ciudades': ciudades, 'taquilleros': taquilleros, 'clientes': clientes, 'rutas': rutas})
 
 
@@ -1390,6 +1391,7 @@ def reporte_ventas(request):
             SELECT
                 CONCAT(corig.nombre,' - ',cdest.nombre) AS ruta,
                 r.codigo                                AS ruta_id,
+                r.duracion                              AS duracion,
                 COUNT(t.codigo)                         AS boletos,
                 COALESCE(SUM(t.precio), 0)              AS ingresos
             FROM ticket t
@@ -1401,7 +1403,7 @@ def reporte_ventas(request):
             JOIN ciudad    corig ON corig.clave = tor.ciudad
             JOIN ciudad    cdest ON cdest.clave = tdes.ciudad
             {where}
-            GROUP BY r.codigo
+            GROUP BY r.codigo, r.duracion
             ORDER BY ingresos DESC
         """
         por_ruta = qall(ruta_sql, params_base)
@@ -1479,7 +1481,8 @@ def reporte_ventas(request):
         # ── Opciones de filtros para los selects ──────────────────────────────
         with connection.cursor() as cur:
             cur.execute("""
-                SELECT r.codigo, CONCAT(corig.nombre,' - ',cdest.nombre) AS label
+                SELECT r.codigo, CONCAT(corig.nombre,' - ',cdest.nombre) AS label,
+                       r.duracion
                 FROM ruta r
                 JOIN terminal tor  ON r.origen  = tor.numero
                 JOIN terminal tdes ON r.destino = tdes.numero
@@ -1487,7 +1490,7 @@ def reporte_ventas(request):
                 JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
                 ORDER BY corig.nombre, cdest.nombre
             """)
-            opciones_rutas = [{'value': r[0], 'label': r[1]} for r in cur.fetchall()]
+            opciones_rutas = [{'value': r[0], 'label': f"{r[1]} ({r[2]})"} for r in cur.fetchall()]
             cur.execute("""
                 SELECT registro, CONCAT(taqNombre,' ',taqPrimerApell) AS nombre
                 FROM taquillero ORDER BY taqNombre
