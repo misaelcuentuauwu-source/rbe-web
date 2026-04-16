@@ -89,16 +89,44 @@
 /* ── Popup Leaflet personalizado ── */
 .mapa-popup {
   font-family: 'DM Sans', sans-serif;
-  min-width: 200px;
+  min-width: 220px;
+  max-width: 270px;
+}
+.mapa-popup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 2px;
 }
 .mapa-popup-titulo {
   font-size: 14px;
   font-weight: 800;
   color: var(--azul, #1181c3);
+}
+.mapa-popup-codigo {
+  font-size: 11px;
+  font-weight: 700;
+  background: #e0f0fb;
+  color: #0d6fa8;
+  border-radius: 6px;
+  padding: 2px 8px;
+  letter-spacing: .3px;
+  flex-shrink: 0;
+}
+.mapa-popup-ruta {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ea580c;
   margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
+}
+.mapa-popup-flecha {
+  color: #334155;
+  font-weight: 400;
+}
+.mapa-popup-divider {
+  height: 1px;
+  background: #e2e8f0;
+  margin: 6px 0;
 }
 .mapa-popup-fila {
   font-size: 12px;
@@ -110,8 +138,42 @@
 .mapa-popup-key {
   font-weight: 700;
   color: #6b8fa8;
-  min-width: 70px;
+  min-width: 78px;
   flex-shrink: 0;
+}
+/* ── Barra de progreso ── */
+.mapa-popup-progreso-wrap {
+  margin: 8px 0 6px;
+}
+.mapa-popup-progreso-bar {
+  height: 7px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 3px;
+}
+.mapa-popup-progreso-fill {
+  height: 100%;
+  background: #1181c3;
+  border-radius: 4px;
+  transition: width .3s;
+}
+.mapa-popup-progreso-pct {
+  font-size: 11px;
+  font-weight: 700;
+  color: #1181c3;
+  float: right;
+}
+/* ── Footer del popup ── */
+.mapa-popup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #e2e8f0;
+  clear: both;
 }
 .mapa-popup-estado {
   display: inline-block;
@@ -119,11 +181,26 @@
   border-radius: 20px;
   font-size: 11px;
   font-weight: 700;
-  margin-top: 6px;
 }
 .mapa-popup-estado.en-ruta    { background:#dbeafe; color:#1565c0; }
 .mapa-popup-estado.disponible { background:#e8f5e9; color:#2e7d32; }
 .mapa-popup-estado.otro       { background:#f1f5f9; color:#475569; }
+/* ── Botón Ver viaje ── */
+.mapa-popup-btn-ver {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  background: #1181c3;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background .15s, transform .12s;
+  white-space: nowrap;
+}
+.mapa-popup-btn-ver:hover  { background: #0d6fa8; transform: translateY(-1px); }
+.mapa-popup-btn-ver:active { transform: translateY(0); }
 
 /* ── Offline banner ── */
 .mapa-offline-banner {

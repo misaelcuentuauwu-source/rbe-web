@@ -1,12 +1,12 @@
 /* ════════════════════════════════════════════════════
-   SERVICE WORKER — Caché de tiles OSM
+   SERVICE WORKER — Caché de tiles OSM + datos API
    django/static/dashboard/sw-mapa.js
 ════════════════════════════════════════════════════ */
 
-const CACHE_TILES = 'osm-tiles-v1';
-const CACHE_APP   = 'rbe-app-v1';
+const CACHE_TILES   = 'osm-tiles-v2';
+const CACHE_APP     = 'rbe-app-v2';
+const CACHE_API     = 'rbe-api-v2';
 
-/* Archivos del app que se cachean en instalación */
 const APP_SHELL = [
   '/static/dashboard/mapa.css',
   '/static/dashboard/mapa.js',
@@ -14,7 +14,6 @@ const APP_SHELL = [
   'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js',
 ];
 
-/* ── Instalación ── */
 self.addEventListener('install', e => {
   e.waitUntil(
     caches.open(CACHE_APP)
@@ -23,24 +22,22 @@ self.addEventListener('install', e => {
   );
 });
 
-/* ── Activación: limpiar caches viejos ── */
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(
         keys
-          .filter(k => k !== CACHE_TILES && k !== CACHE_APP)
+          .filter(k => ![CACHE_TILES, CACHE_APP, CACHE_API].includes(k))
           .map(k => caches.delete(k))
       )
     ).then(() => self.clients.claim())
   );
 });
 
-/* ── Fetch: estrategia por tipo de recurso ── */
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
-  /* Tiles de OSM → Cache first, luego red */
+  /* Tiles OSM → Cache first, luego red */
   if (url.includes('tile.openstreetmap.org')) {
     e.respondWith(
       caches.open(CACHE_TILES).then(async cache => {
@@ -59,17 +56,33 @@ self.addEventListener('fetch', e => {
   }
 
   /* App shell → Cache first */
-  if (APP_SHELL.some(a => url.includes(a))) {
+  if (APP_SHELL.some(a => url.includes(a.replace(/^https?:\/\/[^/]+/, '')))) {
     e.respondWith(
       caches.match(e.request).then(cached => cached || fetch(e.request))
     );
     return;
   }
 
-  /* API /api/salidas/ → Network first (datos frescos) */
+  /* API /api/salidas/ → Network first, caché como fallback offline */
   if (url.includes('/api/salidas/')) {
     e.respondWith(
-      fetch(e.request).catch(() => caches.match(e.request))
+      caches.open(CACHE_API).then(async cache => {
+        try {
+          const resp = await fetch(e.request);
+          if (resp.ok) {
+            // Guardar respuesta fresca en caché (clonar antes de usar)
+            cache.put(e.request, resp.clone());
+          }
+          return resp;
+        } catch {
+          // Sin red: devolver el caché
+          const cached = await cache.match(e.request);
+          return cached || new Response(
+            JSON.stringify({ rows: [], offline: true }),
+            { headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+      })
     );
     return;
   }

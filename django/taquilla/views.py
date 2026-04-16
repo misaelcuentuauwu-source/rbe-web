@@ -850,7 +850,8 @@ def crud_eliminar(request, tabla):
 @admin_requerido
 def salidas_json(request):
     from django.db import connection
-    now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    now = datetime.now()
+    now_str = now.strftime('%Y-%m-%d %H:%M:%S')
     with connection.cursor() as cur:
         cur.execute("""
             SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
@@ -859,22 +860,27 @@ def salidas_json(request):
                    ev.nombre AS estado, v.ruta,
                    CONCAT(c.conNombre,' ',c.conPrimerApell) AS conductor,
                    a.placas AS autobus_placas, a.numero AS autobus_num,
-                   r.precio AS precio_ruta, r.duracion AS duracion_ruta
+                   r.precio AS precio_ruta
             FROM viaje v
-            JOIN ruta r        ON v.ruta = r.codigo
-            JOIN terminal tor  ON r.origen = tor.numero
+            JOIN ruta r       ON v.ruta = r.codigo
+            JOIN terminal tor ON r.origen = tor.numero
             JOIN terminal tdes ON r.destino = tdes.numero
-            JOIN ciudad corig  ON tor.ciudad = corig.clave
-            JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
-            JOIN edo_viaje ev  ON v.estado = ev.numero
+            JOIN ciudad corig ON tor.ciudad = corig.clave
+            JOIN ciudad cdest ON tdes.ciudad = cdest.clave
+            JOIN edo_viaje ev ON v.estado = ev.numero
             LEFT JOIN conductor c ON v.conductor = c.registro
             LEFT JOIN autobus a   ON v.autobus = a.numero
-            WHERE LOWER(ev.nombre) = 'en ruta'
-              AND v.fecHoraSalida <= %s
-              AND v.fecHoraEntrada >= %s
+            WHERE (
+                /* Viajes futuros (programados / disponibles) */
+                v.fecHoraSalida >= %s
+                OR
+                /* Viajes EN RUTA: salieron pero aún no llegan */
+                (v.fecHoraSalida < %s AND v.fecHoraEntrada > %s)
+            )
+            AND LOWER(ev.nombre) NOT IN ('finalizado','completado','cancelado','terminado')
             ORDER BY v.fecHoraSalida ASC
             LIMIT 200
-        """, [now, now])
+        """, [now_str, now_str, now_str])
         cols = [d[0] for d in cur.description]
         rows = []
         for r in cur.fetchall():
@@ -882,9 +888,25 @@ def salidas_json(request):
             for k, v in row.items():
                 if hasattr(v, 'isoformat'):
                     row[k] = v.isoformat()
+            # Calcular estado dinámico para el mapa
+            estado_bd = (row.get('estado') or '').lower()
+            if estado_bd not in ('cancelado', 'finalizado', 'completado', 'terminado'):
+                salida  = row.get('fecHoraSalida')
+                entrada = row.get('fecHoraEntrada')
+                if salida and entrada:
+                    try:
+                        dt_salida  = datetime.fromisoformat(salida)
+                        dt_entrada = datetime.fromisoformat(entrada)
+                        if now >= dt_entrada:
+                            row['estado'] = 'Finalizado'
+                        elif now >= dt_salida:
+                            row['estado'] = 'En ruta'
+                        else:
+                            row['estado'] = 'Disponible'
+                    except (ValueError, TypeError):
+                        pass
             rows.append(row)
     return JsonResponse({'rows': rows})
-
 @admin_requerido
 def historial_json(request):
     from django.db import connection
