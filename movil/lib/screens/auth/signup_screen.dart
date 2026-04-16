@@ -20,12 +20,15 @@ class _SignupScreenState extends State<SignupScreen> {
   final _apellidoController = TextEditingController();
   final _correoController = TextEditingController();
   final _contrasenaController = TextEditingController();
+  DateTime? _fechaNacimiento; // ← NUEVO: fecha de nacimiento del cliente
   bool _obscurePassword = true;
   bool _cargando = false;
   bool _cargandoGoogle = false;
 
   static const azul = Color(0xFF2C7FB1);
   static const naranja = Color(0xFFE9713A);
+  static const textoPrincipal = Color(0xFF1C2D3A);
+  static const textoSecundario = Color(0xFF6B8FA8);
 
   @override
   void dispose() {
@@ -58,6 +61,63 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
+  // ── Formatea la fecha para mostrarla en el botón ─────────────────────────
+  String _formatearFecha(DateTime? fn) {
+    if (fn == null) return 'Selecciona tu fecha de nacimiento';
+    return '${fn.day.toString().padLeft(2, '0')}/'
+        '${fn.month.toString().padLeft(2, '0')}/'
+        '${fn.year}';
+  }
+
+  // ── Calcula la edad a partir de la fecha ─────────────────────────────────
+  int? _calcularEdad(DateTime? fn) {
+    if (fn == null) return null;
+    final hoy = DateTime.now();
+    int edad = hoy.year - fn.year;
+    if (hoy.month < fn.month || (hoy.month == fn.month && hoy.day < fn.day)) {
+      edad--;
+    }
+    return edad;
+  }
+
+  // ── Abre el DatePicker para fecha de nacimiento ──────────────────────────
+  Future<void> _seleccionarFechaNacimiento() async {
+    final hoy = DateTime.now();
+    // El cliente debe ser mayor de edad (>= 18) para crear cuenta
+    final fechaMax = DateTime(hoy.year - 18, hoy.month, hoy.day);
+    final fechaMin = DateTime(hoy.year - 120, hoy.month, hoy.day);
+    final fechaInicial =
+        _fechaNacimiento ?? DateTime(hoy.year - 25, hoy.month, hoy.day);
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: fechaInicial.isBefore(fechaMax) ? fechaInicial : fechaMax,
+      firstDate: fechaMin,
+      lastDate: fechaMax,
+      locale: const Locale('es', 'MX'),
+      helpText: 'Fecha de nacimiento',
+      cancelText: 'Cancelar',
+      confirmText: 'Confirmar',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: azul,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: textoPrincipal,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() => _fechaNacimiento = picked);
+    }
+  }
+
   Future<void> _registrarse() async {
     final nombre = _nombreController.text.trim();
     final apellido = _apellidoController.text.trim();
@@ -72,6 +132,11 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
+    if (_fechaNacimiento == null) {
+      _mostrarError('Selecciona tu fecha de nacimiento');
+      return;
+    }
+
     final emailRegex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$');
     if (!emailRegex.hasMatch(correo)) {
       _mostrarError('Ingresa un correo electrónico válido');
@@ -83,15 +148,26 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
+    // Verificar mayor de edad (el DatePicker ya lo limita, pero doble validación)
+    final edad = _calcularEdad(_fechaNacimiento);
+    if (edad == null || edad < 18) {
+      _mostrarError('Debes tener al menos 18 años para crear una cuenta');
+      return;
+    }
+
     setState(() => _cargando = true);
+
+    // Formatear fecha en YYYY-MM-DD para el backend
+    final fn = _fechaNacimiento!;
+    final fnStr =
+        '${fn.year}-${fn.month.toString().padLeft(2, '0')}-${fn.day.toString().padLeft(2, '0')}';
 
     try {
       // Primero crear en Firebase Auth
-      // Si el correo ya existe (con Google, Facebook o correo) lanza excepción
       final userCredential = await FirebaseAuth.instance
           .createUserWithEmailAndPassword(email: correo, password: contrasena);
 
-      // Si Firebase pasó, registrar en el backend
+      // Si Firebase pasó, registrar en el backend con la fecha de nacimiento
       final response = await http
           .post(
             Uri.parse('${Config.baseUrl}/api/cliente/registro/'),
@@ -102,6 +178,7 @@ class _SignupScreenState extends State<SignupScreen> {
               'correo': correo,
               'contrasena': contrasena,
               'firebase_uid': userCredential.user?.uid ?? '',
+              'fecha_nacimiento': fnStr, // ← NUEVO campo enviado al backend
             }),
           )
           .timeout(const Duration(seconds: 10));
@@ -121,7 +198,7 @@ class _SignupScreenState extends State<SignupScreen> {
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
         _mostrarError(
-          'Este correo ya está registrado. Inicia sesión o usa Google/Facebook.',
+          'Este correo ya está registrado. Inicia sesión o usa Google.',
         );
       } else if (e.code == 'weak-password') {
         _mostrarError('La contraseña debe tener al menos 6 caracteres.');
@@ -171,6 +248,8 @@ class _SignupScreenState extends State<SignupScreen> {
                 'nombre': user.displayName ?? '',
                 'foto': user.photoURL ?? '',
                 'proveedor': 'google',
+                // Google no provee fecha de nacimiento; se deja en blanco
+                // para que el usuario la complete en su perfil si lo desea.
               }),
             )
             .timeout(const Duration(seconds: 10));
@@ -195,6 +274,8 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final edad = _calcularEdad(_fechaNacimiento);
+
     return SingleChildScrollView(
       padding: EdgeInsets.only(
         left: 24,
@@ -220,7 +301,7 @@ class _SignupScreenState extends State<SignupScreen> {
           const Text(
             'Crear cuenta',
             style: TextStyle(
-              color: Color(0xFF1C2D3A),
+              color: textoPrincipal,
               fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
@@ -228,9 +309,11 @@ class _SignupScreenState extends State<SignupScreen> {
           const SizedBox(height: 4),
           const Text(
             'Regístrate como pasajero',
-            style: TextStyle(color: Color(0xFF6B8FA8), fontSize: 13),
+            style: TextStyle(color: textoSecundario, fontSize: 13),
           ),
           const SizedBox(height: 24),
+
+          // ── Nombre + Apellido ──────────────────────────────
           Row(
             children: [
               Expanded(
@@ -253,6 +336,8 @@ class _SignupScreenState extends State<SignupScreen> {
             ],
           ),
           const SizedBox(height: 16),
+
+          // ── Correo ────────────────────────────────────────
           _buildInput(
             controller: _correoController,
             label: 'Correo',
@@ -261,6 +346,8 @@ class _SignupScreenState extends State<SignupScreen> {
             keyboardType: TextInputType.emailAddress,
           ),
           const SizedBox(height: 16),
+
+          // ── Contraseña ────────────────────────────────────
           _buildInput(
             controller: _contrasenaController,
             label: 'Contraseña',
@@ -268,7 +355,96 @@ class _SignupScreenState extends State<SignupScreen> {
             icon: Icons.lock_outline,
             isPassword: true,
           ),
+          const SizedBox(height: 16),
+
+          // ── Fecha de nacimiento ───────────────────────────
+          Text(
+            'FECHA DE NACIMIENTO',
+            style: TextStyle(
+              color: textoSecundario,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 1.2,
+            ),
+          ),
+          const SizedBox(height: 7),
+          InkWell(
+            onTap: _seleccionarFechaNacimiento,
+            borderRadius: BorderRadius.circular(10),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F4F8),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _fechaNacimiento == null
+                      ? naranja.withOpacity(0.3)
+                      : azul.withOpacity(0.5),
+                  width: _fechaNacimiento == null ? 1 : 1.5,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.cake_outlined, color: textoSecundario, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _formatearFecha(_fechaNacimiento),
+                      style: TextStyle(
+                        color: _fechaNacimiento == null
+                            ? const Color(0xFFB0BEC5)
+                            : textoPrincipal,
+                        fontSize: 14,
+                        fontWeight: _fechaNacimiento != null
+                            ? FontWeight.w500
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                  // Muestra la edad calculada
+                  if (edad != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: azul.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$edad años',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: azul,
+                        ),
+                      ),
+                    ),
+                  const SizedBox(width: 6),
+                  Icon(
+                    Icons.calendar_month_rounded,
+                    color: _fechaNacimiento != null
+                        ? azul
+                        : Colors.grey.shade400,
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Mensaje de ayuda
+          Padding(
+            padding: const EdgeInsets.only(top: 5, left: 4),
+            child: Text(
+              'Debes tener 18 años o más para crear una cuenta.',
+              style: TextStyle(fontSize: 11, color: textoSecundario),
+            ),
+          ),
+
           const SizedBox(height: 28),
+
+          // ── Botón Registrarse ─────────────────────────────
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -301,6 +477,8 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
           ),
           const SizedBox(height: 20),
+
+          // ── Divider "o continúa con" ──────────────────────
           Row(
             children: [
               Expanded(child: Divider(color: Colors.grey.shade300)),
@@ -315,6 +493,8 @@ class _SignupScreenState extends State<SignupScreen> {
             ],
           ),
           const SizedBox(height: 16),
+
+          // ── Google ────────────────────────────────────────
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -346,7 +526,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         const Text(
                           'Continuar con Google',
                           style: TextStyle(
-                            color: Color(0xFF1C2D3A),
+                            color: textoPrincipal,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -374,7 +554,7 @@ class _SignupScreenState extends State<SignupScreen> {
         Text(
           label.toUpperCase(),
           style: const TextStyle(
-            color: Color(0xFF6B8FA8),
+            color: textoSecundario,
             fontSize: 11,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.2,
@@ -385,18 +565,18 @@ class _SignupScreenState extends State<SignupScreen> {
           controller: controller,
           obscureText: isPassword ? _obscurePassword : false,
           keyboardType: keyboardType,
-          style: const TextStyle(color: Color(0xFF1C2D3A)),
+          style: const TextStyle(color: textoPrincipal),
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(color: Color(0xFFB0BEC5)),
-            prefixIcon: Icon(icon, color: const Color(0xFF6B8FA8), size: 20),
+            prefixIcon: Icon(icon, color: textoSecundario, size: 20),
             suffixIcon: isPassword
                 ? IconButton(
                     icon: Icon(
                       _obscurePassword
                           ? Icons.visibility_off
                           : Icons.visibility,
-                      color: const Color(0xFF6B8FA8),
+                      color: textoSecundario,
                       size: 20,
                     ),
                     onPressed: () =>

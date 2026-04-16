@@ -18,7 +18,7 @@ import 'seat_selection_screen.dart';
 //         - Edad < 12  → Sin datos de contacto (va con tutor).
 //         - Siempre se pide credencial escolar.
 //
-// INAPAM : debe ser >= 60 años. Validación en campo edad.
+// INAPAM : debe ser >= 60 años. Validación automática desde fecha de nacimiento.
 //          Siempre se piden datos de contacto (teléfono + correo).
 //          Siempre se pide credencial INAPAM.
 //
@@ -30,6 +30,9 @@ import 'seat_selection_screen.dart';
 //
 // ADULTO : >= 18 años. El primer adulto es el contacto principal
 //          (siempre se piden teléfono + correo).
+//
+// NOTA: La edad ya NO se captura como número entero. Se captura como
+//       fecha de nacimiento mediante DatePicker y se calcula automáticamente.
 // ════════════════════════════════════════════════════════════════════════════
 
 class DatosBoletoScreen extends StatefulWidget {
@@ -157,6 +160,25 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       if (apellido.isNotEmpty) {
         (contacto['apPaternoCtrl'] as TextEditingController).text = apellido;
       }
+
+      // ── Autorrellenar fecha de nacimiento si la cuenta la tiene guardada ──
+      // datosUsuario puede traer 'fecha_nacimiento' en formato 'YYYY-MM-DD'
+      final fnStr = datos['fecha_nacimiento']?.toString() ?? '';
+      if (fnStr.isNotEmpty && fnStr != '2000-01-01') {
+        try {
+          final partes = fnStr.split('-');
+          if (partes.length == 3) {
+            final fn = DateTime(
+              int.parse(partes[0]),
+              int.parse(partes[1]),
+              int.parse(partes[2]),
+            );
+            contacto['fechaNacimiento'] = fn;
+          }
+        } catch (_) {
+          // Si el formato es inválido, simplemente no se autorellena
+        }
+      }
     }
   }
 
@@ -167,7 +189,8 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       'nombreCtrl': TextEditingController(),
       'apPaternoCtrl': TextEditingController(),
       'apMaternoCtrl': TextEditingController(),
-      'edadCtrl': TextEditingController(),
+      // CAMBIO: ya no hay 'edadCtrl'. La fecha se guarda como DateTime? aquí.
+      'fechaNacimiento': null, // DateTime?
       'telefonoCtrl': TextEditingController(),
       'correoCtrl': TextEditingController(),
       // Solo para Discapacidad: 'visual' | 'motriz' | 'auditiva' | 'otra'
@@ -181,7 +204,6 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       (p['nombreCtrl'] as TextEditingController).dispose();
       (p['apPaternoCtrl'] as TextEditingController).dispose();
       (p['apMaternoCtrl'] as TextEditingController).dispose();
-      (p['edadCtrl'] as TextEditingController).dispose();
       (p['telefonoCtrl'] as TextEditingController).dispose();
       (p['correoCtrl'] as TextEditingController).dispose();
     }
@@ -196,20 +218,114 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     return precioBase * (1 - descuento / 100);
   }
 
-  /// Lee la edad actual del controller de un pasajero.
-  int? _edadDe(Map<String, dynamic> p) =>
-      int.tryParse((p['edadCtrl'] as TextEditingController).text.trim());
+  /// Calcula la edad en años completos a partir de la fecha de nacimiento.
+  /// Retorna null si la fecha no ha sido seleccionada.
+  int? _edadDe(Map<String, dynamic> p) {
+    final fn = p['fechaNacimiento'] as DateTime?;
+    if (fn == null) return null;
+    final hoy = DateTime.now();
+    int edad = hoy.year - fn.year;
+    // Aún no ha llegado el cumpleaños este año
+    if (hoy.month < fn.month || (hoy.month == fn.month && hoy.day < fn.day)) {
+      edad--;
+    }
+    return edad;
+  }
+
+  /// Formatea la fecha de nacimiento para mostrarla en el botón del DatePicker.
+  String _formatearFecha(DateTime? fn) {
+    if (fn == null) return 'Seleccionar fecha';
+    return '${fn.day.toString().padLeft(2, '0')}/'
+        '${fn.month.toString().padLeft(2, '0')}/'
+        '${fn.year}';
+  }
+
+  /// Abre el DatePicker con límites según el tipo de pasajero y actualiza el estado.
+  Future<void> _seleccionarFecha(Map<String, dynamic> pasajero) async {
+    final tipo = pasajero['tipo'] as String;
+    final hoy = DateTime.now();
+
+    // Límites según tipo
+    DateTime primerFecha;
+    DateTime ultimaFecha;
+    DateTime fechaInicial;
+
+    switch (tipo) {
+      case 'Adulto':
+        // Entre 18 y 120 años
+        primerFecha = DateTime(hoy.year - 120, hoy.month, hoy.day);
+        ultimaFecha = DateTime(hoy.year - 18, hoy.month, hoy.day);
+        fechaInicial =
+            pasajero['fechaNacimiento'] as DateTime? ??
+            DateTime(hoy.year - 30, hoy.month, hoy.day);
+        break;
+      case 'Niño':
+        // Entre 0 y 17 años
+        primerFecha = DateTime(hoy.year - 17, hoy.month, hoy.day);
+        ultimaFecha = hoy;
+        fechaInicial =
+            pasajero['fechaNacimiento'] as DateTime? ??
+            DateTime(hoy.year - 8, hoy.month, hoy.day);
+        break;
+      case 'INAPAM':
+        // 60 años o más
+        primerFecha = DateTime(hoy.year - 120, hoy.month, hoy.day);
+        ultimaFecha = DateTime(hoy.year - 60, hoy.month, hoy.day);
+        fechaInicial =
+            pasajero['fechaNacimiento'] as DateTime? ??
+            DateTime(hoy.year - 65, hoy.month, hoy.day);
+        break;
+      case 'Estudiante':
+      case 'Discapacidad':
+        // Sin restricción de edad (0–120)
+        primerFecha = DateTime(hoy.year - 120, hoy.month, hoy.day);
+        ultimaFecha = hoy;
+        fechaInicial =
+            pasajero['fechaNacimiento'] as DateTime? ??
+            DateTime(hoy.year - 20, hoy.month, hoy.day);
+        break;
+      default:
+        primerFecha = DateTime(hoy.year - 120, hoy.month, hoy.day);
+        ultimaFecha = hoy;
+        fechaInicial = pasajero['fechaNacimiento'] as DateTime? ?? hoy;
+    }
+
+    // Ajustar fechaInicial para que esté dentro del rango
+    if (fechaInicial.isBefore(primerFecha)) fechaInicial = primerFecha;
+    if (fechaInicial.isAfter(ultimaFecha)) fechaInicial = ultimaFecha;
+
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: fechaInicial,
+      firstDate: primerFecha,
+      lastDate: ultimaFecha,
+      locale: const Locale('es', 'MX'),
+      helpText: 'Fecha de nacimiento',
+      cancelText: 'Cancelar',
+      confirmText: 'Confirmar',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: azul,
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: textoPrincipal,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() => pasajero['fechaNacimiento'] = picked);
+    }
+  }
 
   /// Decide si este pasajero debe mostrar los campos de contacto
   /// (teléfono + correo). Se evalúa en cada rebuild para reaccionar
-  /// mientras el usuario escribe la edad.
-  ///
-  /// - Adulto marcado como esContacto → siempre sí
-  /// - Niño >= 12 sin ningún adulto en el viaje → sí (viaja solo)
-  /// - Estudiante >= 12 → sí (viaja solo)
-  /// - INAPAM → siempre sí (es un adulto de edad avanzada)
-  /// - Discapacidad >= 12 → sí (igual que Estudiante)
-  /// - Todo lo demás → no
+  /// en tiempo real al seleccionar la fecha de nacimiento.
   bool _necesitaContacto(Map<String, dynamic> p) {
     // Solo el pasajero marcado como contacto muestra teléfono + correo.
     if (!(p['esContacto'] as bool)) return false;
@@ -232,13 +348,18 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     return false;
   }
 
-  /// Validación de edad cruzada con el tipo. Llamada por el validator
-  /// de cada campo "Edad" via closure, por lo que el [tipo] siempre
-  /// corresponde al pasajero correcto.
-  String? _validarEdad(String? val, String tipo) {
-    if (val == null || val.trim().isEmpty) return 'Requerido';
-    final edad = int.tryParse(val.trim());
-    if (edad == null || edad < 0 || edad > 120) return 'Edad inválida';
+  /// Valida la fecha de nacimiento cruzada con el tipo de pasajero.
+  /// Retorna un mensaje de error o null si es válida.
+  String? _validarFechaNacimiento(DateTime? fn, String tipo) {
+    if (fn == null) return 'Selecciona la fecha de nacimiento';
+
+    final hoy = DateTime.now();
+    int edad = hoy.year - fn.year;
+    if (hoy.month < fn.month || (hoy.month == fn.month && hoy.day < fn.day)) {
+      edad--;
+    }
+
+    if (edad < 0 || edad > 120) return 'Fecha de nacimiento inválida';
 
     switch (tipo) {
       case 'Adulto':
@@ -255,8 +376,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     return null;
   }
 
-  /// Detecta si hay un Niño con edad < 12 sin ningún Adulto en el viaje.
-  /// En ese caso el sistema debe bloquear el avance.
+  /// Detecta si hay un Niño/menor con edad < 12 sin ningún Adulto en el viaje.
   bool _hayNinoMenorSinAdulto() {
     final hayAdulto = pasajerosList.any((p) => p['tipo'] == 'Adulto');
     if (hayAdulto) return false;
@@ -277,8 +397,35 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
   // ── CONTINUAR ────────────────────────────────────────────────────────────
 
   Future<void> _continuar() async {
-    // 1. Validar todos los campos (edad por tipo, correo, teléfono, etc.)
-    if (!_formKey.currentState!.validate()) return;
+    // 1. Validar que todas las fechas de nacimiento estén seleccionadas y sean correctas
+    bool todasFechasValidas = true;
+    for (final p in pasajerosList) {
+      final fn = p['fechaNacimiento'] as DateTime?;
+      final error = _validarFechaNacimiento(fn, p['tipo'] as String);
+      if (error != null) {
+        todasFechasValidas = false;
+        break;
+      }
+    }
+
+    // Validar el formulario completo (nombres, correo, teléfono, etc.)
+    if (!_formKey.currentState!.validate() || !todasFechasValidas) {
+      if (!todasFechasValidas) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Verifica que todas las fechas de nacimiento sean correctas.',
+            ),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+      return;
+    }
 
     // 2. Bloquear si hay niño < 12 sin adulto
     if (_hayNinoMenorSinAdulto()) {
@@ -349,14 +496,21 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     }
 
     // 4. Armar datos y navegar
+    // Se manda 'fecha_nacimiento' en formato 'YYYY-MM-DD' y también
+    // 'edad' calculada (para compatibilidad hacia atrás si se necesita).
     final pasajerosData = pasajerosList.map((p) {
+      final fn = p['fechaNacimiento'] as DateTime;
+      final edad = _edadDe(p) ?? 0;
+      final fnStr =
+          '${fn.year}-${fn.month.toString().padLeft(2, '0')}-${fn.day.toString().padLeft(2, '0')}';
       return {
         'nombre': (p['nombreCtrl'] as TextEditingController).text.trim(),
         'primer_apellido': (p['apPaternoCtrl'] as TextEditingController).text
             .trim(),
         'segundo_apellido': (p['apMaternoCtrl'] as TextEditingController).text
             .trim(),
-        'edad': int.parse((p['edadCtrl'] as TextEditingController).text.trim()),
+        'fecha_nacimiento': fnStr, // ← formato YYYY-MM-DD exacto
+        'edad': edad, // ← calculado, ya no escrito a mano
         'tipo': p['tipo'],
         'esContacto': p['esContacto'],
         'telefono': (p['telefonoCtrl'] as TextEditingController).text.trim(),
@@ -559,6 +713,10 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     final precioFinal = _calcularPrecioConDescuento(tipo);
     final precioBase = double.parse(widget.precio);
 
+    final fn = pasajero['fechaNacimiento'] as DateTime?;
+    final edad = _edadDe(pasajero);
+    final errorFecha = _validarFechaNacimiento(fn, tipo);
+
     // ── Credencial requerida ─────────────────────────────────────────────
     final tipoDisc = pasajero['tipoDiscapacidad'] as String?;
     final requiereCredencial =
@@ -573,8 +731,6 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
         : 'Deberá presentar credencial de discapacidad al abordar.';
 
     // ── Datos de contacto ────────────────────────────────────────────────
-    // _necesitaContacto() se recalcula en cada rebuild (lee el controller
-    // de edad directamente) → reacciona en tiempo real mientras se escribe.
     final mostrarContacto = _necesitaContacto(pasajero);
 
     final esClienteRegistrado =
@@ -613,6 +769,13 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                     '$descuento% desc.',
                     Colors.green.shade700,
                     bg: Colors.green.shade50,
+                  ),
+                // Muestra la edad calculada cuando la fecha ya está seleccionada
+                if (fn != null && edad != null && errorFecha == null)
+                  _badge(
+                    '$edad años',
+                    Colors.blueGrey.shade600,
+                    bg: Colors.blueGrey.shade50,
                   ),
               ],
             ),
@@ -727,36 +890,20 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
             ),
             const SizedBox(height: 12),
 
-            // ── Segundo apellido + Edad ──────────────────────
-            Row(
-              children: [
-                Expanded(
-                  child: _campo(
-                    ctrl: pasajero['apMaternoCtrl'],
-                    label: 'Segundo apellido',
-                    icono: Icons.person_outline_rounded,
-                    validator: null, // opcional
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  // onChanged hace setState → _necesitaContacto() y
-                  // requiereCredencial se recalculan con la nueva edad.
-                  child: _campo(
-                    ctrl: pasajero['edadCtrl'],
-                    label: 'Edad',
-                    icono: Icons.cake_outlined,
-                    soloNumeros: true,
-                    maxLength: 2,
-                    onChanged: (_) => setState(() {}),
-                    validator: (val) => _validarEdad(val, tipo),
-                  ),
-                ),
-              ],
+            // ── Segundo apellido ─────────────────────────────
+            _campo(
+              ctrl: pasajero['apMaternoCtrl'],
+              label: 'Segundo apellido (opcional)',
+              icono: Icons.person_outline_rounded,
+              validator: null,
             ),
+            const SizedBox(height: 12),
+
+            // ── Fecha de nacimiento (reemplaza el campo Edad) ─
+            _buildSelectorFecha(pasajero, tipo, fn, edad, errorFecha),
 
             // ── Campos de contacto ───────────────────────────
-            // Aparecen/desaparecen en tiempo real según la edad capturada.
+            // Aparecen/desaparecen en tiempo real según la fecha capturada.
             if (mostrarContacto) ...[
               const SizedBox(height: 12),
               _campo(
@@ -792,6 +939,132 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // ── WIDGET: Selector de fecha de nacimiento ─────────────────────────────
+
+  Widget _buildSelectorFecha(
+    Map<String, dynamic> pasajero,
+    String tipo,
+    DateTime? fn,
+    int? edad,
+    String? errorFecha,
+  ) {
+    final tieneError = errorFecha != null && fn != null;
+    final sinSeleccionar = fn == null;
+
+    return FormField<DateTime>(
+      initialValue: fn,
+      validator: (_) => _validarFechaNacimiento(
+        pasajero['fechaNacimiento'] as DateTime?,
+        tipo,
+      ),
+      builder: (field) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InkWell(
+              onTap: () => _seleccionarFecha(pasajero),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: field.hasError
+                        ? Colors.red.shade300
+                        : sinSeleccionar
+                        ? Colors.grey.shade200
+                        : tieneError
+                        ? Colors.red.shade300
+                        : azul.withOpacity(0.5),
+                    width: field.hasError ? 1.5 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.cake_outlined,
+                      size: 18,
+                      color: field.hasError ? Colors.red.shade400 : azul,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Fecha de nacimiento',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: field.hasError
+                                  ? Colors.red.shade400
+                                  : textoSecundario,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _formatearFecha(fn),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: fn != null
+                                  ? FontWeight.w500
+                                  : FontWeight.normal,
+                              color: fn != null
+                                  ? textoPrincipal
+                                  : Colors.grey.shade400,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Mostrar edad calculada al lado derecho
+                    if (fn != null && edad != null && errorFecha == null)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: azul.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$edad años',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: azul,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.calendar_month_rounded,
+                      size: 18,
+                      color: fn != null ? azul : Colors.grey.shade400,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Mensaje de error del FormField
+            if (field.hasError)
+              Padding(
+                padding: const EdgeInsets.only(top: 6, left: 12),
+                child: Text(
+                  field.errorText!,
+                  style: TextStyle(fontSize: 11, color: Colors.red.shade600),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -867,8 +1140,6 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     );
   }
 
-  /// El validator se pasa como closure desde _buildTarjetaPasajero,
-  /// capturando el [tipo] del pasajero correcto en ese índice.
   Widget _campo({
     required TextEditingController ctrl,
     required String label,
@@ -876,7 +1147,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     required String? Function(String?)? validator,
     bool soloNumeros = false,
     bool esCorreo = false,
-    int? maxLength, // ← agregar
+    int? maxLength,
     void Function(String)? onChanged,
   }) {
     return TextFormField(
@@ -889,11 +1160,12 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       inputFormatters: soloNumeros
           ? [FilteringTextInputFormatter.digitsOnly]
           : null,
-      maxLength: maxLength, // ← agregar
+      maxLength: maxLength,
       onChanged: onChanged,
-      decoration: _inputDeco(label: label, icono: icono).copyWith(
-        counterText: maxLength != null ? '' : null, // oculta el contador
-      ),
+      decoration: _inputDeco(
+        label: label,
+        icono: icono,
+      ).copyWith(counterText: maxLength != null ? '' : null),
       validator: validator,
     );
   }

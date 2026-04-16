@@ -1969,23 +1969,40 @@ def api_comprar(request):
 
             es_primer_pasajero = True
             for p in pasajeros:
-                ano_nacimiento = date.today().year - p['edad']
+                # Preferir fecha_nacimiento exacta (YYYY-MM-DD) enviada desde el móvil.
+                # Si no viene, se usa la edad como respaldo (compatibilidad hacia atrás).
+                fn_str = p.get('fecha_nacimiento', '')
+                if fn_str:
+                    try:
+                        parts = fn_str.split('-')
+                        fecha_nac = date(int(parts[0]), int(parts[1]), int(parts[2]))
+                    except Exception:
+                        ano_nacimiento = date.today().year - p.get('edad', 25)
+                        fecha_nac = date(ano_nacimiento, 1, 1)
+                else:
+                    ano_nacimiento = date.today().year - p.get('edad', 25)
+                    fecha_nac = date(ano_nacimiento, 1, 1)
+
                 # Si es el primer pasajero y viene con cliente_id, reusar el Pasajero
                 # existente de la cuenta para que el historial quede vinculado.
                 if es_primer_pasajero and cliente_id:
                     try:
                         pasajero = Pasajero.objects.get(num=cliente_id)
+                        # Actualizar fecha de nacimiento real si ahora la tenemos
+                        if fn_str:
+                            pasajero.fechanacimiento = fecha_nac
+                            pasajero.save(update_fields=['fechanacimiento'])
                     except Pasajero.DoesNotExist:
                         pasajero = Pasajero.objects.create(
                             panombre=p['nombre'], paprimerapell=p['primer_apellido'],
                             pasegundoapell=p.get('segundo_apellido', None),
-                            fechanacimiento=date(ano_nacimiento, 1, 1),
+                            fechanacimiento=fecha_nac,
                         )
                 else:
                     pasajero = Pasajero.objects.create(
                         panombre=p['nombre'], paprimerapell=p['primer_apellido'],
                         pasegundoapell=p.get('segundo_apellido', None),
-                        fechanacimiento=date(ano_nacimiento, 1, 1),
+                        fechanacimiento=fecha_nac,
                     )
                 es_primer_pasajero = False
 
@@ -2104,6 +2121,7 @@ def api_cliente_google_login(request):
             'correo': cuenta.correo,
             'foto': cuenta.foto or '',
             'proveedor': cuenta.proveedor,
+            'fecha_nacimiento': str(cuenta.pasajero_num.fechanacimiento),
         })
     except Exception as e:
         return Response({'error': str(e)}, status=400)
@@ -2238,8 +2256,18 @@ def api_cliente_registro(request):
         if CuentaPasajero.objects.filter(correo=correo).exists():
             return Response({'error': 'Este correo ya está registrado'}, status=400)
 
+        # Obtener y validar fecha de nacimiento enviada desde el móvil
+        fecha_nac_str = data.get('fecha_nacimiento', '')
+        fecha_nac = date(2000, 1, 1)  # valor por defecto si no se envía
+        if fecha_nac_str:
+            try:
+                parts = fecha_nac_str.split('-')
+                fecha_nac = date(int(parts[0]), int(parts[1]), int(parts[2]))
+            except Exception:
+                fecha_nac = date(2000, 1, 1)
+
         pasajero = Pasajero.objects.create(
-            panombre=nombre, paprimerapell=apellido, fechanacimiento='2000-01-01',
+            panombre=nombre, paprimerapell=apellido, fechanacimiento=fecha_nac,
         )
         cuenta = CuentaPasajero.objects.create(
             pasajero_num=pasajero, correo=correo,
@@ -2253,6 +2281,7 @@ def api_cliente_registro(request):
             'correo': cuenta.correo,
             'foto': '',
             'proveedor': 'email',
+            'fecha_nacimiento': str(fecha_nac),
         }, status=201)
     except Exception as e:
         return Response({'error': str(e)}, status=400)
@@ -2284,6 +2313,7 @@ def api_cliente_login_email(request):
             'correo': cuenta.correo,
             'foto': cuenta.foto or '',
             'proveedor': cuenta.proveedor,
+            'fecha_nacimiento': str(cuenta.pasajero_num.fechanacimiento),
         })
     except Exception as e:
         return Response({'error': str(e)}, status=400)
