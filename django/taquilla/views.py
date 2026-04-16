@@ -859,21 +859,22 @@ def salidas_json(request):
                    ev.nombre AS estado, v.ruta,
                    CONCAT(c.conNombre,' ',c.conPrimerApell) AS conductor,
                    a.placas AS autobus_placas, a.numero AS autobus_num,
-                   r.precio AS precio_ruta
+                   r.precio AS precio_ruta, r.duracion AS duracion_ruta
             FROM viaje v
-            JOIN ruta r       ON v.ruta = r.codigo
-            JOIN terminal tor ON r.origen = tor.numero
+            JOIN ruta r        ON v.ruta = r.codigo
+            JOIN terminal tor  ON r.origen = tor.numero
             JOIN terminal tdes ON r.destino = tdes.numero
-            JOIN ciudad corig ON tor.ciudad = corig.clave
-            JOIN ciudad cdest ON tdes.ciudad = cdest.clave
-            JOIN edo_viaje ev ON v.estado = ev.numero
+            JOIN ciudad corig  ON tor.ciudad = corig.clave
+            JOIN ciudad cdest  ON tdes.ciudad = cdest.clave
+            JOIN edo_viaje ev  ON v.estado = ev.numero
             LEFT JOIN conductor c ON v.conductor = c.registro
             LEFT JOIN autobus a   ON v.autobus = a.numero
-            WHERE v.fecHoraSalida >= %s
-              AND LOWER(ev.nombre) NOT IN ('finalizado','completado','cancelado','terminado')
+            WHERE LOWER(ev.nombre) = 'en ruta'
+              AND v.fecHoraSalida <= %s
+              AND v.fecHoraEntrada >= %s
             ORDER BY v.fecHoraSalida ASC
             LIMIT 200
-        """, [now])
+        """, [now, now])
         cols = [d[0] for d in cur.description]
         rows = []
         for r in cur.fetchall():
