@@ -1163,17 +1163,14 @@ async function cargarHistorial() {
 
     // Estados disponibles en los datos
     const todosEstados = uniq(r => r.estado);
-    // Estados "históricos" (viajes que ya ocurrieron)
-    const estadosHistoricos = ['cancelado','finalizado','completado','terminado','en curso'];
-    const estadosDefault = todosEstados.filter(e => estadosHistoricos.includes(e.toLowerCase()));
 
     document.getElementById('hist-estado').innerHTML =
-      '<option value="__historico__">Todos (histórico)</option>' +
       '<option value="">Todos (general)</option>' +
+      '<option value="__historico__">Todos (histórico)</option>' +
       todosEstados.map(v => `<option value="${v}">${v}</option>`).join('');
 
-    // Seleccionar "Todos (histórico)" por default
-    document.getElementById('hist-estado').value = '__historico__';
+    // Seleccionar "Todos (general)" por default para mostrar todos los viajes
+    document.getElementById('hist-estado').value = '';
 
     const selOrig = document.getElementById('hist-origen');
     selOrig.innerHTML = '<option value="">-- Todas --</option>' +
@@ -1229,8 +1226,8 @@ function filtrarHistorial() {
   const or = document.getElementById('hist-origen').value;
   const de = document.getElementById('hist-destino').value;
 
-  // Estados que se consideran "históricos" (ya ocurrieron o fueron cancelados)
-  const ESTADOS_HISTORICOS = ['cancelado','finalizado','completado','terminado','en curso'];
+  // Estados que se consideran "históricos" (incluye todos los estados de viaje)
+  const ESTADOS_HISTORICOS = ['cancelado','finalizado','completado','terminado','en curso','disponible','en ruta'];
 
   historialBase = historialData.filter(r => {
     const txt = [r.origen_ciudad,r.destino_ciudad,r.conductor,r.autobus_placas,String(r.numero),String(r.autobus_num)].join(' ').toLowerCase();
@@ -1291,21 +1288,31 @@ async function irAHistorialViaje(numero, fecha) {
   // 1. Ir a la página historial (carga los datos si no están)
   showPage('historial');
 
-  // 2. Esperar a que cargarHistorial() termine (máx 4 s)
+  // 2. Esperar a que cargarHistorial() termine (máx 5 s)
   const esperar = (ms) => new Promise(r => setTimeout(r, ms));
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 50; i++) {
     if (historialData.length > 0) break;
     await esperar(100);
   }
 
-  // 3. Limpiar filtros y buscar por número de viaje
-  limpiarFiltrosHistorial();
+  // 3. Limpiar filtros completamente
+  ['hist-search','hist-fecha'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
 
-  // Quitar filtro de estado para mostrar cualquier estado (incluyendo en ruta)
+  // Estado: "Todos (general)" para no excluir ningún estado
   const selEstado = document.getElementById('hist-estado');
   if (selEstado) selEstado.value = '';
 
-  // Poner el número de viaje en el buscador
+  // Origen: limpiar (no forzar ciudad)
+  const selOrig = document.getElementById('hist-origen');
+  if (selOrig) {
+    selOrig.value = '';
+    _actualizarDestinosHistorial('', '');
+  }
+
+  // 4. Poner el número de viaje en el buscador
   const searchEl = document.getElementById('hist-search');
   if (searchEl) searchEl.value = String(numero);
 
@@ -1313,9 +1320,12 @@ async function irAHistorialViaje(numero, fecha) {
   const fechaEl = document.getElementById('hist-fecha');
   if (fechaEl && fecha) fechaEl.value = fecha;
 
+  // 5. Resetear bases y filtrar
+  historialBase     = historialData;
+  historialFiltered = historialData;
   filtrarHistorial();
 
-  // 4. Toast informativo
+  // 6. Toast informativo
   toast(`Mostrando viaje #${numero}`, 'ok');
 }
 
@@ -1323,7 +1333,8 @@ function limpiarFiltrosHistorial() {
   ['hist-search','hist-fecha'].forEach(id=>{
     document.getElementById(id).value = '';
   });
-  document.getElementById('hist-estado').value = '__historico__';
+  // Dejar en "Todos (general)" para no excluir ningún estado
+  document.getElementById('hist-estado').value = '';
   const cb    = document.getElementById('hist-precision');
   const track = document.getElementById('hist-precision-track');
   const txt   = document.getElementById('hist-precision-text');
