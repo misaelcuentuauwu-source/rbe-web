@@ -9,6 +9,7 @@ const tablaActual = { nombre:'', esquema:null, modo:null, pkName:null, pkValue:n
 let historialData     = [];
 let historialFiltered = [];
 let historialBase     = [];
+let _historialCargandoPromise = null;  // Promesa de la carga actual de historial
 let keData            = [];
 let kgData            = null;
 let kgView            = 'cards';
@@ -1132,6 +1133,12 @@ async function submitViaje() {
 // ════ HISTORIAL ════════════════════════
 
 async function cargarHistorial() {
+  // Guardamos la promesa de esta carga para que irAHistorialViaje pueda esperarla
+  _historialCargandoPromise = _cargarHistorialImpl();
+  return _historialCargandoPromise;
+}
+
+async function _cargarHistorialImpl() {
   document.getElementById('hist-cards-container').innerHTML =
     '<div style="text-align:center;padding:40px"><span class="spinner"></span></div>';
   try {
@@ -1285,49 +1292,71 @@ function _renderHistInfoAndCards(rows, fechaHint) {
  * @param {string} fecha   - 'YYYY-MM-DD' para filtrar fecha (puede ser vacío)
  */
 async function irAHistorialViaje(numero, fecha) {
-  // 1. Ir a la página historial (carga los datos si no están)
+  const esperar = (ms) => new Promise(r => setTimeout(r, ms));
+
+  // 1. Resetear la promesa ANTES de navegar, para que el loop de espera
+  //    no encuentre la promesa vieja (ya resuelta) de una carga anterior
+  //    y se salga inmediatamente sin esperar la nueva carga.
+  _historialCargandoPromise = null;
+
+  // 2. Navegar al modulo historial — esto dispara cargarHistorial() que
+  //    asignara una NUEVA promesa a _historialCargandoPromise.
   showPage('historial');
 
-  // 2. Esperar a que cargarHistorial() termine (máx 5 s)
-  const esperar = (ms) => new Promise(r => setTimeout(r, ms));
-  for (let i = 0; i < 50; i++) {
-    if (historialData.length > 0) break;
+  // 3. Esperar a que cargarHistorial() asigne su nueva promesa (max 2 s).
+  //    Como reseteamos a null arriba, aqui si esperamos la nueva carga.
+  for (let i = 0; i < 20; i++) {
+    if (_historialCargandoPromise) break;
     await esperar(100);
   }
 
-  // 3. Limpiar filtros completamente
-  ['hist-search','hist-fecha'].forEach(id=>{
+  // 4. Esperar a que esa nueva carga TERMINE COMPLETAMENTE
+  //    (incluye la pre-seleccion de ciudad que queremos sobreescribir).
+  if (_historialCargandoPromise) {
+    await _historialCargandoPromise;
+  }
+
+  // 5. Ahora si sobrescribimos los filtros — cargarHistorial ya termino
+  //    y no puede volver a pisarnos.
+
+  // Limpiar busqueda y fecha
+  ['hist-search', 'hist-fecha'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
 
-  // Estado: "Todos (general)" para no excluir ningún estado
+  // Estado: "Todos (general)" — incluye viajes activos y pasados
   const selEstado = document.getElementById('hist-estado');
   if (selEstado) selEstado.value = '';
 
-  // Origen: limpiar (no forzar ciudad)
+  // Origen: forzar a "-- Todas --" sin importar TAQ_DATA.ciudad
   const selOrig = document.getElementById('hist-origen');
   if (selOrig) {
     selOrig.value = '';
     _actualizarDestinosHistorial('', '');
   }
 
-  // 4. Poner el número de viaje en el buscador
+  // Destino: tambien "-- Todas --"
+  const selDest = document.getElementById('hist-destino');
+  if (selDest) selDest.value = '';
+
+  // 6. Poner el numero de viaje en el buscador
   const searchEl = document.getElementById('hist-search');
   if (searchEl) searchEl.value = String(numero);
 
-  // Aplicar fecha si viene
+  // Aplicar fecha si viene del popup
   const fechaEl = document.getElementById('hist-fecha');
   if (fechaEl && fecha) fechaEl.value = fecha;
 
-  // 5. Resetear bases y filtrar
+  // 7. Resetear bases y filtrar con los filtros ya limpios
   historialBase     = historialData;
   historialFiltered = historialData;
   filtrarHistorial();
 
-  // 6. Toast informativo
+  // 8. Toast informativo
   toast(`Mostrando viaje #${numero}`, 'ok');
 }
+
 
 function limpiarFiltrosHistorial() {
   ['hist-search','hist-fecha'].forEach(id=>{
@@ -2670,11 +2699,19 @@ function generarReporteVentas() {
       rvDatos = data;
       rvCargarOpciones(data);
       rvRenderResumen(data.resumen);
+      // Combinar ruta + duración en una sola celda para mejor visualización
+      const porRutaConDuracion = (data.por_ruta || []).map(r => ({
+        ...r,
+        ruta_display: r.duracion
+          ? `${r.ruta}<span class="rv-duracion"> · ${r.duracion}</span>`
+          : r.ruta
+      }));
       rvRenderTablaSimple('rv-tabla-ruta',
-        data.por_ruta,
-        ['ruta', 'duracion', 'boletos', 'ingresos'],
-        ['Ruta', 'Duración', 'Boletos', 'Ingresos'],
-        { ingresos: true }
+        porRutaConDuracion,
+        ['ruta_display', 'boletos', 'ingresos'],
+        ['Ruta', 'Boletos', 'Ingresos'],
+        { ingresos: true },
+        { ruta_display: true }
       );
       rvRenderTablaSimple('rv-tabla-taquillero',
         data.por_taquillero,
@@ -2757,7 +2794,7 @@ function rvRenderResumen(r) {
   `;
 }
 
-function rvRenderTablaSimple(tableId, rows, keys, headers, moneyKeys) {
+function rvRenderTablaSimple(tableId, rows, keys, headers, moneyKeys, htmlKeys) {
   const tbody = document.querySelector('#' + tableId + ' tbody');
   if (!rows || rows.length === 0) {
     tbody.innerHTML = '<tr><td colspan="' + keys.length + '" style="text-align:center;color:var(--muted);padding:16px;">Sin datos</td></tr>';
@@ -2767,7 +2804,9 @@ function rvRenderTablaSimple(tableId, rows, keys, headers, moneyKeys) {
     '<tr>' + keys.map(k => {
       const val = r[k] !== null && r[k] !== undefined ? r[k] : '—';
       const isMoney = moneyKeys && moneyKeys[k];
+      const isHtml  = htmlKeys  && htmlKeys[k];
       if (isMoney) return `<td class="rv-monto">${rvFmt(val)}</td>`;
+      if (isHtml)  return `<td>${val}</td>`;
       return `<td>${val}</td>`;
     }).join('') + '</tr>'
   ).join('');

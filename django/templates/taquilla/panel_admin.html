@@ -240,11 +240,12 @@
 
     /* tabla interna taquilleros */
     .eco-taq-table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    .eco-taq-table thead tr { background: var(--azul, #1181c3); }
     .eco-taq-table th {
-      font-size: 10px; font-weight: 700; text-transform: uppercase;
-      letter-spacing: .5px; color: var(--muted, #6b8fa8);
-      padding: 6px 10px; text-align: left;
-      border-bottom: 1px solid var(--border, #e2e8f0);
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; color: #ffffff;
+      padding: 9px 10px; text-align: left;
+      border-bottom: none; white-space: nowrap;
     }
     .eco-taq-table td {
       font-size: 13px; padding: 8px 10px;
@@ -553,6 +554,7 @@
     .rv-tabla tbody tr:hover { background: rgba(17,129,195,.04); }
     .rv-monto { font-weight: 800; color: #22c55e; }
     .rv-folio { font-size: 11px; font-weight: 700; color: var(--azul,#1181c3); background: rgba(17,129,195,.08); padding: 2px 7px; border-radius: 20px; }
+    .rv-duracion { font-size: 11px; font-weight: 600; color: var(--muted, #888); opacity: .85; }
 </style>
 </head>
 <body>
@@ -1370,7 +1372,7 @@
       ciudad:   '{{ taquillero.terminal.ciudad.nombre }}',
     };
   </script>
-  <script src="{% static 'dashboard/panel_admin.js' %}?v=22"></script>
+  <script src="{% static 'dashboard/panel_admin.js' %}?v=23"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="{% static 'dashboard/mapa.js' %}"></script>
 </body>
