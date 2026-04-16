@@ -20,6 +20,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _apellidoController = TextEditingController();
   final _correoController = TextEditingController();
   final _contrasenaController = TextEditingController();
+  final _telefonoController = TextEditingController(); // ← NUEVO
   DateTime? _fechaNacimiento; // ← NUEVO: fecha de nacimiento del cliente
   bool _obscurePassword = true;
   bool _cargando = false;
@@ -36,6 +37,7 @@ class _SignupScreenState extends State<SignupScreen> {
     _apellidoController.dispose();
     _correoController.dispose();
     _contrasenaController.dispose();
+    _telefonoController.dispose();
     super.dispose();
   }
 
@@ -124,11 +126,18 @@ class _SignupScreenState extends State<SignupScreen> {
     final correo = _correoController.text.trim();
     final contrasena = _contrasenaController.text.trim();
 
+    // DESPUÉS
+    final telefono = _telefonoController.text.trim();
     if (nombre.isEmpty ||
         apellido.isEmpty ||
         correo.isEmpty ||
-        contrasena.isEmpty) {
+        contrasena.isEmpty ||
+        telefono.isEmpty) {
       _mostrarError('Completa todos los campos');
+      return;
+    }
+    if (telefono.length < 10) {
+      _mostrarError('El teléfono debe tener 10 dígitos');
       return;
     }
 
@@ -172,13 +181,15 @@ class _SignupScreenState extends State<SignupScreen> {
           .post(
             Uri.parse('${Config.baseUrl}/api/cliente/registro/'),
             headers: {'Content-Type': 'application/json'},
+            // DESPUÉS
             body: jsonEncode({
               'nombre': nombre,
               'apellido': apellido,
               'correo': correo,
               'contrasena': contrasena,
               'firebase_uid': userCredential.user?.uid ?? '',
-              'fecha_nacimiento': fnStr, // ← NUEVO campo enviado al backend
+              'fecha_nacimiento': fnStr,
+              'telefono': telefono, // ← NUEVO
             }),
           )
           .timeout(const Duration(seconds: 10));
@@ -441,7 +452,14 @@ class _SignupScreenState extends State<SignupScreen> {
               style: TextStyle(fontSize: 11, color: textoSecundario),
             ),
           ),
-
+          const SizedBox(height: 16),
+          _buildInput(
+            controller: _telefonoController,
+            label: 'Teléfono',
+            hint: '6641234567',
+            icon: Icons.phone_outlined,
+            keyboardType: TextInputType.phone,
+          ),
           const SizedBox(height: 28),
 
           // ── Botón Registrarse ─────────────────────────────

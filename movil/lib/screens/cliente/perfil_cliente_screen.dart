@@ -23,13 +23,44 @@ class _PerfilClienteScreenState extends State<PerfilClienteScreen> {
   static const textoPrincipal = Color(0xFF1C2D3A);
   static const textoSecundario = Color(0xFF6B8FA8);
 
+  // DESPUÉS
   String? fotoUrl;
   bool subiendoFoto = false;
+  bool _editando = false;
+  bool _guardando = false;
+  final _telefonoCtrl = TextEditingController();
+  final _nombreCtrl = TextEditingController();
+  final _apellidoCtrl = TextEditingController();
+  DateTime? _fechaNacimiento;
 
+  // DESPUÉS
   @override
   void initState() {
     super.initState();
     fotoUrl = widget.cliente['foto']?.toString();
+    _telefonoCtrl.text = widget.cliente['telefono']?.toString() ?? '';
+    _nombreCtrl.text = widget.cliente['nombre']?.toString() ?? '';
+    _apellidoCtrl.text = widget.cliente['primer_apellido']?.toString() ?? '';
+    final fnStr = widget.cliente['fecha_nacimiento']?.toString() ?? '';
+    if (fnStr.isNotEmpty && fnStr != '2000-01-01') {
+      try {
+        final p = fnStr.split('-');
+        _fechaNacimiento = DateTime(
+          int.parse(p[0]),
+          int.parse(p[1]),
+          int.parse(p[2]),
+        );
+      } catch (_) {}
+    }
+  }
+
+  // Agregar después del initState
+  @override
+  void dispose() {
+    _telefonoCtrl.dispose();
+    _nombreCtrl.dispose();
+    _apellidoCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _cerrarSesion(BuildContext context) async {
@@ -195,6 +226,63 @@ class _PerfilClienteScreenState extends State<PerfilClienteScreen> {
     }
   }
 
+  // Agregar después de _cambiarFoto()
+  Future<void> _guardarPerfil() async {
+    final id = widget.cliente['pasajero_num'] ?? widget.cliente['num'];
+    setState(() => _guardando = true);
+    try {
+      String? fnStr;
+      if (_fechaNacimiento != null) {
+        final fn = _fechaNacimiento!;
+        fnStr =
+            '${fn.year}-${fn.month.toString().padLeft(2, '0')}-${fn.day.toString().padLeft(2, '0')}';
+      }
+      final response = await http
+          .post(
+            Uri.parse('${Config.baseUrl}/api/cliente/$id/actualizar-perfil/'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'telefono': _telefonoCtrl.text.trim(),
+              'fecha_nacimiento': fnStr ?? '',
+              'nombre': _nombreCtrl.text.trim(),
+              'primer_apellido': _apellidoCtrl.text.trim(),
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        setState(() => _editando = false);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Perfil actualizado'),
+              backgroundColor: Colors.green.shade500,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+          );
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Error al guardar'),
+            backgroundColor: Colors.red.shade400,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final foto = fotoUrl ?? '';
@@ -355,7 +443,7 @@ class _PerfilClienteScreenState extends State<PerfilClienteScreen> {
 
                     const SizedBox(height: 32),
 
-                    // Card info
+                    // DESPUÉS
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(16),
@@ -384,26 +472,208 @@ class _PerfilClienteScreenState extends State<PerfilClienteScreen> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              const Text(
-                                'Información de cuenta',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                                  color: textoPrincipal,
+                              const Expanded(
+                                child: Text(
+                                  'Información de cuenta',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    color: textoPrincipal,
+                                  ),
+                                ),
+                              ),
+                              TextButton.icon(
+                                onPressed: () =>
+                                    setState(() => _editando = !_editando),
+                                icon: Icon(
+                                  _editando ? Icons.close : Icons.edit_rounded,
+                                  size: 16,
+                                ),
+                                label: Text(_editando ? 'Cancelar' : 'Editar'),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: azul,
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 16),
-                          _buildInfoRow(Icons.person_outline, 'Nombre', nombre),
-                          const Divider(height: 24),
-                          _buildInfoRow(Icons.email_outlined, 'Correo', correo),
-                          const Divider(height: 24),
-                          _buildInfoRow(
-                            Icons.login_rounded,
-                            'Método de acceso',
-                            esGoogle ? 'Google' : 'Correo y contraseña',
-                          ),
+                          if (!_editando) ...[
+                            _buildInfoRow(
+                              Icons.person_outline,
+                              'Nombre',
+                              nombre,
+                            ),
+                            const Divider(height: 24),
+                            _buildInfoRow(
+                              Icons.email_outlined,
+                              'Correo',
+                              correo,
+                            ),
+                            const Divider(height: 24),
+                            _buildInfoRow(
+                              Icons.phone_outlined,
+                              'Teléfono',
+                              widget.cliente['telefono']
+                                          ?.toString()
+                                          .isNotEmpty ==
+                                      true
+                                  ? widget.cliente['telefono'].toString()
+                                  : 'No registrado',
+                            ),
+                            const Divider(height: 24),
+                            _buildInfoRow(
+                              Icons.cake_outlined,
+                              'Fecha de nacimiento',
+                              _fechaNacimiento != null
+                                  ? '${_fechaNacimiento!.day.toString().padLeft(2, '0')}/${_fechaNacimiento!.month.toString().padLeft(2, '0')}/${_fechaNacimiento!.year}'
+                                  : 'No registrada',
+                            ),
+                            const Divider(height: 24),
+                            _buildInfoRow(
+                              Icons.login_rounded,
+                              'Método de acceso',
+                              esGoogle ? 'Google' : 'Correo y contraseña',
+                            ),
+                          ] else ...[
+                            // Nombre (solo editable en Google o si quiere)
+                            TextField(
+                              controller: _nombreCtrl,
+                              decoration: InputDecoration(
+                                labelText: 'Nombre',
+                                prefixIcon: const Icon(Icons.person_outline),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _apellidoCtrl,
+                              decoration: InputDecoration(
+                                labelText: 'Primer apellido',
+                                prefixIcon: const Icon(Icons.person_outline),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            TextField(
+                              controller: _telefonoCtrl,
+                              keyboardType: TextInputType.phone,
+                              maxLength: 10,
+                              decoration: InputDecoration(
+                                labelText: 'Teléfono',
+                                prefixIcon: const Icon(Icons.phone_outlined),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                counterText: '',
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            // Selector de fecha
+                            InkWell(
+                              onTap: () async {
+                                final hoy = DateTime.now();
+                                final max = DateTime(
+                                  hoy.year - 18,
+                                  hoy.month,
+                                  hoy.day,
+                                );
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate:
+                                      _fechaNacimiento ??
+                                      DateTime(
+                                        hoy.year - 25,
+                                        hoy.month,
+                                        hoy.day,
+                                      ),
+                                  firstDate: DateTime(
+                                    hoy.year - 120,
+                                    hoy.month,
+                                    hoy.day,
+                                  ),
+                                  lastDate: max,
+                                  locale: const Locale('es', 'MX'),
+                                  helpText: 'Fecha de nacimiento',
+                                );
+                                if (picked != null)
+                                  setState(() => _fechaNacimiento = picked);
+                              },
+                              borderRadius: BorderRadius.circular(10),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                  vertical: 14,
+                                ),
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey.shade400,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.cake_outlined,
+                                      color: azul,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        _fechaNacimiento != null
+                                            ? '${_fechaNacimiento!.day.toString().padLeft(2, '0')}/${_fechaNacimiento!.month.toString().padLeft(2, '0')}/${_fechaNacimiento!.year}'
+                                            : 'Seleccionar fecha de nacimiento',
+                                        style: TextStyle(
+                                          color: _fechaNacimiento != null
+                                              ? textoPrincipal
+                                              : Colors.grey.shade500,
+                                        ),
+                                      ),
+                                    ),
+                                    const Icon(
+                                      Icons.calendar_month_rounded,
+                                      color: azul,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                onPressed: _guardando ? null : _guardarPerfil,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: azul,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                child: _guardando
+                                    ? const SizedBox(
+                                        height: 20,
+                                        width: 20,
+                                        child: CircularProgressIndicator(
+                                          color: Colors.white,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const Text(
+                                        'Guardar cambios',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

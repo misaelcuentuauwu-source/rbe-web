@@ -140,6 +140,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     }
   }
 
+  // DESPUÉS
   void _prerellenarContacto() {
     if (pasajerosList.isEmpty) return;
     final contacto = pasajerosList.firstWhere(
@@ -161,8 +162,13 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
         (contacto['apPaternoCtrl'] as TextEditingController).text = apellido;
       }
 
-      // ── Autorrellenar fecha de nacimiento si la cuenta la tiene guardada ──
-      // datosUsuario puede traer 'fecha_nacimiento' en formato 'YYYY-MM-DD'
+      // ── Autocompletar teléfono ──────────────────────────────
+      final tel = datos['telefono']?.toString() ?? '';
+      if (tel.isNotEmpty) {
+        (contacto['telefonoCtrl'] as TextEditingController).text = tel;
+      }
+
+      // ── Autocompletar fecha de nacimiento ───────────────────
       final fnStr = datos['fecha_nacimiento']?.toString() ?? '';
       if (fnStr.isNotEmpty && fnStr != '2000-01-01') {
         try {
@@ -175,9 +181,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
             );
             contacto['fechaNacimiento'] = fn;
           }
-        } catch (_) {
-          // Si el formato es inválido, simplemente no se autorellena
-        }
+        } catch (_) {}
       }
     }
   }
