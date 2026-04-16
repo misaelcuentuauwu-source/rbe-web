@@ -130,7 +130,8 @@ class Taquillero(models.Model):
     contrasena = models.CharField(max_length=255)
     terminal = models.ForeignKey('Terminal', models.DO_NOTHING, db_column='terminal')
     supervisa = models.IntegerField(blank=True, null=True)
-    foto = models.CharField(max_length=200, blank=True, null=True) 
+    foto = models.CharField(max_length=200, blank=True, null=True)
+    
 
     class Meta:
         managed = False
@@ -231,6 +232,8 @@ class CuentaPasajero(models.Model):
     firebase_uid = models.CharField(unique=True, max_length=128, blank=True, null=True)
     proveedor = models.CharField(max_length=50, default='local')
     foto = models.CharField(max_length=200, blank=True, null=True)
+    telefono        = models.CharField(max_length=15, blank=True, null=True)
+    fecha_nacimiento = models.DateField(blank=True, null=True)
 
     class Meta:
         managed = False

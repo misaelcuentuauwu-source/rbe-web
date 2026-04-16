@@ -2136,6 +2136,7 @@ def api_cliente_google_login(request):
                 firebase_uid=firebase_uid, proveedor='google', foto=foto,
             )
 
+                # DESPUÉS
         return Response({
             'tipo': 'cliente',
             'pasajero_num': cuenta.pasajero_num.num,
@@ -2144,7 +2145,8 @@ def api_cliente_google_login(request):
             'correo': cuenta.correo,
             'foto': cuenta.foto or '',
             'proveedor': cuenta.proveedor,
-            'fecha_nacimiento': str(cuenta.pasajero_num.fechanacimiento),
+            'telefono': cuenta.telefono or '',
+            'fecha_nacimiento': str(cuenta.fecha_nacimiento) if cuenta.fecha_nacimiento else str(cuenta.pasajero_num.fechanacimiento),
         })
     except Exception as e:
         return Response({'error': str(e)}, status=400)
@@ -2292,9 +2294,12 @@ def api_cliente_registro(request):
         pasajero = Pasajero.objects.create(
             panombre=nombre, paprimerapell=apellido, fechanacimiento=fecha_nac,
         )
+        telefono_str = data.get('telefono', '')
         cuenta = CuentaPasajero.objects.create(
             pasajero_num=pasajero, correo=correo,
             firebase_uid=firebase_uid, proveedor='email', foto='',
+            telefono=telefono_str or None,
+            fecha_nacimiento=fecha_nac if fecha_nac_str else None,
         )
         return Response({
             'tipo': 'cliente',
@@ -2304,6 +2309,7 @@ def api_cliente_registro(request):
             'correo': cuenta.correo,
             'foto': '',
             'proveedor': 'email',
+            'telefono': cuenta.telefono or '',
             'fecha_nacimiento': str(fecha_nac),
         }, status=201)
     except Exception as e:
@@ -2328,6 +2334,7 @@ def api_cliente_login_email(request):
             cuenta.firebase_uid = firebase_uid
             cuenta.save()
 
+                # DESPUÉS
         return Response({
             'tipo': 'cliente',
             'pasajero_num': cuenta.pasajero_num.num,
@@ -2336,7 +2343,8 @@ def api_cliente_login_email(request):
             'correo': cuenta.correo,
             'foto': cuenta.foto or '',
             'proveedor': cuenta.proveedor,
-            'fecha_nacimiento': str(cuenta.pasajero_num.fechanacimiento),
+            'telefono': cuenta.telefono or '',
+            'fecha_nacimiento': str(cuenta.fecha_nacimiento) if cuenta.fecha_nacimiento else str(cuenta.pasajero_num.fechanacimiento),
         })
     except Exception as e:
         return Response({'error': str(e)}, status=400)
@@ -2426,6 +2434,46 @@ def api_subir_foto_pasajero(request, pasajero_num):
     foto_url = request.build_absolute_uri(f'{settings.MEDIA_URL}{ruta_relativa}')
     return Response({'foto_url': foto_url})
 
+@api_view(['POST'])
+def api_cliente_actualizar_perfil(request, pasajero_num):
+    try:
+        cuenta = CuentaPasajero.objects.get(pasajero_num=pasajero_num)
+    except CuentaPasajero.DoesNotExist:
+        return Response({'error': 'Cuenta no encontrada'}, status=404)
+
+    data = request.data
+    telefono_str     = data.get('telefono', '').strip()
+    fecha_nac_str    = data.get('fecha_nacimiento', '').strip()
+    nombre           = data.get('nombre', '').strip()
+    primer_apellido  = data.get('primer_apellido', '').strip()
+
+    if telefono_str:
+        cuenta.telefono = telefono_str
+    if fecha_nac_str:
+        try:
+            parts = fecha_nac_str.split('-')
+            cuenta.fecha_nacimiento = date(int(parts[0]), int(parts[1]), int(parts[2]))
+            # Sincronizar también en pasajero para los tickets
+            cuenta.pasajero_num.fechanacimiento = cuenta.fecha_nacimiento
+            cuenta.pasajero_num.save(update_fields=['fechanacimiento'])
+        except Exception:
+            pass
+    if nombre:
+        cuenta.pasajero_num.panombre = nombre
+        cuenta.pasajero_num.save(update_fields=['panombre'])
+    if primer_apellido:
+        cuenta.pasajero_num.paprimerapell = primer_apellido
+        cuenta.pasajero_num.save(update_fields=['paprimerapell'])
+
+    cuenta.save()
+
+    return Response({
+        'ok': True,
+        'telefono': cuenta.telefono or '',
+        'fecha_nacimiento': str(cuenta.fecha_nacimiento) if cuenta.fecha_nacimiento else '',
+        'nombre': cuenta.pasajero_num.panombre,
+        'primer_apellido': cuenta.pasajero_num.paprimerapell,
+    })
 
 # ── Enviar boleto por correo (deshabilitado — se envía en api_comprar) ───
 @api_view(['POST'])

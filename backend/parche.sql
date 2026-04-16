@@ -959,3 +959,8 @@ SELECT * FROM cuenta_pasajero ORDER BY pasajero_num DESC LIMIT 5;
 SELECT * FROM edo_viaje;
 
 
+ALTER TABLE cuenta_pasajero
+  ADD COLUMN telefono VARCHAR(15)  NULL,
+  ADD COLUMN fecha_nacimiento DATE NULL;
+
+
