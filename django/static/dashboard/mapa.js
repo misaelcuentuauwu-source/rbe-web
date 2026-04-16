@@ -232,16 +232,28 @@ function crearPopupHTML(v, progreso) {
   const pct    = Math.round(progreso * 100);
   const estado = v.estado || 'Desconocido';
   const cls    = claseEstado(estado);
+  const fecha  = v.fecHoraSalida ? v.fecHoraSalida.substring(0, 10) : '';
   return `
     <div class="mapa-popup">
-      <div class="mapa-popup-titulo">🚌 Bus #${v.autobus_num || '—'}</div>
-      <div class="mapa-popup-fila"><span class="mapa-popup-key">Ruta</span>${v.origen_ciudad} → ${v.destino_ciudad}</div>
+      <div class="mapa-popup-head">
+        <div class="mapa-popup-titulo">🚌 Bus #${v.autobus_num || '—'}</div>
+        <span class="mapa-popup-codigo">#${v.numero || '—'}</span>
+      </div>
+      <div class="mapa-popup-ruta">${v.origen_ciudad} <span class="mapa-popup-flecha">→</span> ${v.destino_ciudad}</div>
+      <div class="mapa-popup-divider"></div>
       <div class="mapa-popup-fila"><span class="mapa-popup-key">Conductor</span>${v.conductor || '—'}</div>
       <div class="mapa-popup-fila"><span class="mapa-popup-key">Placas</span>${v.autobus_placas || '—'}</div>
       <div class="mapa-popup-fila"><span class="mapa-popup-key">Salida</span>${formatHora(v.fecHoraSalida)}</div>
-      <div class="mapa-popup-fila"><span class="mapa-popup-key">Llegada</span>${formatHora(v.fecHoraEntrada)}</div>
-      <div class="mapa-popup-fila"><span class="mapa-popup-key">Avance</span>${pct}%</div>
-      <span class="mapa-popup-estado ${cls}">${estado}</span>
+      <div class="mapa-popup-fila"><span class="mapa-popup-key">Llegada est.</span>${formatHora(v.fecHoraEntrada)}</div>
+      <div class="mapa-popup-fila"><span class="mapa-popup-key">Duración</span>${calcularDuracion(v.fecHoraSalida, v.fecHoraEntrada)}</div>
+      <div class="mapa-popup-progreso-wrap">
+        <div class="mapa-popup-progreso-bar"><div class="mapa-popup-progreso-fill" style="width:${pct}%"></div></div>
+        <span class="mapa-popup-progreso-pct">${pct}% del trayecto</span>
+      </div>
+      <div class="mapa-popup-footer">
+        <span class="mapa-popup-estado ${cls}">${estado}</span>
+        <button class="mapa-popup-btn-ver" onclick="irAHistorialViaje(${v.numero || 0}, '${fecha}')">🔍 Ver viaje</button>
+      </div>
     </div>`;
 }
 
@@ -256,6 +268,15 @@ function formatHora(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   return isNaN(d) ? iso : d.toLocaleTimeString('es-MX', { hour:'2-digit', minute:'2-digit' });
+}
+
+function calcularDuracion(salida, entrada) {
+  if (!salida || !entrada) return '—';
+  const ms = new Date(entrada).getTime() - new Date(salida).getTime();
+  if (isNaN(ms) || ms <= 0) return '—';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
 function actualizarContadorMapa(n) {

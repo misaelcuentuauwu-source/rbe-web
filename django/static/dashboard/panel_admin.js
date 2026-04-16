@@ -1281,6 +1281,44 @@ function _renderHistInfoAndCards(rows, fechaHint) {
   else renderHistorialCards(rows);
 }
 
+/**
+ * Navega al módulo Historial de Viajes y filtra por el número de viaje dado.
+ * Llamado desde el popup del mapa (mapa.js → crearPopupHTML).
+ * @param {number} numero  - v.numero del viaje
+ * @param {string} fecha   - 'YYYY-MM-DD' para filtrar fecha (puede ser vacío)
+ */
+async function irAHistorialViaje(numero, fecha) {
+  // 1. Ir a la página historial (carga los datos si no están)
+  showPage('historial');
+
+  // 2. Esperar a que cargarHistorial() termine (máx 4 s)
+  const esperar = (ms) => new Promise(r => setTimeout(r, ms));
+  for (let i = 0; i < 40; i++) {
+    if (historialData.length > 0) break;
+    await esperar(100);
+  }
+
+  // 3. Limpiar filtros y buscar por número de viaje
+  limpiarFiltrosHistorial();
+
+  // Quitar filtro de estado para mostrar cualquier estado (incluyendo en ruta)
+  const selEstado = document.getElementById('hist-estado');
+  if (selEstado) selEstado.value = '';
+
+  // Poner el número de viaje en el buscador
+  const searchEl = document.getElementById('hist-search');
+  if (searchEl) searchEl.value = String(numero);
+
+  // Aplicar fecha si viene
+  const fechaEl = document.getElementById('hist-fecha');
+  if (fechaEl && fecha) fechaEl.value = fecha;
+
+  filtrarHistorial();
+
+  // 4. Toast informativo
+  toast(`Mostrando viaje #${numero}`, 'ok');
+}
+
 function limpiarFiltrosHistorial() {
   ['hist-search','hist-fecha'].forEach(id=>{
     document.getElementById(id).value = '';
