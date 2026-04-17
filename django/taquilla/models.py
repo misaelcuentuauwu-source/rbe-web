@@ -227,13 +227,13 @@ class CuentaPasajero(models.Model):
         db_column='pasajero_num',
         primary_key=True
     )
-    correo = models.CharField(unique=True, max_length=100)
-    clave = models.CharField(max_length=255, blank=True, null=True)
-    firebase_uid = models.CharField(unique=True, max_length=128, blank=True, null=True)
+    correo = models.CharField(max_length=100, unique=True)
+    clave = models.CharField(max_length=255, null=True, blank=True)
+    firebase_uid = models.CharField(max_length=128, unique=True, null=True, blank=True)
     proveedor = models.CharField(max_length=50, default='local')
-    foto = models.CharField(max_length=200, blank=True, null=True)
-    telefono        = models.CharField(max_length=15, blank=True, null=True)
-    fecha_nacimiento = models.DateField(blank=True, null=True)
+    foto = models.CharField(max_length=200, null=True, blank=True)
+    telefono = models.CharField(max_length=15, null=True, blank=True)       # ← agregar
+    fecha_nacimiento = models.DateField(null=True, blank=True)              # ← agregar
 
     class Meta:
         managed = False

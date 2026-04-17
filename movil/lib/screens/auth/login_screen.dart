@@ -70,33 +70,12 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Paso 2: si no es taquillero, intentar login como cliente con Firebase
-      // El campo "usuario" en este caso debe ser un correo electrónico
-      final emailRegex = RegExp(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$');
-      if (!emailRegex.hasMatch(usuario)) {
-        _mostrarError('Credenciales incorrectas');
-        return;
-      }
-
-      // Autenticar con Firebase
-      final userCredential = await FirebaseAuth.instance
-          .signInWithEmailAndPassword(email: usuario, password: contrasena);
-
-      final firebaseUser = userCredential.user;
-      if (firebaseUser == null) {
-        _mostrarError('Error al iniciar sesión');
-        return;
-      }
-
-      // Obtener datos del cliente desde el backend
+      // Paso 2: login como cliente directo al backend, sin Firebase
       final responseCliente = await http
           .post(
             Uri.parse('${Config.baseUrl}/api/cliente/login/'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'firebase_uid': firebaseUser.uid,
-              'correo': firebaseUser.email,
-            }),
+            body: jsonEncode({'correo': usuario, 'contrasena': contrasena}),
           )
           .timeout(const Duration(seconds: 10));
 
@@ -109,19 +88,9 @@ class _LoginScreenState extends State<LoginScreen> {
           (route) => false,
         );
       } else {
-        _mostrarError(dataCliente['error'] ?? 'Error al iniciar sesión');
-      }
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found' ||
-          e.code == 'wrong-password' ||
-          e.code == 'invalid-credential') {
-        _mostrarError('Correo o contraseña incorrectos');
-      } else if (e.code == 'too-many-requests') {
-        _mostrarError('Demasiados intentos. Intenta más tarde.');
-      } else if (e.code == 'user-disabled') {
-        _mostrarError('Esta cuenta ha sido deshabilitada.');
-      } else {
-        _mostrarError('Error: ${e.message}');
+        _mostrarError(
+          dataCliente['error'] ?? 'Correo o contraseña incorrectos',
+        );
       }
     } catch (e) {
       _mostrarError('Error de conexión');
@@ -186,7 +155,6 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) setState(() => _cargandoGoogle = false);
     }
   }
-
 
   void _mostrarError(String mensaje) {
     ScaffoldMessenger.of(context).showSnackBar(

@@ -351,6 +351,7 @@ class _PagoScreenState extends State<PagoScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Encabezado ────────────────────────────────────────────
           Row(
             children: [
               Container(
@@ -373,126 +374,276 @@ class _PagoScreenState extends State<PagoScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              const Icon(Icons.trip_origin_rounded, color: azul, size: 16),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  widget.origenNombre,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: textoPrincipal,
+
+          // ── Ruta ──────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: azul.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.trip_origin_rounded, color: azul, size: 16),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    widget.origenNombre,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: textoPrincipal,
+                    ),
                   ),
                 ),
-              ),
-              const Icon(
-                Icons.arrow_forward_rounded,
-                color: textoSecundario,
-                size: 14,
-              ),
-              const SizedBox(width: 6),
-              const Icon(Icons.location_on_rounded, color: naranja, size: 16),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  widget.destinoNombre,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: textoPrincipal,
+                Column(
+                  children: [
+                    const Icon(
+                      Icons.arrow_forward_rounded,
+                      color: textoSecundario,
+                      size: 14,
+                    ),
+                    if (widget.fechaViaje.isNotEmpty)
+                      Text(
+                        widget.fechaViaje,
+                        style: const TextStyle(
+                          fontSize: 10,
+                          color: textoSecundario,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(width: 6),
+                const Icon(Icons.location_on_rounded, color: naranja, size: 16),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    widget.destinoNombre,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: textoPrincipal,
+                    ),
                   ),
                 ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: azul.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  widget.horaSalida,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                    color: azul,
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: azul.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    widget.horaSalida,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: azul,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 14),
-          Divider(color: Colors.grey.shade100, height: 1),
-          const SizedBox(height: 12),
 
-          // ── Desglose por pasajero ────────────────────────────────
+          // ── Encabezado tabla pasajeros ────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Row(
+              children: [
+                const Text(
+                  'Pasajero',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: textoSecundario,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  width: 64,
+                  alignment: Alignment.center,
+                  child: const Text(
+                    'Tipo',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: textoSecundario,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                const Text(
+                  'Precio',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: textoSecundario,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Divider(color: Colors.grey.shade100, height: 1),
+          const SizedBox(height: 8),
+
+          // ── Filas por pasajero ────────────────────────────────────
           ...widget.pasajeros.asMap().entries.map((entry) {
             final index = entry.key;
             final p = entry.value;
+            final nombre = (p['nombre'] as String? ?? '').trim();
+            final apellido = (p['apellido'] as String? ?? '').trim();
             final tipo = p['tipo'] as String? ?? 'Adulto';
             final descuento = p['descuento'] as int? ?? 0;
+            final precioOriginal = p['precio_original'] as double?;
             final precioUnitario = p['precio_unitario'] as double? ?? 0;
+            final asiento = p['asiento']?.toString() ?? '';
+            final tieneNombre = nombre.isNotEmpty || apellido.isNotEmpty;
+
+            // Color de badge según tipo
+            Color tipoBg;
+            Color tipoColor;
+            switch (tipo.toLowerCase()) {
+              case 'niño':
+              case 'nino':
+                tipoBg = Colors.purple.shade50;
+                tipoColor = Colors.purple.shade700;
+                break;
+              case 'adulto mayor':
+              case 'tercera edad':
+                tipoBg = Colors.teal.shade50;
+                tipoColor = Colors.teal.shade700;
+                break;
+              default: // adulto
+                tipoBg = azul.withOpacity(0.08);
+                tipoColor = azul;
+            }
 
             return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 10),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    'Pasajero ${index + 1}',
-                    style: TextStyle(fontSize: 12, color: textoSecundario),
-                  ),
-                  const SizedBox(width: 6),
+                  // Avatar con número
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
+                    width: 28,
+                    height: 28,
                     decoration: BoxDecoration(
-                      color: azul.withOpacity(0.08),
+                      color: azul.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
+                    alignment: Alignment.center,
                     child: Text(
-                      tipo,
-                      style: TextStyle(
-                        fontSize: 11,
+                      '${index + 1}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                         color: azul,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                  if (descuento > 0) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '-$descuento%',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.green.shade700,
-                          fontWeight: FontWeight.bold,
+                  const SizedBox(width: 8),
+                  // Nombre + asiento
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          tieneNombre
+                              ? '$nombre $apellido'.trim()
+                              : 'Pasajero ${index + 1}',
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: textoPrincipal,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        if (asiento.isNotEmpty)
+                          Text(
+                            'Asiento $asiento',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: textoSecundario,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // Badge tipo + descuento
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: tipoBg,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          tipo,
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: tipoColor,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                  const Spacer(),
-                  Text(
-                    '\$${precioUnitario.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: textoPrincipal,
-                    ),
+                      if (descuento > 0) ...[
+                        const SizedBox(height: 2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '-$descuento%',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.green.shade700,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(width: 12),
+                  // Precio (con tachado si hay descuento)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      if (descuento > 0 && precioOriginal != null)
+                        Text(
+                          '\$${precioOriginal.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey.shade400,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                      Text(
+                        '\$${precioUnitario.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                          color: textoPrincipal,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -503,25 +654,25 @@ class _PagoScreenState extends State<PagoScreen> {
           Divider(color: Colors.grey.shade100, height: 1),
           const SizedBox(height: 12),
 
-          // ── Total ────────────────────────────────────────────────
+          // ── Total ─────────────────────────────────────────────────
           Row(
             children: [
-              Icon(
-                Icons.attach_money_rounded,
-                size: 16,
-                color: Colors.grey.shade400,
+              Text(
+                // <-- sin const
+                '${widget.pasajeros.length} pasajero${widget.pasajeros.length == 1 ? '' : 's'}',
+                style: const TextStyle(fontSize: 13, color: textoSecundario),
               ),
-              const SizedBox(width: 8),
+              const Spacer(),
               const Text(
-                'Total a pagar',
+                'Total  ',
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: textoPrincipal,
                 ),
               ),
-              const Spacer(),
               Text(
+                // <-- sin const (también usa widget.montoTotal)
                 '\$${widget.montoTotal.toStringAsFixed(2)} MXN',
                 style: const TextStyle(
                   fontSize: 20,

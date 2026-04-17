@@ -15,6 +15,9 @@ from .serializers import ViajeSerializer, ViajeListSerializer, TerminalSerialize
 from django.http import FileResponse
 from django.conf import settings
 import os
+from django.db import models
+from django.db import models as db_models
+from django.contrib.auth.hashers import make_password, check_password
 
 def ok_view(request):
     path = os.path.join(settings.BASE_DIR, '..', 'pages', 'ok.html')
@@ -2269,21 +2272,23 @@ def detalle_boleto_folio(request, folio):
 @api_view(['POST'])
 def api_cliente_registro(request):
     try:
-        data         = request.data
-        firebase_uid = data.get('firebase_uid', '')
-        correo       = data.get('correo', '')
-        nombre       = data.get('nombre', '')
-        apellido     = data.get('apellido', '')
+        data     = request.data
+        correo   = data.get('correo', '')
+        nombre   = data.get('nombre', '')
+        apellido = data.get('apellido', '')
+        contrasena = data.get('contrasena', '')
 
-        if not correo or not nombre or not apellido:
+        if not correo or not nombre or not apellido or not contrasena:
             return Response({'error': 'Faltan campos obligatorios'}, status=400)
+
+        if len(contrasena) < 6:
+            return Response({'error': 'La contraseña debe tener al menos 6 caracteres'}, status=400)
 
         if CuentaPasajero.objects.filter(correo=correo).exists():
             return Response({'error': 'Este correo ya está registrado'}, status=400)
 
-        # Obtener y validar fecha de nacimiento enviada desde el móvil
         fecha_nac_str = data.get('fecha_nacimiento', '')
-        fecha_nac = date(2000, 1, 1)  # valor por defecto si no se envía
+        fecha_nac = date(2000, 1, 1)
         if fecha_nac_str:
             try:
                 parts = fecha_nac_str.split('-')
@@ -2292,15 +2297,24 @@ def api_cliente_registro(request):
                 fecha_nac = date(2000, 1, 1)
 
         pasajero = Pasajero.objects.create(
-            panombre=nombre, paprimerapell=apellido, fechanacimiento=fecha_nac,
+            panombre=nombre,
+            paprimerapell=apellido,
+            fechanacimiento=fecha_nac,
         )
+
         telefono_str = data.get('telefono', '')
         cuenta = CuentaPasajero.objects.create(
-            pasajero_num=pasajero, correo=correo,
-            firebase_uid=firebase_uid, proveedor='email', foto='',
-            telefono=telefono_str or None,
-            fecha_nacimiento=fecha_nac if fecha_nac_str else None,
-        )
+    pasajero_num=pasajero,
+    correo=correo,
+    clave=make_password(contrasena),  # ← clave
+    firebase_uid=None,
+    proveedor='email',
+    foto='',
+    telefono=telefono_str or None,
+    fecha_nacimiento=fecha_nac if fecha_nac_str else None,
+)
+
+
         return Response({
             'tipo': 'cliente',
             'pasajero_num': pasajero.num,
@@ -2312,29 +2326,43 @@ def api_cliente_registro(request):
             'telefono': cuenta.telefono or '',
             'fecha_nacimiento': str(fecha_nac),
         }, status=201)
+
     except Exception as e:
         return Response({'error': str(e)}, status=400)
+
+
 
 @api_view(['POST'])
 def api_cliente_login_email(request):
     try:
         firebase_uid = request.data.get('firebase_uid')
         correo       = request.data.get('correo')
+        contrasena   = request.data.get('contrasena')  # solo viene en login manual
 
         cuenta = None
+
         if firebase_uid:
+            # ── Login con Google: busca por firebase_uid ──────────
             cuenta = CuentaPasajero.objects.filter(firebase_uid=firebase_uid).first()
-        if not cuenta and correo:
+            if not cuenta and correo:
+                cuenta = CuentaPasajero.objects.filter(correo=correo).first()
+            if not cuenta:
+                return Response({'error': 'Usuario no encontrado'}, status=404)
+            # Vincula el uid si la cuenta existía sin él
+            if not cuenta.firebase_uid:
+                cuenta.firebase_uid = firebase_uid
+                cuenta.save()
+        else:
+            # ── Login manual: busca por correo y verifica contraseña ──
+            if not correo or not contrasena:
+                return Response({'error': 'Correo y contraseña requeridos'}, status=400)
             cuenta = CuentaPasajero.objects.filter(correo=correo).first()
+            if not cuenta:
+                return Response({'error': 'Correo o contraseña incorrectos'}, status=401)
+            if not check_password(contrasena, cuenta.clave):
+                return Response({'error': 'Correo o contraseña incorrectos'}, status=401)
+            
 
-        if not cuenta:
-            return Response({'error': 'Usuario no encontrado'}, status=404)
-
-        if firebase_uid and not cuenta.firebase_uid:
-            cuenta.firebase_uid = firebase_uid
-            cuenta.save()
-
-                # DESPUÉS
         return Response({
             'tipo': 'cliente',
             'pasajero_num': cuenta.pasajero_num.num,
@@ -2346,20 +2374,41 @@ def api_cliente_login_email(request):
             'telefono': cuenta.telefono or '',
             'fecha_nacimiento': str(cuenta.fecha_nacimiento) if cuenta.fecha_nacimiento else str(cuenta.pasajero_num.fechanacimiento),
         })
+
     except Exception as e:
         return Response({'error': str(e)}, status=400)
 
 @api_view(['GET'])
 def api_verificar_pasajero(request):
-    correo   = request.GET.get('correo', '').strip().lower()
-    viaje_id = request.GET.get('viaje_id', '')
-    if not correo or not viaje_id:
+    nombre           = request.GET.get('nombre', '').strip()
+    apellido         = request.GET.get('apellido', '').strip()
+    segundo_apellido = request.GET.get('segundo_apellido', '').strip()
+    fecha_nacimiento = request.GET.get('fecha_nacimiento', '').strip()
+    viaje_id         = request.GET.get('viaje_id', '')
+
+    if not nombre or not apellido or not fecha_nacimiento or not viaje_id:
         return Response({'error': 'Faltan parámetros'}, status=400)
+
     try:
-        duplicado = Ticket.objects.filter(
-            viaje__numero=viaje_id,
-            pasajero__cuentapasajero__correo__iexact=correo
-        ).exists()
+        if segundo_apellido:
+            duplicado = Ticket.objects.filter(
+                viaje__numero=viaje_id,
+                pasajero__panombre__iexact=nombre,
+                pasajero__paprimerapell__iexact=apellido,
+                pasajero__pasegundoapell__iexact=segundo_apellido,
+                pasajero__fechanacimiento=fecha_nacimiento,
+            ).exists()
+        else:
+            duplicado = Ticket.objects.filter(
+                viaje__numero=viaje_id,
+                pasajero__panombre__iexact=nombre,
+                pasajero__paprimerapell__iexact=apellido,
+                pasajero__fechanacimiento=fecha_nacimiento,
+            ).filter(
+                db_models.Q(pasajero__pasegundoapell__isnull=True) |
+                db_models.Q(pasajero__pasegundoapell='')
+            ).exists()
+
         return Response({'duplicado': duplicado})
     except Exception as e:
         return Response({'error': str(e)}, status=400)

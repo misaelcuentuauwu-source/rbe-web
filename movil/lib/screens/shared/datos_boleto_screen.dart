@@ -452,36 +452,51 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       return;
     }
 
-    // 3. Verificar duplicado de correo
+    // 3. Verificar duplicado
     final contacto = pasajerosList.firstWhere(
       (p) => p['esContacto'] == true,
       orElse: () => pasajerosList.first,
     );
-    final correo =
-        widget.correoCliente ??
-        (contacto['correoCtrl'] as TextEditingController).text.trim();
+
+    final nombre = (contacto['nombreCtrl'] as TextEditingController).text
+        .trim();
+    final apellido = (contacto['apPaternoCtrl'] as TextEditingController).text
+        .trim();
+    final segundoApellido = (contacto['apMaternoCtrl'] as TextEditingController)
+        .text
+        .trim();
+    final fn = contacto['fechaNacimiento'] as DateTime;
+    final fnStr =
+        '${fn.year}-${fn.month.toString().padLeft(2, '0')}-${fn.day.toString().padLeft(2, '0')}';
 
     setState(() => _verificando = true);
-
+    debugPrint('Validacion form: ${_formKey.currentState!.validate()}');
+    debugPrint('Fechas validas: $todasFechasValidas');
     try {
       final response = await http
           .get(
             Uri.parse(
               '${Config.baseUrl}/api/cliente/verificar-pasajero/'
-              '?correo=${Uri.encodeComponent(correo)}'
+              '?nombre=${Uri.encodeComponent(nombre)}'
+              '&apellido=${Uri.encodeComponent(apellido)}'
+              '&segundo_apellido=${Uri.encodeComponent(segundoApellido)}'
+              '&fecha_nacimiento=${Uri.encodeComponent(fnStr)}'
               '&viaje_id=${widget.viajeId}',
             ),
           )
           .timeout(const Duration(seconds: 10));
 
       final data = jsonDecode(response.body);
+      debugPrint('Response status: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
+      debugPrint('Duplicado: ${data['duplicado']}');
 
       if (response.statusCode == 200 && data['duplicado'] == true) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text(
-                'Este correo ya tiene un boleto registrado para este viaje.',
+                'Esta persona ya tiene un boleto registrado para este viaje.',
               ),
               backgroundColor: Colors.red.shade400,
               behavior: SnackBarBehavior.floating,
@@ -500,8 +515,6 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     }
 
     // 4. Armar datos y navegar
-    // Se manda 'fecha_nacimiento' en formato 'YYYY-MM-DD' y también
-    // 'edad' calculada (para compatibilidad hacia atrás si se necesita).
     final pasajerosData = pasajerosList.map((p) {
       final fn = p['fechaNacimiento'] as DateTime;
       final edad = _edadDe(p) ?? 0;
@@ -513,8 +526,8 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
             .trim(),
         'segundo_apellido': (p['apMaternoCtrl'] as TextEditingController).text
             .trim(),
-        'fecha_nacimiento': fnStr, // ← formato YYYY-MM-DD exacto
-        'edad': edad, // ← calculado, ya no escrito a mano
+        'fecha_nacimiento': fnStr,
+        'edad': edad,
         'tipo': p['tipo'],
         'esContacto': p['esContacto'],
         'telefono': (p['telefonoCtrl'] as TextEditingController).text.trim(),

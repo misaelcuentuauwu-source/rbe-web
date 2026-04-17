@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../utils/transitions.dart';
 import '../cliente/home_screen.dart';
+import 'package:flutter/services.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -125,9 +126,8 @@ class _SignupScreenState extends State<SignupScreen> {
     final apellido = _apellidoController.text.trim();
     final correo = _correoController.text.trim();
     final contrasena = _contrasenaController.text.trim();
-
-    // DESPUÉS
     final telefono = _telefonoController.text.trim();
+
     if (nombre.isEmpty ||
         apellido.isEmpty ||
         correo.isEmpty ||
@@ -140,7 +140,6 @@ class _SignupScreenState extends State<SignupScreen> {
       _mostrarError('El teléfono debe tener 10 dígitos');
       return;
     }
-
     if (_fechaNacimiento == null) {
       _mostrarError('Selecciona tu fecha de nacimiento');
       return;
@@ -151,13 +150,11 @@ class _SignupScreenState extends State<SignupScreen> {
       _mostrarError('Ingresa un correo electrónico válido');
       return;
     }
-
     if (contrasena.length < 6) {
       _mostrarError('La contraseña debe tener al menos 6 caracteres');
       return;
     }
 
-    // Verificar mayor de edad (el DatePicker ya lo limita, pero doble validación)
     final edad = _calcularEdad(_fechaNacimiento);
     if (edad == null || edad < 18) {
       _mostrarError('Debes tener al menos 18 años para crear una cuenta');
@@ -166,30 +163,23 @@ class _SignupScreenState extends State<SignupScreen> {
 
     setState(() => _cargando = true);
 
-    // Formatear fecha en YYYY-MM-DD para el backend
     final fn = _fechaNacimiento!;
     final fnStr =
         '${fn.year}-${fn.month.toString().padLeft(2, '0')}-${fn.day.toString().padLeft(2, '0')}';
 
     try {
-      // Primero crear en Firebase Auth
-      final userCredential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(email: correo, password: contrasena);
-
-      // Si Firebase pasó, registrar en el backend con la fecha de nacimiento
+      // Directo al backend, sin Firebase
       final response = await http
           .post(
             Uri.parse('${Config.baseUrl}/api/cliente/registro/'),
             headers: {'Content-Type': 'application/json'},
-            // DESPUÉS
             body: jsonEncode({
               'nombre': nombre,
               'apellido': apellido,
               'correo': correo,
               'contrasena': contrasena,
-              'firebase_uid': userCredential.user?.uid ?? '',
               'fecha_nacimiento': fnStr,
-              'telefono': telefono, // ← NUEVO
+              'telefono': telefono,
             }),
           )
           .timeout(const Duration(seconds: 10));
@@ -202,21 +192,7 @@ class _SignupScreenState extends State<SignupScreen> {
           Navigator.pop(context);
         }
       } else {
-        // Si el backend falló eliminar el usuario de Firebase
-        await userCredential.user?.delete();
         _mostrarError(data['error'] ?? 'Error al registrarse');
-      }
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'email-already-in-use') {
-        _mostrarError(
-          'Este correo ya está registrado. Inicia sesión o usa Google.',
-        );
-      } else if (e.code == 'weak-password') {
-        _mostrarError('La contraseña debe tener al menos 6 caracteres.');
-      } else if (e.code == 'invalid-email') {
-        _mostrarError('El formato del correo no es válido.');
-      } else {
-        _mostrarError('Error: ${e.message}');
       }
     } catch (e) {
       _mostrarError('Error de conexión');
@@ -459,6 +435,10 @@ class _SignupScreenState extends State<SignupScreen> {
             hint: '6641234567',
             icon: Icons.phone_outlined,
             keyboardType: TextInputType.phone,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly, // solo números
+              LengthLimitingTextInputFormatter(10), // máximo 10 dígitos
+            ],
           ),
           const SizedBox(height: 28),
 
@@ -565,6 +545,7 @@ class _SignupScreenState extends State<SignupScreen> {
     required IconData icon,
     bool isPassword = false,
     TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -583,6 +564,7 @@ class _SignupScreenState extends State<SignupScreen> {
           controller: controller,
           obscureText: isPassword ? _obscurePassword : false,
           keyboardType: keyboardType,
+          inputFormatters: inputFormatters,
           style: const TextStyle(color: textoPrincipal),
           decoration: InputDecoration(
             hintText: hint,

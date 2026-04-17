@@ -59,7 +59,7 @@ class _InicioScreenState extends State<InicioScreen> {
   // Coordenadas aproximadas de cada ciudad en Baja California
   // Clave: clave de ciudad en BD, Valor: [lat, lng]
   static const Map<String, List<double>> _coordsCiudades = {
-    'TJ':  [32.5149, -117.0382], // Tijuana
+    'TJ': [32.5149, -117.0382], // Tijuana
     'MXL': [32.6245, -115.4523], // Mexicali
     'ENS': [31.8667, -116.5963], // Ensenada
     'TEC': [32.5728, -116.6275], // Tecate
@@ -179,17 +179,13 @@ class _InicioScreenState extends State<InicioScreen> {
     if (fecha != null) setState(() => fechaSeleccionada = fecha);
   }
 
+  // DESPUÉS
   void _incrementar(String tipo) {
     setState(() {
-      if (tipo == 'discapacidad') {
-        if (discapacidad < 2 && totalPasajeros < 5) discapacidad++;
-      } else {
-        if (totalPasajeros < 5) {
-          if (tipo == 'adultos') adultos++;
-          if (tipo == 'estudiantes') estudiantes++;
-          if (tipo == 'inapam') inapam++;
-        }
-      }
+      if (tipo == 'adultos') adultos++;
+      if (tipo == 'estudiantes') estudiantes++;
+      if (tipo == 'inapam') inapam++;
+      if (tipo == 'discapacidad') discapacidad++;
     });
   }
 
@@ -230,24 +226,26 @@ class _InicioScreenState extends State<InicioScreen> {
 
     Navigator.push(
       context,
-      AppRoutes.slideLeft(ResultadosScreen(
-        origen: origenSeleccionado!,
-        destino: destinoSeleccionado ?? 'todas',
-        origenNombre: origenNombre,
-        destinoNombre: destinoNombre,
-        fecha: fechaSeleccionada,
-        pasajeros: {
-          'adultos': adultos,
-          'estudiantes': estudiantes,
-          'inapam': inapam,
-          'discapacidad': discapacidad,
-        },
-        vendedorId: widget.vendedorId ?? widget.clienteId ?? 0,
-        correoCliente: widget.correoCliente,
-        tipoUsuario: widget.tipoUsuario,
-        buscarCercanos: true,
-        datosUsuario: widget.datosUsuario,
-      )),
+      AppRoutes.slideLeft(
+        ResultadosScreen(
+          origen: origenSeleccionado!,
+          destino: destinoSeleccionado ?? 'todas',
+          origenNombre: origenNombre,
+          destinoNombre: destinoNombre,
+          fecha: fechaSeleccionada,
+          pasajeros: {
+            'adultos': adultos,
+            'estudiantes': estudiantes,
+            'inapam': inapam,
+            'discapacidad': discapacidad,
+          },
+          vendedorId: widget.vendedorId ?? widget.clienteId ?? 0,
+          correoCliente: widget.correoCliente,
+          tipoUsuario: widget.tipoUsuario,
+          buscarCercanos: true,
+          datosUsuario: widget.datosUsuario,
+        ),
+      ),
     );
   }
 
@@ -546,10 +544,7 @@ class _InicioScreenState extends State<InicioScreen> {
                       vertical: 14,
                     ),
                     decoration: BoxDecoration(
-                      border: Border.all(
-                        color: colorPrimario,
-                        width: 1.5,
-                      ),
+                      border: Border.all(color: colorPrimario, width: 1.5),
                       borderRadius: BorderRadius.circular(12),
                       color: colorPrimario.withOpacity(0.04),
                     ),
@@ -743,8 +738,19 @@ class _InicioScreenState extends State<InicioScreen> {
   // ── Helpers de fecha ──────────────────────────────────────────
   String _formatearFecha(DateTime fecha) {
     const meses = [
-      '', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
-      'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'
+      '',
+      'Ene',
+      'Feb',
+      'Mar',
+      'Abr',
+      'May',
+      'Jun',
+      'Jul',
+      'Ago',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dic',
     ];
     const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
     return '${dias[fecha.weekday - 1]} ${fecha.day} ${meses[fecha.month]} ${fecha.year}';
@@ -794,25 +800,22 @@ class _InicioScreenState extends State<InicioScreen> {
                 ),
               ),
               const Spacer(),
+              // DESPUÉS
               Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: totalPasajeros >= 5
-                      ? Colors.red.shade50
-                      : colorPrimario.withOpacity(0.08),
+                  color: colorPrimario.withOpacity(0.08),
                   borderRadius: BorderRadius.circular(20),
                 ),
                 child: Text(
-                  '$totalPasajeros / 5',
+                  '$totalPasajeros pasajero(s)',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: totalPasajeros >= 5
-                        ? Colors.red.shade700
-                        : colorPrimario,
+                    color: colorPrimario,
                   ),
                 ),
               ),
@@ -835,21 +838,16 @@ class _InicioScreenState extends State<InicioScreen> {
             'discapacidad',
             discapacidad,
             Icons.accessible_rounded,
-            max: 2,
           ),
         ],
       ),
     );
   }
 
-  Widget _buildContador(
-    String label,
-    String tipo,
-    int valor,
-    IconData icono, {
-    int max = 5,
-  }) {
-    final bool puedeIncrementar = totalPasajeros < 5 && valor < max;
+  // DESPUÉS
+  Widget _buildContador(String label, String tipo, int valor, IconData icono) {
+    // DESPUÉS
+    final bool puedeIncrementar = true;
     final bool puedeDecrementar = valor > 0;
 
     return Row(
