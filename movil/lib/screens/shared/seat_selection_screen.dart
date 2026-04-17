@@ -880,18 +880,12 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
 
   // ── Confirmar ────────────────────────────────────────────────────────────────
   void _confirmar() {
-    const descMap = {
-      'Adulto': 0,
-      'Estudiante': 25,
-      'INAPAM': 30,
-      'Discapacidad': 15,
-    };
     double total = 0;
     final pax = widget.pasajeros.asMap().entries.map((e) {
       final p = Map<String, dynamic>.from(e.value);
       p['asiento_id'] = _seleccionados[e.key];
       p['asiento_etiqueta'] = _etiqueta(_seleccionados[e.key]);
-      total += widget.precioPorPasajero * (1 - (descMap[p['tipo']] ?? 0) / 100);
+      total += (p['precio_unitario'] as num?)?.toDouble() ?? 0;
       return p;
     }).toList();
 

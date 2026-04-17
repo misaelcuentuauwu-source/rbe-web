@@ -1357,6 +1357,9 @@ async function irAHistorialViaje(numero, fecha) {
   toast(`Mostrando viaje #${numero}`, 'ok');
 }
 
+// Necesario para el botón inline del popup de Leaflet en mapa.js
+window.irAHistorialViaje = irAHistorialViaje;
+
 
 function limpiarFiltrosHistorial() {
   ['hist-search','hist-fecha'].forEach(id=>{
@@ -1931,6 +1934,52 @@ const CAMPOS_FIREBASE = {
   correo:       { nivel: 'info',    msg: 'El correo es el identificador de login en la app móvil. Asegúrate de que sea válido y único.' },
 };
 
+function renderCuentaPasajeroInsertFields(container, vals) {
+  const extras = [
+    {
+      field: 'nombre',
+      label: 'Nombre',
+      type: 'text',
+      value: vals?.nombre || '',
+      placeholder: 'Nombre del pasajero',
+    },
+    {
+      field: 'primer_apellido',
+      label: 'Primer apellido',
+      type: 'text',
+      value: vals?.primer_apellido || '',
+      placeholder: 'Primer apellido',
+    },
+    {
+      field: 'segundo_apellido',
+      label: 'Segundo apellido',
+      type: 'text',
+      value: vals?.segundo_apellido || '',
+      placeholder: 'Segundo apellido (opcional)',
+    },
+  ];
+
+  extras.forEach(cfg => {
+    const div = document.createElement('div');
+    div.className = 'form-field';
+    div.innerHTML = `
+      <label>${cfg.label}${cfg.field !== 'segundo_apellido' ? ' <span style="color:#dc2626">*</span>' : ''}</label>
+      <input
+        data-field="${cfg.field}"
+        type="${cfg.type}"
+        value="${cfg.value}"
+        placeholder="${cfg.placeholder}" />
+    `;
+    container.appendChild(div);
+  });
+
+  const proveedor = document.createElement('input');
+  proveedor.type = 'hidden';
+  proveedor.dataset.field = 'proveedor';
+  proveedor.value = 'email';
+  container.appendChild(proveedor);
+}
+
 function renderCrudForm(esq, vals) {
   const c     = document.getElementById('crud-form-fields');
   const tabla = tablaActual.nombre;
@@ -1951,9 +2000,9 @@ function renderCrudForm(esq, vals) {
       ? `<span style="font-size:18px;flex-shrink:0">👤</span>
          <div>
            <strong>Nueva cuenta de pasajero</strong><br>
-           Selecciona el pasajero, ingresa su correo y contraseña.
-           El pasajero podrá iniciar sesión en la app móvil con esas credenciales.
-           El campo <b>Firebase UID</b> puede dejarse vacío para cuentas locales.
+           Captura los datos del pasajero, su correo y contraseña.
+           El sistema creará el <b>pasajero</b> y su <b>cuenta</b> en un solo paso,
+           igual que en el registro de la app móvil.
          </div>`
       : `<span style="font-size:18px;flex-shrink:0">ℹ️</span>
          <div>
@@ -1962,6 +2011,10 @@ function renderCrudForm(esq, vals) {
            El correo es el identificador de login en la app móvil.
          </div>`;
     c.appendChild(banner);
+  }
+
+  if (tabla === 'cuenta_pasajero' && tablaActual.modo === 'insertar') {
+    renderCuentaPasajeroInsertFields(c, vals);
   }
 
   esq.columnas.forEach(col => {
@@ -2049,34 +2102,12 @@ function renderCrudForm(esq, vals) {
         c.appendChild(div);
         return;
       }
-      // Al insertar → dropdown con pasajeros sin cuenta (carga async)
-      div.innerHTML = `
-        <label>Pasajero <span style="font-size:11px;color:var(--muted)">(solo pasajeros sin cuenta)</span></label>
-        <select data-field="pasajero_num" id="sel-pasajero-num">
-          <option value="">⏳ Cargando pasajeros…</option>
-        </select>
-        <small style="color:var(--muted);font-size:11px;">
-          Si el pasajero no aparece, primero créalo en la tabla <b>pasajero</b>.
-        </small>
-      `;
-      c.appendChild(div);
-      // Cargar opciones de forma asíncrona
-      fetch('/api/crud/cuenta_pasajero/pasajeros_sin_cuenta/', { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
-        .then(r => r.json())
-        .then(d => {
-          const sel = document.getElementById('sel-pasajero-num');
-          if (!sel) return;
-          if (!d.ok || !d.pasajeros.length) {
-            sel.innerHTML = '<option value="">— Sin pasajeros disponibles —</option>';
-            return;
-          }
-          sel.innerHTML = '<option value="">— Selecciona un pasajero —</option>'
-            + d.pasajeros.map(p => `<option value="${p.value}">${p.label}</option>`).join('');
-        })
-        .catch(() => {
-          const sel = document.getElementById('sel-pasajero-num');
-          if (sel) sel.innerHTML = '<option value="">— Error al cargar —</option>';
-        });
+      // En inserción se crea el pasajero en el backend, como en móvil.
+      return;
+    }
+
+    if (tabla === 'cuenta_pasajero' && tablaActual.modo === 'insertar' &&
+        (name === 'proveedor' || name === 'firebase_uid')) {
       return;
     }
 
@@ -2283,7 +2314,7 @@ async function submitCrud() {
 
     // ── Subir foto de pasajero si se seleccionó una ────────────────────────
     if (tabla === 'cuenta_pasajero' && window._crudFotoFile) {
-      const pasNum = data['pasajero_num'];
+      const pasNum = d.pasajero_num || data['pasajero_num'];
       if (pasNum) {
         await _subirFotoCrudPasajero(pasNum, window._crudFotoFile);
       }

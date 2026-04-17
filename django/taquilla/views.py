@@ -483,6 +483,7 @@ def crud_insertar(request, tabla):
     data = json.loads(request.body)
 
     from django.db import connection
+    from django.db import transaction
 
     # ── Validaciones previas al INSERT ────────────────────────────────────────
 
@@ -499,6 +500,12 @@ def crud_insertar(request, tabla):
             cur.execute("SELECT COUNT(*) FROM cuenta_pasajero WHERE correo = %s", [data['correo']])
             if cur.fetchone()[0] > 0:
                 return JsonResponse({'ok': False, 'error': f"El correo «{data['correo']}» ya está registrado."})
+
+    if tabla == 'cuenta_pasajero':
+        nombre = (data.get('nombre') or '').strip()
+        primer_apellido = (data.get('primer_apellido') or '').strip()
+        if not nombre or not primer_apellido:
+            return JsonResponse({'ok': False, 'error': 'Nombre y primer apellido son obligatorios.'})
 
     # [CAM-3] Validar fechas coherentes + conflictos de conductor/autobús en viaje
     if tabla == 'viaje':
@@ -558,6 +565,50 @@ def crud_insertar(request, tabla):
     if tabla == 'cuenta_pasajero' and 'clave' in data and data['clave']:
         from django.contrib.auth.hashers import make_password as _mkpass
         data['clave'] = _mkpass(data['clave'])
+
+    if tabla == 'cuenta_pasajero' and 'nombre' in data:
+        try:
+            nombre = data.pop('nombre').strip()
+            primer_apellido = data.pop('primer_apellido').strip()
+            segundo_apellido = (data.pop('segundo_apellido', '') or '').strip() or None
+            fecha_nac_raw = data.get('fecha_nacimiento')
+
+            fecha_nac = date(2000, 1, 1)
+            if fecha_nac_raw:
+                try:
+                    fecha_nac = date.fromisoformat(str(fecha_nac_raw)[:10])
+                except Exception:
+                    return JsonResponse({'ok': False, 'error': 'Fecha de nacimiento inválida.'})
+
+            data.pop('pasajero_num', None)
+            data.pop('firebase_uid', None)
+            data['proveedor'] = data.get('proveedor') or 'email'
+            data['fecha_nacimiento'] = str(fecha_nac)
+            data['telefono'] = data.get('telefono') or None
+            data['foto'] = data.get('foto') or ''
+
+            with transaction.atomic():
+                with connection.cursor() as cur:
+                    cur.execute("""
+                        INSERT INTO pasajero (paNombre, paPrimerApell, paSegundoApell, fechaNacimiento)
+                        VALUES (%s, %s, %s, %s)
+                    """, [nombre, primer_apellido, segundo_apellido, fecha_nac])
+                    pasajero_num = cur.lastrowid
+
+                    cuenta_fields = ['pasajero_num'] + list(data.keys())
+                    cuenta_vals = [pasajero_num] + list(data.values())
+                    sql = (
+                        "INSERT INTO `cuenta_pasajero` ("
+                        + ', '.join(f'`{f}`' for f in cuenta_fields)
+                        + ") VALUES ("
+                        + ', '.join(['%s'] * len(cuenta_vals))
+                        + ")"
+                    )
+                    cur.execute(sql, cuenta_vals)
+
+            return JsonResponse({'ok': True, 'pasajero_num': pasajero_num})
+        except Exception as e:
+            return JsonResponse({'ok': False, 'error': str(e)})
 
     fields = list(data.keys())
     vals   = list(data.values())
@@ -1162,32 +1213,94 @@ def kpi_generales(request):
         """, [desde, hasta]),
         'eco_resumen': qall("""
             SELECT
-                COALESCE(SUM(p.monto), 0)                          AS total_recaudado,
-                COUNT(DISTINCT p.numero)                            AS num_transacciones,
-                COUNT(t.codigo)                                     AS num_boletos,
-                COALESCE(AVG(t.precio), 0)                         AS promedio_boleto,
-                COALESCE(SUM(CASE WHEN p.tipo=1 THEN p.monto ELSE 0 END), 0) AS total_efectivo,
-                COALESCE(SUM(CASE WHEN p.tipo=2 THEN p.monto ELSE 0 END), 0) AS total_tarjeta,
-                COUNT(CASE WHEN p.tipo=1 THEN 1 END)               AS txn_efectivo,
-                COUNT(CASE WHEN p.tipo=2 THEN 1 END)               AS txn_tarjeta
-            FROM pago p
-            LEFT JOIN ticket t ON t.pago = p.numero
-            LEFT JOIN viaje v  ON v.numero = t.viaje
-            WHERE DATE(p.fechapago) BETWEEN %s AND %s
-        """, [desde, hasta]),
+                COALESCE((
+                    SELECT SUM(t2.precio)
+                    FROM ticket t2
+                    JOIN pago p2 ON p2.numero = t2.pago
+                    WHERE DATE(p2.fechapago) BETWEEN %s AND %s
+                ), 0) AS total_recaudado,
+                COALESCE((
+                    SELECT COUNT(DISTINCT p2.numero)
+                    FROM ticket t2
+                    JOIN pago p2 ON p2.numero = t2.pago
+                    WHERE DATE(p2.fechapago) BETWEEN %s AND %s
+                ), 0) AS num_transacciones,
+                COALESCE((
+                    SELECT COUNT(t2.codigo)
+                    FROM ticket t2
+                    JOIN pago p2 ON p2.numero = t2.pago
+                    WHERE DATE(p2.fechapago) BETWEEN %s AND %s
+                ), 0) AS num_boletos,
+                COALESCE((
+                    SELECT AVG(t2.precio)
+                    FROM ticket t2
+                    JOIN pago p2 ON p2.numero = t2.pago
+                    WHERE DATE(p2.fechapago) BETWEEN %s AND %s
+                ), 0) AS promedio_boleto,
+                COALESCE((
+                    SELECT SUM(CASE WHEN p2.tipo=1 THEN t2.precio ELSE 0 END)
+                    FROM ticket t2
+                    JOIN pago p2 ON p2.numero = t2.pago
+                    WHERE DATE(p2.fechapago) BETWEEN %s AND %s
+                ), 0) AS total_efectivo,
+                COALESCE((
+                    SELECT SUM(CASE WHEN p2.tipo=2 THEN t2.precio ELSE 0 END)
+                    FROM ticket t2
+                    JOIN pago p2 ON p2.numero = t2.pago
+                    WHERE DATE(p2.fechapago) BETWEEN %s AND %s
+                ), 0) AS total_tarjeta,
+                COALESCE((
+                    SELECT COUNT(DISTINCT p2.numero)
+                    FROM ticket t2
+                    JOIN pago p2 ON p2.numero = t2.pago
+                    WHERE p2.tipo=1 AND DATE(p2.fechapago) BETWEEN %s AND %s
+                ), 0) AS txn_efectivo,
+                COALESCE((
+                    SELECT COUNT(DISTINCT p2.numero)
+                    FROM ticket t2
+                    JOIN pago p2 ON p2.numero = t2.pago
+                    WHERE p2.tipo=2 AND DATE(p2.fechapago) BETWEEN %s AND %s
+                ), 0) AS txn_tarjeta
+        """, [
+            desde, hasta,
+            desde, hasta,
+            desde, hasta,
+            desde, hasta,
+            desde, hasta,
+            desde, hasta,
+            desde, hasta,
+            desde, hasta,
+        ]),
         'eco_taquilleros': qall("""
             SELECT
                 CONCAT(taq.taqNombre,' ',taq.taqPrimerApell) AS nombre,
-                COUNT(DISTINCT p.numero)  AS transacciones,
-                COUNT(t.codigo)           AS boletos,
-                COALESCE(SUM(p.monto), 0) AS total
-            FROM pago p
-            JOIN taquillero taq ON taq.registro = p.vendedor
-            LEFT JOIN ticket t ON t.pago = p.numero
-            WHERE DATE(p.fechapago) BETWEEN %s AND %s
-            GROUP BY taq.registro
+                pt.transacciones                        AS transacciones,
+                COALESCE(tb.boletos, 0)                AS boletos,
+                COALESCE(pt.total, 0)                  AS total
+            FROM taquillero taq
+            JOIN (
+                SELECT
+                    p.vendedor          AS vendedor_id,
+                    COUNT(DISTINCT p.numero) AS transacciones,
+                    COALESCE(SUM(t.precio), 0) AS total
+                FROM pago p
+                JOIN ticket t ON t.pago = p.numero
+                WHERE DATE(p.fechapago) BETWEEN %s AND %s
+                  AND p.vendedor IS NOT NULL
+                GROUP BY p.vendedor
+            ) pt ON pt.vendedor_id = taq.registro
+            LEFT JOIN (
+                SELECT
+                    p.vendedor   AS vendedor_id,
+                    COUNT(t.codigo) AS boletos
+                FROM pago p
+                LEFT JOIN ticket t ON t.pago = p.numero
+                WHERE DATE(p.fechapago) BETWEEN %s AND %s
+                  AND p.vendedor IS NOT NULL
+                GROUP BY p.vendedor
+            ) tb ON tb.vendedor_id = taq.registro
             ORDER BY total DESC LIMIT 5
-        """, [desde, hasta]),
+        """, [desde, hasta, desde, hasta]),
     })
 
 @admin_requerido
@@ -2025,11 +2138,12 @@ def api_comprar(request):
 
             pago = Pago.objects.create(
                 fechapago=timezone.now(),
-                monto=monto_total,
+                monto=0,
                 tipo=TipoPago.objects.get(numero=tipo_pago_id),
                 vendedor=vendedor
             )
             tickets_creados = []
+            monto_calculado = 0
 
             es_primer_pasajero = True
             for p in pasajeros:
@@ -2088,11 +2202,15 @@ def api_comprar(request):
                     etiqueta_asiento=p.get('asiento_etiqueta')
                 )
                 tickets_creados.append(ticket)
+                monto_calculado += precio_final
                 with _conn.cursor() as cur:
                     cur.execute(
                         "UPDATE viaje_asiento SET ocupado = 1 WHERE asiento = %s AND viaje = %s",
                         [asiento.numero, viaje.numero]
                     )
+
+            pago.monto = monto_calculado
+            pago.save(update_fields=['monto'])
 
         return Response({'success': True, 'pago_id': pago.numero}, status=201)
 

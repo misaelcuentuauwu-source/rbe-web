@@ -30,6 +30,12 @@ let mapaViajes      = [];
 let mapaAnimFrame   = null;
 let mapaInitialized = false;
 
+window.mapaIrAHistorialViaje = function(numero, fecha) {
+  if (typeof window.irAHistorialViaje === 'function') {
+    window.irAHistorialViaje(numero, fecha);
+  }
+};
+
 function inicializarMapa() {
   if (mapaInitialized) return;
   mapaInitialized = true;
@@ -116,6 +122,11 @@ if (mapaMarkers[id]) {
       if (progresoReal > mapaMarkers[id].progreso) {
         mapaMarkers[id].progreso = progresoReal;
       }
+      if (mapaMarkers[id].marker.isPopupOpen()) {
+        mapaMarkers[id].marker.setPopupContent(
+          crearPopupHTML(v, mapaMarkers[id].progreso)
+        );
+      }
     } else {
       const pos    = interpolarPos(orig, dest, progreso);
       const icon   = crearIconoBus(v);
@@ -170,10 +181,6 @@ function animarBuses() {
     m.marker.setLatLng(pos);
 
     if (m.lineaRecorrida) m.lineaRecorrida.setLatLngs([m.orig, pos]);
-
-    if (m.marker.isPopupOpen()) {
-      m.marker.setPopupContent(crearPopupHTML(m.viaje, m.progreso));
-    }
   });
 
   mapaAnimFrame = requestAnimationFrame(animarBuses);
@@ -243,7 +250,7 @@ function crearPopupHTML(v, progreso) {
       </div>
       <div class="mapa-popup-footer">
         <span class="mapa-popup-estado ${cls}">${estado}</span>
-        <button class="mapa-popup-btn-ver" onclick="irAHistorialViaje(${v.numero || 0}, '${fecha}')">🔍 Ver viaje</button>
+        <button class="mapa-popup-btn-ver" onclick="window.mapaIrAHistorialViaje(${v.numero || 0}, '${fecha}')">🔍 Ver viaje</button>
       </div>
     </div>`;
 }
