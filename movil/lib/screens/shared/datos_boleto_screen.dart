@@ -9,9 +9,14 @@ import 'seat_selection_screen.dart';
 // ════════════════════════════════════════════════════════════════════════════
 // REGLAS DE NEGOCIO
 //
-// NIÑO  : cualquier edad (0-17).
-//         - Edad < 12  → BLOQUEA avance. Mensaje: debe ser >= 12 o ir con adulto.
-//         - Edad >= 12 → Puede viajar solo. Se piden datos de contacto.
+// NIÑO  : 8 a 14 años (inclusive).
+//         - Edad < 8   → BLOQUEA totalmente. No puede viajar.
+//         - Edad 8–14  → Puede viajar. Si viaja sin adulto, se piden contacto.
+//         - Edad >= 15 → El DatePicker no lo permite; debe elegir tipo Adulto.
+//
+// ADULTO : 15 años o más (antes era 18; ahora bajó a 15).
+//          El primer adulto es el contacto principal
+//          (siempre se piden teléfono + correo).
 //
 // ESTUDIANTE : cualquier edad, sin restricción de edad.
 //         - Edad >= 12 → Se piden datos de contacto (viaja solo).
@@ -28,11 +33,8 @@ import 'seat_selection_screen.dart';
 //         - Tipo visual   → NO se pide credencial.
 //         - Otro tipo     → SÍ se pide credencial de discapacidad.
 //
-// ADULTO : >= 18 años. El primer adulto es el contacto principal
-//          (siempre se piden teléfono + correo).
-//
-// NOTA: La edad ya NO se captura como número entero. Se captura como
-//       fecha de nacimiento mediante DatePicker y se calcula automáticamente.
+// NOTA: La edad se captura como fecha de nacimiento mediante DatePicker
+//       y se calcula automáticamente.
 // ════════════════════════════════════════════════════════════════════════════
 
 class DatosBoletoScreen extends StatefulWidget {
@@ -256,20 +258,20 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
 
     switch (tipo) {
       case 'Adulto':
-        // Entre 18 y 120 años
+        // 15 años o más (hasta 120)
         primerFecha = DateTime(hoy.year - 120, hoy.month, hoy.day);
-        ultimaFecha = DateTime(hoy.year - 18, hoy.month, hoy.day);
+        ultimaFecha = DateTime(hoy.year - 15, hoy.month, hoy.day);
         fechaInicial =
             pasajero['fechaNacimiento'] as DateTime? ??
-            DateTime(hoy.year - 30, hoy.month, hoy.day);
+            DateTime(hoy.year - 25, hoy.month, hoy.day);
         break;
       case 'Niño':
-        // Entre 0 y 17 años
-        primerFecha = DateTime(hoy.year - 17, hoy.month, hoy.day);
-        ultimaFecha = hoy;
+        // Entre 8 y 14 años
+        primerFecha = DateTime(hoy.year - 14, hoy.month, hoy.day);
+        ultimaFecha = DateTime(hoy.year - 8, hoy.month, hoy.day);
         fechaInicial =
             pasajero['fechaNacimiento'] as DateTime? ??
-            DateTime(hoy.year - 8, hoy.month, hoy.day);
+            DateTime(hoy.year - 10, hoy.month, hoy.day);
         break;
       case 'INAPAM':
         // 60 años o más
@@ -348,7 +350,12 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       return edad != null && edad >= 12;
     }
 
-    // Niño nunca es contacto principal.
+    // Niño (8–14) sin adulto: necesita contacto propio.
+    if (tipo == 'Niño') {
+      final hayAdulto = pasajerosList.any((p) => p['tipo'] == 'Adulto');
+      final edad = _edadDe(p);
+      return !hayAdulto && edad != null && edad >= 8;
+    }
     return false;
   }
 
@@ -367,10 +374,11 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
 
     switch (tipo) {
       case 'Adulto':
-        if (edad < 18) return 'El adulto debe tener 18 años o más';
+        if (edad < 15) return 'El adulto debe tener 15 años o más';
         break;
       case 'Niño':
-        if (edad > 17) return 'El niño debe tener 17 años o menos';
+        if (edad < 8) return 'Los menores de 8 años no pueden viajar';
+        if (edad > 14) return 'El niño debe tener entre 8 y 14 años';
         break;
       case 'INAPAM':
         if (edad < 60) return 'INAPAM requiere 60 años o más';
@@ -380,21 +388,24 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     return null;
   }
 
-  /// Detecta si hay un Niño/menor con edad < 12 sin ningún Adulto en el viaje.
-  bool _hayNinoMenorSinAdulto() {
+  /// Retorna true si algún pasajero tiene edad < 8 (no puede viajar en absoluto).
+  bool _hayMenorDeOcho() {
+    return pasajerosList.any((p) {
+      final edad = _edadDe(p);
+      return edad != null && edad < 8;
+    });
+  }
+
+  /// Detecta si hay un Niño (8-14) sin ningún Adulto en el viaje.
+  /// En ese caso el niño viaja solo — se permite pero se muestra aviso,
+  /// y el niño actúa como su propio contacto.
+  bool _hayNinoSinAdulto() {
     final hayAdulto = pasajerosList.any((p) => p['tipo'] == 'Adulto');
     if (hayAdulto) return false;
-
     return pasajerosList.any((p) {
       final tipo = p['tipo'] as String;
       final edad = _edadDe(p);
-      if (edad == null) return false;
-
-      // Niño, Estudiante o Discapacitado menor de 12 sin adulto → bloquear
-      if (tipo == 'Niño' || tipo == 'Estudiante' || tipo == 'Discapacidad') {
-        return edad < 12;
-      }
-      return false;
+      return tipo == 'Niño' && edad != null && edad >= 8;
     });
   }
 
@@ -431,16 +442,15 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       return;
     }
 
-    // 2. Bloquear si hay niño < 12 sin adulto
-    if (_hayNinoMenorSinAdulto()) {
+    // 2a. Bloquear totalmente si hay algún pasajero menor de 8 años
+    if (_hayMenorDeOcho()) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(
-              'El niño debe tener 12 años o más para viajar solo, '
-              'o bien debe ir acompañado de un adulto.',
+              'Los menores de 8 años no pueden viajar en este servicio.',
             ),
-            backgroundColor: Colors.red.shade400,
+            backgroundColor: Colors.red.shade700,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),

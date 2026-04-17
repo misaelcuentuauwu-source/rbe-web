@@ -553,6 +553,12 @@ def crud_insertar(request, tabla):
         from django.contrib.auth.hashers import make_password as _mkpass
         data['contrasena'] = _mkpass(data['contrasena'])
 
+    # Hashear clave al insertar una cuenta_pasajero (cuentas locales/email)
+    # Esto garantiza que el móvil pueda autenticar con check_password()
+    if tabla == 'cuenta_pasajero' and 'clave' in data and data['clave']:
+        from django.contrib.auth.hashers import make_password as _mkpass
+        data['clave'] = _mkpass(data['clave'])
+
     fields = list(data.keys())
     vals   = list(data.values())
     sql = f"INSERT INTO `{tabla}` ({', '.join(f'`{f}`' for f in fields)}) VALUES ({', '.join(['%s']*len(vals))})"
@@ -618,6 +624,12 @@ def crud_actualizar(request, tabla):
         if tabla == 'taquillero' and 'contrasena' in data and data['contrasena']:
             from django.contrib.auth.hashers import make_password as _mkpass
             data['contrasena'] = _mkpass(data['contrasena'])
+
+        # Hashear clave si viene con valor nuevo (cuenta_pasajero — cuentas locales/email)
+        # Esto garantiza que el móvil pueda autenticar con check_password()
+        if tabla == 'cuenta_pasajero' and 'clave' in data and data['clave']:
+            from django.contrib.auth.hashers import make_password as _mkpass
+            data['clave'] = _mkpass(data['clave'])
 
         # [CAM-5] Detectar usuario duplicado al editar taquillero
         if tabla == 'taquillero' and 'usuario' in data:
@@ -2128,6 +2140,21 @@ def api_buscar_boleto(request, folio):
         return Response({'error': str(e)}, status=400)
 
 
+# ── Helper: construye URL absoluta para foto de pasajero ──────────────────
+def _foto_url_cliente(request, foto_valor):
+    """
+    Normaliza el campo foto de cuenta_pasajero a URL absoluta.
+    - URL http/https  →  ya viene de Google/Firebase, se usa tal cual
+    - Ruta relativa   →  se antepone MEDIA_URL + dominio del servidor
+    - None / vacío    →  cadena vacía
+    """
+    if not foto_valor:
+        return ''
+    if foto_valor.startswith('http://') or foto_valor.startswith('https://'):
+        return foto_valor
+    return request.build_absolute_uri(f'{settings.MEDIA_URL}{foto_valor}')
+
+
 @api_view(['POST'])
 def api_cliente_google_login(request):
     try:
@@ -2158,14 +2185,13 @@ def api_cliente_google_login(request):
                 firebase_uid=firebase_uid, proveedor='google', foto=foto,
             )
 
-                # DESPUÉS
         return Response({
             'tipo': 'cliente',
             'pasajero_num': cuenta.pasajero_num.num,
             'nombre': cuenta.pasajero_num.panombre,
             'primer_apellido': cuenta.pasajero_num.paprimerapell,
             'correo': cuenta.correo,
-            'foto': cuenta.foto or '',
+            'foto': _foto_url_cliente(request, cuenta.foto),
             'proveedor': cuenta.proveedor,
             'telefono': cuenta.telefono or '',
             'fecha_nacimiento': str(cuenta.fecha_nacimiento) if cuenta.fecha_nacimiento else str(cuenta.pasajero_num.fechanacimiento),
@@ -2323,15 +2349,15 @@ def api_cliente_registro(request):
 
         telefono_str = data.get('telefono', '')
         cuenta = CuentaPasajero.objects.create(
-    pasajero_num=pasajero,
-    correo=correo,
-    clave=make_password(contrasena),  # ← clave
-    firebase_uid=None,
-    proveedor='email',
-    foto='',
-    telefono=telefono_str or None,
-    fecha_nacimiento=fecha_nac if fecha_nac_str else None,
-)
+            pasajero_num=pasajero,
+            correo=correo,
+            clave=make_password(contrasena),  # ← clave
+            firebase_uid=None,
+            proveedor='email',
+            foto='',
+            telefono=telefono_str or None,
+            fecha_nacimiento=fecha_nac if fecha_nac_str else None,
+        )
 
 
         return Response({
@@ -2340,7 +2366,7 @@ def api_cliente_registro(request):
             'nombre': pasajero.panombre,
             'primer_apellido': pasajero.paprimerapell,
             'correo': cuenta.correo,
-            'foto': '',
+            'foto': _foto_url_cliente(request, cuenta.foto),
             'proveedor': 'email',
             'telefono': cuenta.telefono or '',
             'fecha_nacimiento': str(fecha_nac),
@@ -2388,7 +2414,7 @@ def api_cliente_login_email(request):
             'nombre': cuenta.pasajero_num.panombre,
             'primer_apellido': cuenta.pasajero_num.paprimerapell,
             'correo': cuenta.correo,
-            'foto': cuenta.foto or '',
+            'foto': _foto_url_cliente(request, cuenta.foto),
             'proveedor': cuenta.proveedor,
             'telefono': cuenta.telefono or '',
             'fecha_nacimiento': str(cuenta.fecha_nacimiento) if cuenta.fecha_nacimiento else str(cuenta.pasajero_num.fechanacimiento),
@@ -2501,6 +2527,28 @@ def api_subir_foto_pasajero(request, pasajero_num):
 
     foto_url = request.build_absolute_uri(f'{settings.MEDIA_URL}{ruta_relativa}')
     return Response({'foto_url': foto_url})
+
+
+# ── Pasajeros sin cuenta (para selector en CRUD cuenta_pasajero) ──────────────
+@require_POST
+def api_pasajeros_sin_cuenta(request):
+    """Devuelve pasajeros que aún no tienen una cuenta_pasajero registrada."""
+    from django.db import connection
+    with connection.cursor() as cur:
+        cur.execute("""
+            SELECT p.num,
+                   CONCAT(p.paNombre, ' ', p.paPrimerApell,
+                          IFNULL(CONCAT(' ', p.paSegundoApell), '')) AS nombre_completo
+            FROM pasajero p
+            WHERE p.num NOT IN (
+                SELECT cp.pasajero_num FROM cuenta_pasajero cp
+            )
+            ORDER BY p.paNombre, p.paPrimerApell
+            LIMIT 500
+        """)
+        rows = [{'value': r[0], 'label': f"#{r[0]} — {r[1].strip()}"} for r in cur.fetchall()]
+    return JsonResponse({'ok': True, 'pasajeros': rows})
+
 
 @api_view(['POST'])
 def api_cliente_actualizar_perfil(request, pasajero_num):

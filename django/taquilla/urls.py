@@ -44,6 +44,8 @@ urlpatterns = [
     path('api/kpi/especificos/',     views.kpi_especificos,        name='kpi_especificos'),
     path('api/kpi/filtros/',         views.kpi_filtros_opciones,   name='kpi_filtros'),
     path('api/reporte/ventas/',      views.reporte_ventas,         name='reporte_ventas'),
+    # Pasajeros sin cuenta — selector CRUD cuenta_pasajero
+    path('api/crud/cuenta_pasajero/pasajeros_sin_cuenta/', views.api_pasajeros_sin_cuenta, name='api_pasajeros_sin_cuenta'),
     # Detalle autobus y pasajeros (usados desde panel_admin.html)
     path('api/autobus/detalle/<int:bus_id>/',   views.autobus_detalle, name='autobus_detalle'),
     path('api/viaje/pasajeros/<int:viaje_id>/', views.viaje_pasajeros, name='viaje_pasajeros'),

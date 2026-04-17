@@ -881,6 +881,16 @@ class _InicioScreenState extends State<InicioScreen> {
                   color: textoPrincipal,
                 ),
               ),
+              if (tipo == 'adultos')
+                Text(
+                  '15 años o más',
+                  style: TextStyle(fontSize: 11, color: textoSecundario),
+                ),
+              if (tipo == 'ninos')
+                Text(
+                  '8 a 14 años',
+                  style: TextStyle(fontSize: 11, color: textoSecundario),
+                ),
               if (tipo == 'discapacidad')
                 Text(
                   'Máx. 2 por viaje',

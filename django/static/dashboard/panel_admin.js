@@ -1923,12 +1923,12 @@ async function abrirEditar(tabla, pk, pkv) {
   abrirModal('modal-crud');
 }
 
-// Campos de cuenta_pasajero que viven en Firebase — advertencia al editar
+// Campos de cuenta_pasajero con advertencias contextuales
 const CAMPOS_FIREBASE = {
-  clave:        { nivel: 'peligro', msg: 'La contraseña se gestiona en Firebase Authentication. Modificarla aquí <strong>no actualiza Firebase</strong> y puede impedir que el usuario inicie sesión en la app.' },
-  firebase_uid: { nivel: 'peligro', msg: 'Este UID es generado por Firebase. Cambiarlo manualmente <strong>romperá el acceso</strong> del usuario en la app móvil.' },
-  proveedor:    { nivel: 'info',    msg: 'Este campo indica el método de login (local / google). Cámbialo solo si sabes lo que haces; un valor incorrecto puede bloquear el acceso desde la app.' },
-  correo:       { nivel: 'info',    msg: 'Cambiar el correo aquí no lo actualiza en Firebase. El usuario seguirá entrando con el correo anterior desde la app hasta que se sincronice.' },
+  clave:        { nivel: 'info',    msg: 'La contraseña se almacena hasheada. Los pasajeros creados desde aquí inician sesión en la app con esta clave (autenticación local).' },
+  firebase_uid: { nivel: 'info',    msg: 'Este campo es opcional para cuentas creadas desde el panel web. Déjalo vacío; solo es necesario si el pasajero usa login con Google desde la app.' },
+  proveedor:    { nivel: 'info',    msg: 'Indica el método de login. Usa <b>local</b> para cuentas creadas aquí con correo y contraseña.' },
+  correo:       { nivel: 'info',    msg: 'El correo es el identificador de login en la app móvil. Asegúrate de que sea válido y único.' },
 };
 
 function renderCrudForm(esq, vals) {
@@ -1939,21 +1939,28 @@ function renderCrudForm(esq, vals) {
   // Limpiar archivo de foto pendiente al abrir un nuevo form
   window._crudFotoFile = null;
 
-  // [CAM-1] Banner general para cuenta_pasajero
+  // Banner general para cuenta_pasajero
   if (tabla === 'cuenta_pasajero') {
+    const isInsertar = tablaActual.modo === 'insertar';
     const banner = document.createElement('div');
     banner.style.cssText = `
-      background:#fff8e1;border:1.5px solid #f59e0b;border-radius:8px;
-      padding:10px 14px;margin-bottom:14px;font-size:13px;color:#92400e;
+      background:#f0f7ff;border:1.5px solid #93c5fd;border-radius:8px;
+      padding:10px 14px;margin-bottom:14px;font-size:13px;color:#1e40af;
       display:flex;gap:10px;align-items:flex-start;line-height:1.5;`;
-    banner.innerHTML = `
-      <span style="font-size:18px;flex-shrink:0">⚠️</span>
-      <div>
-        <strong>Tabla sincronizada con Firebase</strong><br>
-        Algunos campos de esta tabla están controlados por Firebase Authentication
-        (la autenticación de la app móvil). Modifica solo los campos que no afecten
-        el inicio de sesión, como la foto. Los campos críticos muestran una advertencia individual.
-      </div>`;
+    banner.innerHTML = isInsertar
+      ? `<span style="font-size:18px;flex-shrink:0">👤</span>
+         <div>
+           <strong>Nueva cuenta de pasajero</strong><br>
+           Selecciona el pasajero, ingresa su correo y contraseña.
+           El pasajero podrá iniciar sesión en la app móvil con esas credenciales.
+           El campo <b>Firebase UID</b> puede dejarse vacío para cuentas locales.
+         </div>`
+      : `<span style="font-size:18px;flex-shrink:0">ℹ️</span>
+         <div>
+           <strong>Cuenta de pasajero</strong><br>
+           Modifica los campos que necesites. La contraseña solo se actualiza si escribes un nuevo valor.
+           El correo es el identificador de login en la app móvil.
+         </div>`;
     c.appendChild(banner);
   }
 
@@ -1995,6 +2002,81 @@ function renderCrudForm(esq, vals) {
         </div>
       `;
       c.appendChild(div);
+      return;
+    }
+
+    // ── CUENTA_PASAJERO: campo foto → file picker (igual que taquillero) ──────
+    if (tabla === 'cuenta_pasajero' && name === 'foto') {
+      const fotoActual = val || '';
+      const fotoUrl    = fotoActual
+        ? (fotoActual.startsWith('http') ? fotoActual : `/media/${fotoActual}`)
+        : '';
+      div.innerHTML = `
+        <label>Foto del pasajero</label>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          ${fotoUrl
+            ? `<img id="crud-foto-pasajero-preview" src="${fotoUrl}" alt="foto actual"
+                style="width:64px;height:64px;object-fit:cover;border-radius:50%;border:2px solid var(--border);display:block;" />`
+            : `<div id="crud-foto-pasajero-preview" style="width:64px;height:64px;border-radius:50%;background:var(--bg);border:2px dashed var(--border);display:flex;align-items:center;justify-content:center;font-size:24px;">📷</div>`
+          }
+          <input type="file" id="crud-foto-pasajero-input" accept="image/*"
+            style="font-size:13px;"
+            onchange="
+              const f = this.files[0];
+              if (!f) return;
+              window._crudFotoFile = f;
+              const prev = document.getElementById('crud-foto-pasajero-preview');
+              const url  = URL.createObjectURL(f);
+              prev.outerHTML = '<img id=\\'crud-foto-pasajero-preview\\' src=\\''+url+'\\' style=\\'width:64px;height:64px;object-fit:cover;border-radius:50%;border:2px solid var(--azul);display:block;\\' />';
+            " />
+          <small style="color:var(--muted);font-size:11px;">JPG, PNG, WEBP — máx. recomendado 2 MB</small>
+          <input type="hidden" data-field="foto" value="${fotoActual}" />
+        </div>
+      `;
+      c.appendChild(div);
+      return;
+    }
+
+    // ── CUENTA_PASAJERO: campo pasajero_num (PK/FK) → selector async ─────────
+    if (tabla === 'cuenta_pasajero' && name === 'pasajero_num') {
+      if (isEditing) {
+        // Al editar solo mostramos el valor como lectura (no se puede cambiar la PK)
+        div.innerHTML = `
+          <label>Pasajero</label>
+          <input data-field="pasajero_num" type="text" value="${val}" readonly
+            style="background:var(--bg-alt,#f8fafc);color:var(--muted);" />
+        `;
+        c.appendChild(div);
+        return;
+      }
+      // Al insertar → dropdown con pasajeros sin cuenta (carga async)
+      div.innerHTML = `
+        <label>Pasajero <span style="font-size:11px;color:var(--muted)">(solo pasajeros sin cuenta)</span></label>
+        <select data-field="pasajero_num" id="sel-pasajero-num">
+          <option value="">⏳ Cargando pasajeros…</option>
+        </select>
+        <small style="color:var(--muted);font-size:11px;">
+          Si el pasajero no aparece, primero créalo en la tabla <b>pasajero</b>.
+        </small>
+      `;
+      c.appendChild(div);
+      // Cargar opciones de forma asíncrona
+      fetch('/api/crud/cuenta_pasajero/pasajeros_sin_cuenta/', { method: 'POST', headers: { 'X-CSRFToken': CSRF } })
+        .then(r => r.json())
+        .then(d => {
+          const sel = document.getElementById('sel-pasajero-num');
+          if (!sel) return;
+          if (!d.ok || !d.pasajeros.length) {
+            sel.innerHTML = '<option value="">— Sin pasajeros disponibles —</option>';
+            return;
+          }
+          sel.innerHTML = '<option value="">— Selecciona un pasajero —</option>'
+            + d.pasajeros.map(p => `<option value="${p.value}">${p.label}</option>`).join('');
+        })
+        .catch(() => {
+          const sel = document.getElementById('sel-pasajero-num');
+          if (sel) sel.innerHTML = '<option value="">— Error al cargar —</option>';
+        });
       return;
     }
 
@@ -2147,6 +2229,8 @@ async function submitCrud() {
     if (esPassVacio) return;
     // Para foto de taquillero: si hay archivo pendiente, omitir el hidden (se sube después)
     if (el.dataset.field === 'foto' && tabla === 'taquillero' && window._crudFotoFile) return;
+    // Para foto de pasajero: igual, omitir hidden si hay archivo pendiente
+    if (el.dataset.field === 'foto' && tabla === 'cuenta_pasajero' && window._crudFotoFile) return;
     data[el.dataset.field] = v==='' ? null : v;
   });
 
@@ -2197,6 +2281,15 @@ async function submitCrud() {
       window._crudFotoFile = null;
     }
 
+    // ── Subir foto de pasajero si se seleccionó una ────────────────────────
+    if (tabla === 'cuenta_pasajero' && window._crudFotoFile) {
+      const pasNum = data['pasajero_num'];
+      if (pasNum) {
+        await _subirFotoCrudPasajero(pasNum, window._crudFotoFile);
+      }
+      window._crudFotoFile = null;
+    }
+
     toast('Registro insertado ✓');
     cerrarModal('modal-crud');
     recargarGestion();
@@ -2212,6 +2305,12 @@ async function submitCrud() {
       window._crudFotoFile = null;
     }
 
+    // ── Subir foto de pasajero si se seleccionó una nueva ─────────────────
+    if (tabla === 'cuenta_pasajero' && window._crudFotoFile) {
+      await _subirFotoCrudPasajero(tablaActual.pkValue, window._crudFotoFile);
+      window._crudFotoFile = null;
+    }
+
     toast('Registro actualizado ✓');
     cerrarModal('modal-crud');
     recargarGestion();
@@ -2224,6 +2323,21 @@ async function _subirFotoCrudTaquillero(taqId, file) {
     const form = new FormData();
     form.append('foto', file);
     const r = await fetch(`/api/taquillero/${taqId}/foto/`, { method: 'POST', body: form });
+    if (!r.ok) {
+      const err = await r.json().catch(()=>({error:'Error al subir foto'}));
+      toast('Foto no subida: ' + (err.error||'error'), 'err');
+    }
+  } catch(e) {
+    toast('Error al subir foto: ' + e.message, 'err');
+  }
+}
+
+// Sube la foto de un pasajero usando la API /api/pasajero/:num/foto/
+async function _subirFotoCrudPasajero(pasNum, file) {
+  try {
+    const form = new FormData();
+    form.append('foto', file);
+    const r = await fetch(`/api/pasajero/${pasNum}/foto/`, { method: 'POST', body: form });
     if (!r.ok) {
       const err = await r.json().catch(()=>({error:'Error al subir foto'}));
       toast('Foto no subida: ' + (err.error||'error'), 'err');
