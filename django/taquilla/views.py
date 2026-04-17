@@ -910,21 +910,28 @@ def salidas_json(request):
                 if hasattr(v, 'isoformat'):
                     row[k] = v.isoformat()
 
-            # Guardar el estado real de la BD antes de cualquier cálculo
-            estado_bd = (row.get('estado') or '').strip().lower()
-
-            # Si el mapa lo pide, filtrar AQUÍ usando el estado real de la BD
-            if solo_en_ruta and estado_bd != 'en ruta':
-                continue
-
-            # Calcular estado dinámico (solo para la vista de salidas normal)
-            if estado_bd not in ('cancelado', 'finalizado', 'completado', 'terminado'):
-                salida = row.get('fecHoraSalida')
+            # Filtrar por tiempo real si el mapa lo pide
+            if solo_en_ruta:
+                salida  = row.get('fecHoraSalida')
                 entrada = row.get('fecHoraEntrada')
+                if not salida or not entrada:
+                    continue
+                try:
+                    dt_s = datetime.fromisoformat(salida)
+                    dt_e = datetime.fromisoformat(entrada)
+                    if not (now >= dt_s and now < dt_e):
+                        continue
+                except (ValueError, TypeError):
+                    continue
 
+            # Calcular estado dinámico
+            estado_bd = (row.get('estado') or '').strip().lower()
+            if estado_bd not in ('cancelado', 'finalizado', 'completado', 'terminado'):
+                salida  = row.get('fecHoraSalida')
+                entrada = row.get('fecHoraEntrada')
                 if salida and entrada:
                     try:
-                        dt_salida = datetime.fromisoformat(salida)
+                        dt_salida  = datetime.fromisoformat(salida)
                         dt_entrada = datetime.fromisoformat(entrada)
 
                         if now >= dt_entrada:

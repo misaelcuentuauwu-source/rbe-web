@@ -3,31 +3,20 @@
    django/static/dashboard/mapa.js
 ════════════════════════════════════════════════════════ */
 
-/* ── Coordenadas centríficas de ciudades de Baja California ── */
 const BC_CIUDADES = {
-  'Tijuana':        [32.5149, -117.0382],
-  'Mexicali':       [32.6245, -115.4523],
-  'Ensenada':       [31.8667, -116.5960],
-  'Tecate':         [32.5735, -116.6270],
-  'Rosarito':       [32.3732, -117.0381],
-  'San Quintín':    [30.5380, -115.9500],
-  'El Rosario':     [30.0600, -115.7200],
-  'Guerrero Negro': [27.9757, -114.0422],
-  'San Felipe':     [31.0167, -114.8333],
-  'Loreto':         [26.0122, -111.3456],
-  'Maneadero':      [31.7167, -116.5833],
-  'Valle de Guadalupe': [32.0370, -116.6420],
-  'La Paz':         [24.1426, -110.3128],
-  'Cabo San Lucas': [22.8905, -109.9167],
-  'San José del Cabo': [23.0633, -109.6891],
+  'Tijuana':     [32.5149, -117.0382],
+  'Mexicali':    [32.6245, -115.4523],
+  'Ensenada':    [31.8667, -116.5960],
+  'Tecate':      [32.5735, -116.6270],
+  'Rosarito':    [32.3732, -117.0381],
+  'San Quintín': [30.5380, -115.9500],
+  'San Quintin': [30.5380, -115.9500],
+  'San Felipe':  [31.0167, -114.8333],
 };
 
-/* ── Fallback si la ciudad no está en el diccionario ── */
 function getCoordsForCity(nombre) {
   if (!nombre) return null;
-  // Búsqueda exacta
   if (BC_CIUDADES[nombre]) return BC_CIUDADES[nombre];
-  // Búsqueda parcial (ignora mayúsculas)
   const key = Object.keys(BC_CIUDADES).find(k =>
     k.toLowerCase().includes(nombre.toLowerCase()) ||
     nombre.toLowerCase().includes(k.toLowerCase())
@@ -35,42 +24,30 @@ function getCoordsForCity(nombre) {
   return key ? BC_CIUDADES[key] : null;
 }
 
-/* ══════════════════════════════════════════════
-   ESTADO GLOBAL DEL MAPA
-══════════════════════════════════════════════ */
-let mapaLeaflet     = null;   // instancia Leaflet
-let mapaMarkers     = {};     // { viaje_numero: { marker, progreso, ruta } }
-let mapaViajes      = [];     // última copia de rows de la API
-let mapaAnimFrame   = null;   // requestAnimationFrame handle
+let mapaLeaflet     = null;
+let mapaMarkers     = {};
+let mapaViajes      = [];
+let mapaAnimFrame   = null;
 let mapaInitialized = false;
 
-/* ══════════════════════════════════════════════
-   INICIALIZAR MAPA
-══════════════════════════════════════════════ */
 function inicializarMapa() {
   if (mapaInitialized) return;
   mapaInitialized = true;
 
-  // Centrado en Baja California
   mapaLeaflet = L.map('mapa-leaflet', {
     center: [30.5, -115.5],
     zoom: 7,
     zoomControl: true,
   });
 
-  // Tiles OpenStreetMap
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 18,
   }).addTo(mapaLeaflet);
 
-  // Cargar viajes y arrancar animación
   cargarViajesMapa();
-
-  // Actualizar cada 60 segundos
   setInterval(cargarViajesMapa, 60_000);
 
-  // Detectar online/offline
   window.addEventListener('offline', () => {
     document.getElementById('mapa-offline-banner')?.classList.add('visible');
   });
@@ -80,9 +57,6 @@ function inicializarMapa() {
   });
 }
 
-/* ══════════════════════════════════════════════
-   FETCH DE VIAJES
-══════════════════════════════════════════════ */
 async function cargarViajesMapa() {
   const btnRefresh = document.getElementById('mapa-btn-refresh');
   if (btnRefresh) btnRefresh.classList.add('girando');
@@ -100,15 +74,30 @@ async function cargarViajesMapa() {
   }
 }
 
-/* ══════════════════════════════════════════════
-   MARCADORES Y RUTAS
-══════════════════════════════════════════════ */
+function coloresPorDireccion(origenCiudad, destinoCiudad) {
+  const esDeTijuana = (origenCiudad || '').toLowerCase().includes('tijuana');
+  
+  if (esDeTijuana) {
+    return {
+      recorrida: '#00aaff',  // azul eléctrico
+      sombra:    '#001a66',  // azul oscuro
+    };
+  } else {
+    return {
+      recorrida: '#22c55e',  // verde
+      sombra:    '#14532d',  // verde oscuro
+    };
+  }
+}
+
+
 function actualizarMarcadores(viajes) {
   const numerosActivos = new Set();
 
   viajes.forEach(v => {
     const estado = (v.estado || '').toLowerCase();
     if (!estado.includes('ruta')) return;
+
     const orig = getCoordsForCity(v.origen_ciudad);
     const dest = getCoordsForCity(v.destino_ciudad);
     if (!orig || !dest) return;
@@ -116,63 +105,72 @@ function actualizarMarcadores(viajes) {
     const id = v.numero;
     numerosActivos.add(id);
 
-    // Calcular progreso 0→1 según tiempo
     const progreso = calcularProgreso(v.fecHoraSalida, v.fecHoraEntrada);
 
-    if (mapaMarkers[id]) {
-      // Actualizar destino de animación
-      mapaMarkers[id].orig     = orig;
-      mapaMarkers[id].dest     = dest;
-      mapaMarkers[id].progreso = progreso;
-      mapaMarkers[id].viaje    = v;
+if (mapaMarkers[id]) {
+      mapaMarkers[id].orig  = orig;
+      mapaMarkers[id].dest  = dest;
+      mapaMarkers[id].viaje = v;
+      // Solo avanza, nunca retrocede
+      const progresoReal = calcularProgreso(v.fecHoraSalida, v.fecHoraEntrada);
+      if (progresoReal > mapaMarkers[id].progreso) {
+        mapaMarkers[id].progreso = progresoReal;
+      }
     } else {
-      // Crear marcador nuevo
       const pos    = interpolarPos(orig, dest, progreso);
       const icon   = crearIconoBus(v);
       const marker = L.marker(pos, { icon }).addTo(mapaLeaflet);
       marker.bindPopup(crearPopupHTML(v, progreso));
 
-      // Línea de ruta (semitransparente)
-      const linea = L.polyline([orig, dest], {
-        color: '#1181c3',
-        weight: 2,
-        opacity: 0.25,
-        dashArray: '6 6',
+      const lineaPendiente = L.polyline([orig, dest], {
+        color: '#b0c4de',
+        weight: 4,
+        opacity: 0.7,
+        dashArray: '10 8',
       }).addTo(mapaLeaflet);
 
-      mapaMarkers[id] = { marker, linea, orig, dest, progreso, viaje: v };
+      const posActual = interpolarPos(orig, dest, progreso);
+
+      const colores   = coloresPorDireccion(v.origen_ciudad, v.destino_ciudad);
+      const velocidad = calcularVelocidad(v.fecHoraSalida, v.fecHoraEntrada);
+
+
+      const lineaRecorrida = L.polyline([orig, posActual], {
+        color: colores.recorrida,
+        weight: 8,
+        opacity: 1,
+      }).addTo(mapaLeaflet);
+
+      mapaMarkers[id] = { marker, linea: lineaPendiente, lineaRecorrida, colores, orig, dest, progreso, velocidad, viaje: v };
     }
   });
 
-  // Eliminar marcadores de viajes que ya no están en la respuesta
+  // Eliminar marcadores que ya no están activos
   Object.keys(mapaMarkers).forEach(id => {
     if (!numerosActivos.has(Number(id))) {
       mapaMarkers[id].marker.remove();
       mapaMarkers[id].linea.remove();
+      mapaMarkers[id].lineaRecorrida?.remove();
       delete mapaMarkers[id];
     }
   });
 
-  // Arrancar loop de animación si no está corriendo
   if (!mapaAnimFrame) animarBuses();
 }
 
-/* ══════════════════════════════════════════════
-   LOOP DE ANIMACIÓN
-══════════════════════════════════════════════ */
 function animarBuses() {
-  const VELOCIDAD = 0.00003; // avance por frame (ajusta a gusto)
+  const VELOCIDAD = 0.00003;
 
   Object.values(mapaMarkers).forEach(m => {
-    // Solo animar viajes "en ruta"
     const estado = (m.viaje.estado || '').toLowerCase();
     if (!estado.includes('ruta') && !estado.includes('viaje')) return;
 
-    m.progreso = Math.min(m.progreso + VELOCIDAD, 0.99);
+    m.progreso = Math.min(m.progreso + m.velocidad, 0.99);
     const pos  = interpolarPos(m.orig, m.dest, m.progreso);
     m.marker.setLatLng(pos);
 
-    // Actualizar popup si está abierto
+    if (m.lineaRecorrida) m.lineaRecorrida.setLatLngs([m.orig, pos]);
+
     if (m.marker.isPopupOpen()) {
       m.marker.setPopupContent(crearPopupHTML(m.viaje, m.progreso));
     }
@@ -181,11 +179,6 @@ function animarBuses() {
   mapaAnimFrame = requestAnimationFrame(animarBuses);
 }
 
-/* ══════════════════════════════════════════════
-   UTILIDADES
-══════════════════════════════════════════════ */
-
-/** Interpolación lineal entre dos coordenadas */
 function interpolarPos([lat1, lng1], [lat2, lng2], t) {
   return [
     lat1 + (lat2 - lat1) * t,
@@ -193,7 +186,6 @@ function interpolarPos([lat1, lng1], [lat2, lng2], t) {
   ];
 }
 
-/** Progreso 0→1 basado en fecHoraSalida / fecHoraEntrada */
 function calcularProgreso(salida, entrada) {
   if (!salida || !entrada) return 0;
   const ahora  = Date.now();
@@ -204,7 +196,6 @@ function calcularProgreso(salida, entrada) {
   return (ahora - inicio) / (fin - inicio);
 }
 
-/** Color del marcador según estado */
 function colorPorEstado(estado) {
   const e = (estado || '').toLowerCase();
   if (e.includes('ruta') || e.includes('viaje')) return '#1181c3';
@@ -212,7 +203,6 @@ function colorPorEstado(estado) {
   return '#94a3b8';
 }
 
-/** Icono SVG de autobús como DivIcon de Leaflet */
 function crearIconoBus(viaje) {
   const color = colorPorEstado(viaje.estado);
   const svg = `
@@ -229,7 +219,6 @@ function crearIconoBus(viaje) {
   });
 }
 
-/** HTML del popup */
 function crearPopupHTML(v, progreso) {
   const pct    = Math.round(progreso * 100);
   const estado = v.estado || 'Desconocido';
@@ -286,13 +275,18 @@ function actualizarContadorMapa(n) {
   if (el) el.textContent = `${n} viaje${n !== 1 ? 's' : ''} activo${n !== 1 ? 's' : ''}`;
 }
 
-/* ══════════════════════════════════════════════
-   SERVICE WORKER — registro
-══════════════════════════════════════════════ */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/static/dashboard/sw-mapa.js')
       .then(reg => console.log('[SW] Registrado:', reg.scope))
       .catch(err => console.warn('[SW] Error:', err));
   });
+}
+
+function calcularVelocidad(salida, entrada) {
+  if (!salida || !entrada) return 0.00003; // fallback
+  const duracionMs = new Date(entrada) - new Date(salida);
+  // progreso va de 0 a 1 en duracionMs milisegundos
+  // animarBuses corre ~60fps → 60 frames/seg
+  return 1 / (duracionMs / 1000 * 60);
 }
