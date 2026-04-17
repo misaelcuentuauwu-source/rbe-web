@@ -851,10 +851,13 @@ def crud_eliminar(request, tabla):
     except Exception as e:
         return JsonResponse({'ok': False, 'error': str(e)})
 @admin_requerido
+
 def salidas_json(request):
     from django.db import connection
     now = datetime.now()
     now_str = now.strftime('%Y-%m-%d %H:%M:%S')
+    solo_en_ruta = request.GET.get('solo_en_ruta') == '1'
+
     with connection.cursor() as cur:
         cur.execute("""
             SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
@@ -884,32 +887,48 @@ def salidas_json(request):
             ORDER BY v.fecHoraSalida ASC
             LIMIT 200
         """, [now_str, now_str, now_str])
+
         cols = [d[0] for d in cur.description]
         rows = []
+
         for r in cur.fetchall():
             row = dict(zip(cols, r))
+
             for k, v in row.items():
                 if hasattr(v, 'isoformat'):
                     row[k] = v.isoformat()
-            # Calcular estado dinámico para el mapa
-            estado_bd = (row.get('estado') or '').lower()
+
+            # Guardar el estado real de la BD antes de cualquier cálculo
+            estado_bd = (row.get('estado') or '').strip().lower()
+
+            # Si el mapa lo pide, filtrar AQUÍ usando el estado real de la BD
+            if solo_en_ruta and estado_bd != 'en ruta':
+                continue
+
+            # Calcular estado dinámico (solo para la vista de salidas normal)
             if estado_bd not in ('cancelado', 'finalizado', 'completado', 'terminado'):
-                salida  = row.get('fecHoraSalida')
+                salida = row.get('fecHoraSalida')
                 entrada = row.get('fecHoraEntrada')
+
                 if salida and entrada:
                     try:
-                        dt_salida  = datetime.fromisoformat(salida)
+                        dt_salida = datetime.fromisoformat(salida)
                         dt_entrada = datetime.fromisoformat(entrada)
+
                         if now >= dt_entrada:
                             row['estado'] = 'Finalizado'
                         elif now >= dt_salida:
                             row['estado'] = 'En ruta'
                         else:
                             row['estado'] = 'Disponible'
+
                     except (ValueError, TypeError):
                         pass
+
             rows.append(row)
+
     return JsonResponse({'rows': rows})
+
 @admin_requerido
 def historial_json(request):
     from django.db import connection

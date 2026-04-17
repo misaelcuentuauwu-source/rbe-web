@@ -46,11 +46,13 @@ class _InicioScreenState extends State<InicioScreen> {
   DateTime fechaSeleccionada = DateTime.now();
 
   int adultos = 1;
+  int ninos = 0;
   int estudiantes = 0;
   int inapam = 0;
   int discapacidad = 0;
 
-  int get totalPasajeros => adultos + estudiantes + inapam + discapacidad;
+  int get totalPasajeros =>
+      adultos + ninos + estudiantes + inapam + discapacidad;
 
   List<Map<String, dynamic>> terminales = [];
   bool cargandoTerminales = true;
@@ -179,10 +181,10 @@ class _InicioScreenState extends State<InicioScreen> {
     if (fecha != null) setState(() => fechaSeleccionada = fecha);
   }
 
-  // DESPUÉS
   void _incrementar(String tipo) {
     setState(() {
       if (tipo == 'adultos') adultos++;
+      if (tipo == 'ninos') ninos++;
       if (tipo == 'estudiantes') estudiantes++;
       if (tipo == 'inapam') inapam++;
       if (tipo == 'discapacidad') discapacidad++;
@@ -192,6 +194,7 @@ class _InicioScreenState extends State<InicioScreen> {
   void _decrementar(String tipo) {
     setState(() {
       if (tipo == 'adultos' && adultos > 0) adultos--;
+      if (tipo == 'ninos' && ninos > 0) ninos--;
       if (tipo == 'estudiantes' && estudiantes > 0) estudiantes--;
       if (tipo == 'inapam' && inapam > 0) inapam--;
       if (tipo == 'discapacidad' && discapacidad > 0) discapacidad--;
@@ -233,8 +236,10 @@ class _InicioScreenState extends State<InicioScreen> {
           origenNombre: origenNombre,
           destinoNombre: destinoNombre,
           fecha: fechaSeleccionada,
+
           pasajeros: {
             'adultos': adultos,
+            'ninos': ninos,
             'estudiantes': estudiantes,
             'inapam': inapam,
             'discapacidad': discapacidad,
@@ -822,7 +827,10 @@ class _InicioScreenState extends State<InicioScreen> {
             ],
           ),
           const SizedBox(height: 16),
+          // DESPUÉS
           _buildContador('Adulto', 'adultos', adultos, Icons.person_rounded),
+          Divider(height: 20, color: Colors.grey.shade100),
+          _buildContador('Niño', 'ninos', ninos, Icons.child_care_rounded),
           Divider(height: 20, color: Colors.grey.shade100),
           _buildContador(
             'Estudiante',

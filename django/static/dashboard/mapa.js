@@ -88,7 +88,7 @@ async function cargarViajesMapa() {
   if (btnRefresh) btnRefresh.classList.add('girando');
 
   try {
-    const res  = await fetch('/api/salidas/');
+    const res  = await fetch('/api/salidas/?solo_en_ruta=1');
     const data = await res.json();
     mapaViajes = data.rows || [];
     actualizarMarcadores(mapaViajes);
@@ -107,6 +107,8 @@ function actualizarMarcadores(viajes) {
   const numerosActivos = new Set();
 
   viajes.forEach(v => {
+    const estado = (v.estado || '').toLowerCase();
+    if (!estado.includes('ruta')) return;
     const orig = getCoordsForCity(v.origen_ciudad);
     const dest = getCoordsForCity(v.destino_ciudad);
     if (!orig || !dest) return;
