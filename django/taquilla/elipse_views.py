@@ -278,6 +278,33 @@ def _extraer_numero_viaje(q):
             return int(m.group(1))
     return None
 
+def _extraer_folio_boleto(q):
+    """Detecta 'folio 123', 'folio de boleto 123', 'ticket 123', etc."""
+    patrones = [
+        r'folio\s*(?:de\s*(?:boleto|ticket|compra))?\s*#?\s*(\d+)',
+        r'(?:boleto|ticket)\s*#\s*(\d+)',
+        r'(?:boleto|ticket)\s+numero\s+(\d+)',
+        r'(?:boleto|ticket)\s+(\d+)',
+    ]
+    for p in patrones:
+        m = re.search(p, q, re.IGNORECASE)
+        if m:
+            return int(m.group(1))
+    return None
+
+def _extraer_codigo_ticket(q):
+    """Detecta 'ticket individual 15', 'codigo de boleto 15', etc."""
+    patrones = [
+        r'codigo\s+de\s+(?:boleto|ticket)\s*#?\s*(\d+)',
+        r'(?:boleto|ticket)\s+individual\s*#?\s*(\d+)',
+        r'(?:ticket|boleto)\s+codigo\s*#?\s*(\d+)',
+    ]
+    for p in patrones:
+        m = re.search(p, q, re.IGNORECASE)
+        if m:
+            return int(m.group(1))
+    return None
+
 def _extraer_top_n(q):
     """Detecta 'top 5', 'los 3 mejores', 'primeros 10', etc. Devuelve int."""
     m = re.search(r'top\s+(\d+)|los\s+(\d+)\s+(?:mejores|primeros|mas)|primeros\s+(\d+)', q)
@@ -398,6 +425,17 @@ def _intent(q_orig):
     # ── New #15: taquillero con más boletos vendidos ─────────────────────────────
     if has('taquillero') and has('vendi', 'boleto', 'mas boleto', 'ranking', 'top'):
         return 'top_taquilleros'
+
+    # ── Folio de boleto / compra / ticket individual ───────────────────────────
+    if has('folio', 'boleto', 'ticket', 'compra'):
+        codigo_ticket = _extraer_codigo_ticket(q_orig)
+        if codigo_ticket is not None:
+            return 'ticket_individual'
+        folio = _extraer_folio_boleto(q_orig)
+        if folio is not None and not has('vendido', 'total', 'emitido'):
+            if has('codigo', 'ticket individual'):
+                return 'ticket_individual'
+            return 'folio_boleto'
 
     # ── New #14: terminal con más taquilleros ────────────────────────────────────
     if has('terminal') and has('mas taquillero', 'taquillero', 'cuantos taquillero'):
@@ -595,6 +633,55 @@ def _resolve(intent, pregunta):
     q = pregunta.lower()
     tr = str.maketrans('áéíóúàèìòùäëïöü', 'aeiouaeiouaeiou')
     q = q.translate(tr)
+
+    def _detalle_compra_por_folio(folio):
+        cols_pago, rows_pago = _q(
+            "SELECT p.numero AS Folio,"
+            " p.fechapago AS FechaCompra,"
+            " p.monto AS MontoTotal,"
+            " tp.nombre AS MetodoPago,"
+            " COALESCE(CONCAT(tq.taqNombre,' ',tq.taqPrimerApell), 'App') AS Vendedor,"
+            " CONCAT(co.nombre,' a ',cd.nombre) AS Ruta,"
+            " v.numero AS Viaje,"
+            " v.fecHoraSalida AS Salida,"
+            " v.fecHoraEntrada AS LlegadaEst,"
+            " ev.nombre AS Estado"
+            " FROM pago p"
+            " LEFT JOIN tipo_pago tp ON tp.numero = p.tipo"
+            " LEFT JOIN taquillero tq ON tq.registro = p.vendedor"
+            " LEFT JOIN ticket tk ON tk.pago = p.numero"
+            " LEFT JOIN viaje v ON v.numero = tk.viaje"
+            " LEFT JOIN edo_viaje ev ON ev.numero = v.estado"
+            " LEFT JOIN ruta r ON r.codigo = v.ruta"
+            " LEFT JOIN terminal tor ON tor.numero = r.origen"
+            " LEFT JOIN terminal tdes ON tdes.numero = r.destino"
+            " LEFT JOIN ciudad co ON co.clave = tor.ciudad"
+            " LEFT JOIN ciudad cd ON cd.clave = tdes.ciudad"
+            " WHERE p.numero = %s"
+            " LIMIT 1",
+            [folio]
+        )
+        if not rows_pago:
+            return None
+
+        cols_tickets, rows_tickets = _q(
+            "SELECT tk.codigo AS Ticket,"
+            " CONCAT(pa.paNombre,' ',pa.paPrimerApell,"
+            "        COALESCE(CONCAT(' ',pa.paSegundoApell), '')) AS Pasajero,"
+            " tpas.descripcion AS TipoPasajero,"
+            " COALESCE(tk.etiqueta_asiento, CAST(a.numero AS CHAR)) AS Asiento,"
+            " tas.descripcion AS TipoAsiento,"
+            " tk.precio AS Precio"
+            " FROM ticket tk"
+            " JOIN pasajero pa ON pa.num = tk.pasajero"
+            " JOIN tipo_pasajero tpas ON tpas.num = tk.tipopasajero"
+            " JOIN asiento a ON a.numero = tk.asiento"
+            " JOIN tipo_asiento tas ON tas.codigo = a.tipo"
+            " WHERE tk.pago = %s"
+            " ORDER BY tk.codigo",
+            [folio]
+        )
+        return cols_pago, rows_pago, cols_tickets, rows_tickets
 
     # ── New #18: SQL puro escrito por el usuario ─────────────────────────────────
     if intent == 'sql_puro':
@@ -907,6 +994,89 @@ def _resolve(intent, pregunta):
             '<em>%s</em> (%s) — <strong>%s taquilleros</strong></p>'
             '<p><strong>Detalle de todas las terminales:</strong></p>%s'
         ) % (top.get('Terminal'), top.get('Ciudad'), top.get('NumTaquilleros'), _tabla(cols, rows))
+
+    # ── Folio de boleto / compra móvil ──────────────────────────────────────────
+    if intent == 'folio_boleto':
+        folio = _extraer_folio_boleto(pregunta)
+        if folio is None:
+            return '<p>No pude identificar el folio. Ejemplo: <em>"buscar folio 123"</em>.</p>'
+
+        detalle = _detalle_compra_por_folio(folio)
+        if not detalle:
+            return '<p>No encontre ningun boleto o compra con el <strong>folio #%d</strong>.</p>' % folio
+        cols_pago, rows_pago, cols_tickets, rows_tickets = detalle
+
+        pago = rows_pago[0]
+        resumen = _cards([
+            {'label': 'Folio',       'val': '#%d' % folio,                  'sub': 'compra encontrada'},
+            {'label': 'Boletos',     'val': len(rows_tickets),              'sub': 'tickets asociados'},
+            {'label': 'Monto total', 'val': _pesos(pago.get('MontoTotal')), 'sub': pago.get('MetodoPago') or 'metodo'},
+        ])
+
+        detalle_pago = _tabla(cols_pago, rows_pago, est=['Estado'], pesos=['MontoTotal'])
+        detalle_tickets = (
+            _tabla(cols_tickets, rows_tickets, pesos=['Precio'])
+            if rows_tickets else
+            '<em>El folio existe pero no tiene tickets asociados.</em>'
+        )
+        return (
+            '<p><strong>Resultado para el folio #%d:</strong></p>%s'
+            '<p><strong>Resumen de la compra:</strong></p>%s'
+            '<p><strong>Boletos asociados:</strong></p>%s'
+        ) % (folio, resumen, detalle_pago, detalle_tickets)
+
+    if intent == 'ticket_individual':
+        codigo = _extraer_codigo_ticket(pregunta) or _extraer_folio_boleto(pregunta)
+        if codigo is None:
+            return '<p>No pude identificar el codigo del ticket. Ejemplo: <em>"ticket individual 25"</em>.</p>'
+
+        cols, rows = _q(
+            "SELECT tk.codigo AS Ticket,"
+            " p.numero AS Folio,"
+            " p.fechapago AS FechaCompra,"
+            " CONCAT(pa.paNombre,' ',pa.paPrimerApell,"
+            "        COALESCE(CONCAT(' ',pa.paSegundoApell), '')) AS Pasajero,"
+            " tpas.descripcion AS TipoPasajero,"
+            " COALESCE(tk.etiqueta_asiento, CAST(a.numero AS CHAR)) AS Asiento,"
+            " tas.descripcion AS TipoAsiento,"
+            " tk.precio AS Precio,"
+            " tp.nombre AS MetodoPago,"
+            " COALESCE(CONCAT(tq.taqNombre,' ',tq.taqPrimerApell), 'App') AS Vendedor,"
+            " CONCAT(co.nombre,' a ',cd.nombre) AS Ruta,"
+            " v.numero AS Viaje,"
+            " v.fecHoraSalida AS Salida,"
+            " ev.nombre AS Estado"
+            " FROM ticket tk"
+            " JOIN pago p ON p.numero = tk.pago"
+            " JOIN pasajero pa ON pa.num = tk.pasajero"
+            " JOIN tipo_pasajero tpas ON tpas.num = tk.tipopasajero"
+            " JOIN asiento a ON a.numero = tk.asiento"
+            " JOIN tipo_asiento tas ON tas.codigo = a.tipo"
+            " LEFT JOIN tipo_pago tp ON tp.numero = p.tipo"
+            " LEFT JOIN taquillero tq ON tq.registro = p.vendedor"
+            " LEFT JOIN viaje v ON v.numero = tk.viaje"
+            " LEFT JOIN edo_viaje ev ON ev.numero = v.estado"
+            " LEFT JOIN ruta r ON r.codigo = v.ruta"
+            " LEFT JOIN terminal tor ON tor.numero = r.origen"
+            " LEFT JOIN terminal tdes ON tdes.numero = r.destino"
+            " LEFT JOIN ciudad co ON co.clave = tor.ciudad"
+            " LEFT JOIN ciudad cd ON cd.clave = tdes.ciudad"
+            " WHERE tk.codigo = %s"
+            " LIMIT 1",
+            [codigo]
+        )
+        if not rows:
+            return '<p>No encontre ningun <strong>ticket #%d</strong> registrado.</p>' % codigo
+
+        row = rows[0]
+        resumen = _cards([
+            {'label': 'Ticket', 'val': '#%d' % codigo,                  'sub': 'boleto individual'},
+            {'label': 'Folio',  'val': '#%s' % row.get('Folio', '—'),   'sub': 'compra asociada'},
+            {'label': 'Precio', 'val': _pesos(row.get('Precio')),       'sub': row.get('TipoPasajero') or 'tipo'},
+        ])
+        return (
+            '<p><strong>Detalle del ticket #%d:</strong></p>%s%s'
+        ) % (codigo, resumen, _tabla(cols, rows, est=['Estado'], pesos=['Precio']))
 
     # ── New #07: VIAJE ESPECÍFICO por número ────────────────────────────────────
     if intent == 'viaje_especifico':
