@@ -389,24 +389,25 @@ class _HistorialScreenState extends State<HistorialScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: fondo,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildHeader(),
-            SizeTransition(
-              sizeFactor: _filterPanelAnim,
-              axisAlignment: -1,
-              child: SingleChildScrollView(
-                padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).viewInsets.bottom,
+      resizeToAvoidBottomInset: false,
+      body: ClipRect(
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              SizeTransition(
+                sizeFactor: _filterPanelAnim,
+                axisAlignment: -1,
+                child: SingleChildScrollView(
+                  physics: const ClampingScrollPhysics(),
+                  child: _buildPanelFiltros(),
                 ),
-                child: _buildPanelFiltros(),
               ),
-            ),
-            if (hayFiltros) _buildBarraResultados(),
-            const SizedBox(height: 8),
-            Expanded(child: _buildContenido()),
-          ],
+              if (hayFiltros) _buildBarraResultados(),
+              const SizedBox(height: 8),
+              Expanded(child: _buildContenido()),
+            ],
+          ),
         ),
       ),
     );
@@ -672,18 +673,7 @@ class _HistorialScreenState extends State<HistorialScreen>
             ],
           ),
 
-          if (hayFiltros) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: TextButton.icon(
-                onPressed: limpiarFiltros,
-                icon: const Icon(Icons.clear_all_rounded, size: 16),
-                label: const Text('Limpiar filtros'),
-                style: TextButton.styleFrom(foregroundColor: muted),
-              ),
-            ),
-          ],
+          // "Limpiar filtros" removido del panel — usar "Limpiar todo" en la barra de resultados
         ],
       ),
     );
