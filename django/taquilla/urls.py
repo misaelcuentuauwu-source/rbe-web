@@ -49,6 +49,7 @@ urlpatterns = [
     # Detalle autobus y pasajeros (usados desde panel_admin.html)
     path('api/autobus/detalle/<int:bus_id>/',   views.autobus_detalle, name='autobus_detalle'),
     path('api/viaje/pasajeros/<int:viaje_id>/', views.viaje_pasajeros, name='viaje_pasajeros'),
+    path('api/viaje/ocupacion/<int:viaje_id>/', views.viaje_ocupacion, name='viaje_ocupacion'),
     path('api/boleto/<int:pago_id>/adjuntar_pdf/', views.api_enviar_boleto_correo, name='api_adjuntar_pdf'),
     # API móvil (taquilla) — al final para no interceptar rutas del panel
     path('api/', include('taquilla.api_urls')),

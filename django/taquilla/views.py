@@ -1869,6 +1869,87 @@ def viaje_pasajeros(request, viaje_id):
         return JsonResponse({'error': str(e)}, status=500)
 
 
+def viaje_ocupacion(request, viaje_id):
+    """CU-04: Devuelve el porcentaje de llenado y lista de pasajeros de un viaje."""
+    from django.db import connection
+    try:
+        with connection.cursor() as cur:
+            # Info general del viaje
+            cur.execute("""
+                SELECT corig.nombre, cdest.nombre, v.fecHoraSalida,
+                       a.numero AS autobus_num, m.numAsientos AS capacidad
+                FROM viaje v
+                JOIN ruta r        ON v.ruta      = r.codigo
+                JOIN terminal tor  ON r.origen     = tor.numero
+                JOIN terminal tdes ON r.destino    = tdes.numero
+                JOIN ciudad corig  ON tor.ciudad   = corig.clave
+                JOIN ciudad cdest  ON tdes.ciudad  = cdest.clave
+                LEFT JOIN autobus a  ON v.autobus  = a.numero
+                LEFT JOIN modelo  m  ON a.modelo   = m.numero
+                WHERE v.numero = %s
+            """, [viaje_id])
+            info = cur.fetchone()
+            if not info:
+                return JsonResponse({'error': f'Viaje #{viaje_id} no encontrado'}, status=404)
+            origen, destino, salida, autobus_num, capacidad = info
+
+            # Total asientos registrados en viaje_asiento
+            cur.execute("""
+                SELECT COUNT(*) AS total,
+                       SUM(CASE WHEN va.ocupado = 1 THEN 1 ELSE 0 END) AS ocupados
+                FROM viaje_asiento va
+                WHERE va.viaje = %s
+            """, [viaje_id])
+            row = cur.fetchone()
+            total_asientos = row[0] or 0
+            ocupados = row[1] or 0
+            libres = total_asientos - ocupados
+
+            # Usar capacidad del modelo si viaje_asiento está vacío
+            if total_asientos == 0 and capacidad:
+                total_asientos = capacidad
+                libres = capacidad
+
+            porcentaje = round((ocupados / total_asientos * 100), 1) if total_asientos > 0 else 0.0
+
+            # Lista de pasajeros con asiento
+            cur.execute("""
+                SELECT
+                    CONCAT(p.paNombre, ' ', p.paPrimerApell,
+                           CASE WHEN p.paSegundoApell IS NOT NULL
+                                THEN CONCAT(' ', p.paSegundoApell) ELSE '' END) AS nombre,
+                    COALESCE(t.etiqueta_asiento, CAST(t.asiento AS CHAR)) AS asiento,
+                    tp.descripcion AS tipo_pasajero
+                FROM ticket t
+                JOIN pasajero p      ON t.pasajero     = p.num
+                JOIN tipo_pasajero tp ON t.tipopasajero = tp.num
+                WHERE t.viaje = %s
+                ORDER BY t.asiento ASC
+            """, [viaje_id])
+            cols = [d[0] for d in cur.description]
+            pasajeros = [dict(zip(cols, r)) for r in cur.fetchall()]
+
+        salida_str = salida.isoformat() if hasattr(salida, 'isoformat') else str(salida)
+        return JsonResponse({
+            'viaje': {
+                'numero': viaje_id,
+                'origen': origen,
+                'destino': destino,
+                'salida': salida_str,
+                'autobus': autobus_num,
+            },
+            'ocupacion': {
+                'total': total_asientos,
+                'ocupados': ocupados,
+                'libres': libres,
+                'porcentaje': porcentaje,
+            },
+            'pasajeros': pasajeros,
+        })
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
 from .elipse_views import elipse_view, elipse_chat
 
 @login_requerido

@@ -1272,6 +1272,18 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modal-ocupacion">
+  <div class="modal-box modal-wide">
+    <div class="modal-title azul" id="modal-ocup-title">Ocupación del viaje</div>
+    <div id="modal-ocup-body">
+      <div style="text-align:center;padding:30px"><span class="spinner"></span></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-gray" onclick="cerrarModal('modal-ocupacion')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-viaje">
   <div class="modal-box">
     <div class="modal-title">🚌 Agregar nuevo viaje</div>
@@ -1372,7 +1384,7 @@
       ciudad:   '{{ taquillero.terminal.ciudad.nombre }}',
     };
   </script>
-  <script src="{% static 'dashboard/panel_admin.js' %}?v=29"></script>
+  <script src="{% static 'dashboard/panel_admin.js' %}?v=30"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="{% static 'dashboard/mapa.js' %}?v=29"></script>
 </body>

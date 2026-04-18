@@ -986,7 +986,7 @@ function renderSalidaCards(trips, closestDate) {
         <td>${r.autobus_placas?'#'+r.autobus_num+' ('+r.autobus_placas+')':'—'}</td>
         <td>${r.conductor||'—'}</td>
         <td><span class="badge badge-info">${r.estado||'—'}</span></td>
-        <td><button class="btn btn-naranja btn-sm" onclick='verDetalleSalida(${JSON.stringify(r)})'>Detalles</button></td>
+        <td><button class="btn btn-azul-outline btn-sm" onclick='verOcupacionViaje(${r.numero})' title="Ver ocupación">📊</button> <button class="btn btn-naranja btn-sm" onclick='verDetalleSalida(${JSON.stringify(r)})'>Detalles</button></td>
       </tr>`).join('');
     cont.innerHTML = headerHtml + `
       <div class="tbl-wrap sal-tabla-wrap">
@@ -1014,12 +1014,99 @@ function renderSalidaCards(trips, closestDate) {
         <div class="sc-meta">Autobús: ${r.autobus_placas?'#'+r.autobus_num+' ('+r.autobus_placas+')':'—'} &nbsp;|&nbsp; Conductor: ${r.conductor||'—'}</div>
         <div class="sc-footer">
           <span class="badge badge-info">${r.estado||'—'}</span>
-          <button class="btn btn-naranja btn-sm" onclick='verDetalleSalida(${JSON.stringify(r)})'>Detalles</button>
+          <div class="sc-btns">
+            <button class="btn btn-azul-outline btn-sm" onclick='verOcupacionViaje(${r.numero})' title="Ver ocupación">📊 Ocupación</button>
+            <button class="btn btn-naranja btn-sm" onclick='verDetalleSalida(${JSON.stringify(r)})'>Detalles</button>
+          </div>
         </div>
       </div>`).join('')}</div>`;
   }
 }
 
+// ════ OCUPACIÓN DE VIAJE (CU-04) ══════════════
+async function verOcupacionViaje(viajeId) {
+  document.getElementById('modal-ocup-title').textContent = `Ocupación — Viaje #${viajeId}`;
+  document.getElementById('modal-ocup-body').innerHTML =
+    '<div style="text-align:center;padding:30px"><span class="spinner"></span></div>';
+  abrirModal('modal-ocupacion');
+
+  try {
+    const data = await fetch(`/api/viaje/ocupacion/${viajeId}/`).then(r => r.json());
+    if (data.error) {
+      document.getElementById('modal-ocup-body').innerHTML =
+        `<div class="empty-state" style="padding:20px">⚠️ ${data.error}</div>`;
+      return;
+    }
+
+    const { viaje, ocupacion, pasajeros } = data;
+    const pct = ocupacion.porcentaje;
+    const colorBarra = pct >= 90 ? '#e74c3c' : pct >= 60 ? '#f39c12' : '#27ae60';
+
+    const filasHtml = pasajeros.length
+      ? pasajeros.map((p, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${p.nombre}</td>
+            <td style="text-align:center;">${p.asiento}</td>
+            <td><span class="badge badge-info">${p.tipo_pasajero}</span></td>
+          </tr>`).join('')
+      : `<tr><td colspan="4" style="text-align:center;padding:16px;color:#888;">Sin pasajeros registrados</td></tr>`;
+
+    document.getElementById('modal-ocup-body').innerHTML = `
+      <div style="margin-bottom:18px;">
+        <div style="font-size:15px;color:var(--azul);margin-bottom:6px;">
+          <strong>${viaje.origen}</strong> → <strong>${viaje.destino}</strong>
+          &nbsp;·&nbsp; ${(viaje.salida||'').substring(0,16).replace('T',' ')}
+        </div>
+
+        <!-- Tarjetas de resumen -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px;">
+          <div style="background:rgba(17,129,195,.07);border:1px solid rgba(17,129,195,.18);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:28px;font-weight:900;color:var(--azul);">${ocupacion.total}</div>
+            <div style="font-size:11px;color:#666;margin-top:2px;">Total asientos</div>
+          </div>
+          <div style="background:rgba(231,76,60,.07);border:1px solid rgba(231,76,60,.2);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:28px;font-weight:900;color:#e74c3c;">${ocupacion.ocupados}</div>
+            <div style="font-size:11px;color:#666;margin-top:2px;">Ocupados</div>
+          </div>
+          <div style="background:rgba(39,174,96,.07);border:1px solid rgba(39,174,96,.2);border-radius:10px;padding:14px;text-align:center;">
+            <div style="font-size:28px;font-weight:900;color:#27ae60;">${ocupacion.libres}</div>
+            <div style="font-size:11px;color:#666;margin-top:2px;">Disponibles</div>
+          </div>
+        </div>
+
+        <!-- Barra de llenado -->
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <span style="font-size:13px;font-weight:600;color:#444;">Porcentaje de llenado</span>
+            <span style="font-size:22px;font-weight:900;color:${colorBarra};">${pct}%</span>
+          </div>
+          <div style="background:#e9ecef;border-radius:8px;height:18px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:${colorBarra};border-radius:8px;
+                        transition:width .6s ease;"></div>
+          </div>
+        </div>
+
+        <!-- Tabla pasajeros -->
+        <div style="font-size:13px;font-weight:700;color:#444;margin-bottom:8px;">
+          Pasajeros a bordo (${pasajeros.length})
+        </div>
+        <div class="tbl-wrap" style="max-height:240px;overflow-y:auto;">
+          <table class="pasajeros-tabla">
+            <thead>
+              <tr><th>#</th><th>Nombre</th><th style="text-align:center;">Asiento</th><th>Tipo</th></tr>
+            </thead>
+            <tbody>${filasHtml}</tbody>
+          </table>
+        </div>
+      </div>`;
+  } catch (err) {
+    document.getElementById('modal-ocup-body').innerHTML =
+      `<div class="empty-state" style="padding:20px">⚠️ Error al cargar la ocupación.</div>`;
+  }
+}
+
+// ════ MODAL DETALLE SALIDA ══════════════
 function verDetalleSalida(r) {
   document.getElementById('modal-det-salida-body').innerHTML = `
     <div style="margin-bottom:18px;">
