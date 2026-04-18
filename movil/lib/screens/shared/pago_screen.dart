@@ -46,6 +46,9 @@ class _PagoScreenState extends State<PagoScreen> {
   static const textoPrincipal = Color(0xFF1C2D3A);
   static const textoSecundario = Color(0xFF6B8FA8);
 
+  Color get colorPrimario =>
+      widget.tipoUsuario == 'taquillero' ? naranja : azul;
+
   final _formKey = GlobalKey<FormState>();
   int metodoPago = 2;
   bool procesando = false;
@@ -251,15 +254,20 @@ class _PagoScreenState extends State<PagoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // viewInsets.bottom sube cuando el teclado está visible,
+    // empujando el scroll para que el campo activo siempre sea visible.
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Scaffold(
       backgroundColor: fondo,
+      // resizeToAvoidBottomInset:true (default) + padding manual en el scroll
+      // da el mejor resultado: el scaffold no salta, el scroll sí cede.
       body: SafeArea(
         child: Column(
           children: [
             _buildHeader(),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + bottomInset),
                 child: Column(
                   children: [
                     _buildResumen(),
@@ -285,10 +293,10 @@ class _PagoScreenState extends State<PagoScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: azul,
+        color: colorPrimario,
         boxShadow: [
           BoxShadow(
-            color: azul.withOpacity(0.3),
+            color: colorPrimario.withOpacity(0.3),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -358,7 +366,7 @@ class _PagoScreenState extends State<PagoScreen> {
                 width: 4,
                 height: 18,
                 decoration: BoxDecoration(
-                  color: azul,
+                  color: colorPrimario,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -379,12 +387,12 @@ class _PagoScreenState extends State<PagoScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: azul.withOpacity(0.05),
+              color: colorPrimario.withOpacity(0.05),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
               children: [
-                const Icon(Icons.trip_origin_rounded, color: azul, size: 16),
+                Icon(Icons.trip_origin_rounded, color: colorPrimario, size: 16),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -433,15 +441,15 @@ class _PagoScreenState extends State<PagoScreen> {
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: azul.withOpacity(0.1),
+                    color: colorPrimario.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     widget.horaSalida,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: azul,
+                      color: colorPrimario,
                     ),
                   ),
                 ),
@@ -520,8 +528,8 @@ class _PagoScreenState extends State<PagoScreen> {
                 tipoColor = Colors.teal.shade700;
                 break;
               default: // adulto
-                tipoBg = azul.withOpacity(0.08);
-                tipoColor = azul;
+                tipoBg = colorPrimario.withOpacity(0.08);
+                tipoColor = colorPrimario;
             }
 
             return Padding(
@@ -534,16 +542,16 @@ class _PagoScreenState extends State<PagoScreen> {
                     width: 28,
                     height: 28,
                     decoration: BoxDecoration(
-                      color: azul.withOpacity(0.1),
+                      color: colorPrimario.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       '${index + 1}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: azul,
+                        color: colorPrimario,
                       ),
                     ),
                   ),
@@ -761,16 +769,16 @@ class _PagoScreenState extends State<PagoScreen> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          color: seleccionado ? azul : Colors.grey.shade50,
+          color: seleccionado ? colorPrimario : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: seleccionado ? azul : Colors.grey.shade200,
+            color: seleccionado ? colorPrimario : Colors.grey.shade200,
             width: seleccionado ? 2 : 1,
           ),
           boxShadow: seleccionado
               ? [
                   BoxShadow(
-                    color: azul.withOpacity(0.2),
+                    color: colorPrimario.withOpacity(0.2),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   ),
@@ -824,7 +832,7 @@ class _PagoScreenState extends State<PagoScreen> {
                   width: 4,
                   height: 18,
                   decoration: BoxDecoration(
-                    color: azul,
+                    color: colorPrimario,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
@@ -961,7 +969,7 @@ class _PagoScreenState extends State<PagoScreen> {
         labelStyle: const TextStyle(fontSize: 13, color: textoSecundario),
         hintText: hint,
         hintStyle: TextStyle(color: Colors.grey.shade300, fontSize: 13),
-        prefixIcon: Icon(icono, size: 18, color: azul),
+        prefixIcon: Icon(icono, size: 18, color: colorPrimario),
         counterText: '',
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
@@ -974,7 +982,7 @@ class _PagoScreenState extends State<PagoScreen> {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: azul, width: 1.5),
+          borderSide: BorderSide(color: colorPrimario, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -1051,9 +1059,9 @@ class _PagoScreenState extends State<PagoScreen> {
             decoration: InputDecoration(
               labelText: 'Cantidad recibida',
               labelStyle: const TextStyle(fontSize: 13, color: textoSecundario),
-              prefixIcon: const Icon(
+              prefixIcon: Icon(
                 Icons.attach_money_rounded,
-                color: azul,
+                color: colorPrimario,
                 size: 20,
               ),
               prefixText: '\$ ',
@@ -1070,7 +1078,7 @@ class _PagoScreenState extends State<PagoScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: azul, width: 1.5),
+                borderSide: BorderSide(color: colorPrimario, width: 1.5),
               ),
               filled: true,
               fillColor: Colors.grey.shade50,

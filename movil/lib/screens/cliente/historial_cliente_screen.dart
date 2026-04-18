@@ -380,13 +380,18 @@ class _HistorialClienteScreenState extends State<HistorialClienteScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Scaffold(
       backgroundColor: fondo,
       body: SafeArea(
         child: Column(
           children: [
             _buildHeader(),
-            if (mostrarFiltros) _buildPanelFiltros(),
+            if (mostrarFiltros)
+              SingleChildScrollView(
+                padding: EdgeInsets.only(bottom: bottomInset),
+                child: _buildPanelFiltros(),
+              ),
             if (hayFiltrosActivos) _buildChipsFiltros(),
             Expanded(child: _buildContenido()),
           ],

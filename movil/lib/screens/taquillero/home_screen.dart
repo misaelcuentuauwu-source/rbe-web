@@ -75,6 +75,7 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen>
 
   @override
   Widget build(BuildContext context) {
+    final bottomPad = MediaQuery.of(context).padding.bottom;
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F9),
       body: Stack(
@@ -89,7 +90,12 @@ class _HomeNavigationScreenState extends State<HomeNavigationScreen>
         }),
       ),
       bottomNavigationBar: Padding(
-        padding: const EdgeInsets.only(left: 16, right: 16, bottom: 24),
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          bottom: bottomPad > 0 ? bottomPad : 16,
+          top: 8,
+        ),
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,

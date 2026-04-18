@@ -59,6 +59,37 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
   static const _fondo = Color(0xFFF0F4F8);
   static const _casco = Color(0xFF0F4C5C);
 
+  Color get _colorAppBar =>
+      widget.tipoUsuario == 'taquillero' ? _naranja : _azul;
+
+  // ── Constantes de proporción (independientes de pantalla) ──────────────────
+  // Los valores de referencia se mantienen solo como base de proporción.
+  // El tamaño real se calcula dinámicamente en _scrollableBusPortrait()
+  // usando el ancho disponible real del dispositivo.
+  static const double _refW = 320.0;
+  static const double _hPad = 18.0;
+  static const double _vPad = 14.0;
+  static const double _gap = 7.0;
+  static const double _aisleW = 22.0;
+  static const double _seatW = (_refW - 2 * _hPad - 3 * _gap - _aisleW) / 4;
+  static const double _seatH = _seatW * 1.18;
+  static const double _rowH = _seatH + _gap;
+  static const double _cabH = _seatH * 1.80;
+
+  // ── Constantes landscape (proporciones, no px absolutos) ──────────────────
+  // _lRefH define la proporción interna del bus horizontal.
+  // El escalado real ocurre en _scrollableBusLandscape() con FittedBox.
+  static const double _lRefH = 260.0;
+  static const double _lHPad = 14.0;
+  static const double _lVPad = 12.0;
+  static const double _lGap = 6.0;
+  static const double _lAisleH = 20.0;
+  static const double _lSeatH =
+      (_lRefH - 2 * _lHPad - 3 * _lGap - _lAisleH) / 4;
+  static const double _lSeatW = _lSeatH * 1.18;
+  static const double _lColW = _lSeatW + _lGap;
+  static const double _lCabW = _lSeatW * 1.80;
+
   List<dynamic> _asientos = [];
   final List<int> _seleccionados = [];
   bool _cargando = true;
@@ -78,36 +109,9 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
   ).animate(CurvedAnimation(parent: _entryCtrl, curve: Curves.easeOutBack));
 
   // ── Controladores staggered por fila ────────────────────────────────────────
-  // Se inicializan después de cargar los asientos.
   final List<AnimationController> _rowCtrls = [];
   final List<Animation<double>> _rowFades = [];
   final List<Animation<Offset>> _rowSlides = [];
-
-  // ── Dimensiones internas de referencia (modo PORTRAIT) ──────────────────────
-  static const double _refW = 320.0;
-  static const double _hPad = 18.0;
-  static const double _vPad = 14.0;
-  static const double _gap = 7.0;
-  static const double _aisleW = 22.0;
-  static const double _seatW = (_refW - 2 * _hPad - 3 * _gap - _aisleW) / 4;
-  static const double _seatH = _seatW * 1.18;
-  static const double _rowH = _seatH + _gap;
-  static const double _cabH = _seatH * 1.80;
-
-  // ── Dimensiones internas de referencia (modo LANDSCAPE) ─────────────────────
-  // El bus gira: el eje largo es ahora horizontal.
-  // "columnas" → lo que eran filas; la cabina queda a la DERECHA.
-  static const double _lRefH = 260.0; // alto de referencia en landscape
-  static const double _lHPad = 14.0; // padding vertical (era horizontal)
-  static const double _lVPad = 12.0; // padding horizontal (era vertical)
-  static const double _lGap = 6.0;
-  static const double _lAisleH = 20.0; // pasillo ahora es horizontal
-  // seatH en landscape: 4 asientos + 3 gaps + 1 pasillo dentro de (lRefH - 2*lHPad)
-  static const double _lSeatH =
-      (_lRefH - 2 * _lHPad - 3 * _lGap - _lAisleH) / 4;
-  static const double _lSeatW = _lSeatH * 1.18;
-  static const double _lColW = _lSeatW + _lGap;
-  static const double _lCabW = _lSeatW * 1.80; // cabina a la derecha
 
   @override
   void initState() {
@@ -318,29 +322,33 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
     return Scaffold(
       backgroundColor: _fondo,
       appBar: _appBar(),
-      body: _cargando
-          ? const Center(child: CircularProgressIndicator(color: _azul))
-          : OrientationBuilder(
-              builder: (ctx, orientation) {
-                final isLandscape = orientation == Orientation.landscape;
-                return Column(
-                  children: [
-                    Expanded(
-                      child: isLandscape
-                          ? _scrollableBusLandscape()
-                          : _scrollableBusPortrait(),
-                    ),
-                    _leyenda(),
-                    _boton(),
-                  ],
-                );
-              },
-            ),
+      body: SafeArea(
+        // top:false porque el AppBar ya maneja el área superior
+        top: false,
+        child: _cargando
+            ? Center(child: CircularProgressIndicator(color: _colorAppBar))
+            : OrientationBuilder(
+                builder: (ctx, orientation) {
+                  final isLandscape = orientation == Orientation.landscape;
+                  return Column(
+                    children: [
+                      Expanded(
+                        child: isLandscape
+                            ? _scrollableBusLandscape()
+                            : _scrollableBusPortrait(),
+                      ),
+                      _leyenda(),
+                      _boton(),
+                    ],
+                  );
+                },
+              ),
+      ),
     );
   }
 
   PreferredSizeWidget _appBar() => AppBar(
-    backgroundColor: _azul,
+    backgroundColor: _colorAppBar,
     foregroundColor: Colors.white,
     elevation: 0,
     centerTitle: true,
@@ -359,7 +367,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
   );
 
   // ══════════════════════════════════════════════════════════════════════════════
-  //  PORTRAIT — mismo comportamiento que antes
+  //  PORTRAIT — escala el bus al ancho real disponible del dispositivo
   // ══════════════════════════════════════════════════════════════════════════════
   Widget _scrollableBusPortrait() {
     return LayoutBuilder(
@@ -367,7 +375,10 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
         final availW = bc.maxWidth;
         final availH = bc.maxHeight;
         final refH = _refH();
-        final scale = (availW - 32) / _refW;
+
+        // Escalar para ocupar el 92% del ancho disponible (deja margen lateral)
+        final maxBusW = (availW * 0.92).clamp(200.0, 400.0);
+        final scale = maxBusW / _refW;
         final scaledH = refH * scale;
 
         final busWidget = FadeTransition(
@@ -390,14 +401,20 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
         if (scaledH + 24 <= availH) {
           return Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: EdgeInsets.symmetric(
+                horizontal: (availW - maxBusW) / 2,
+                vertical: 12,
+              ),
               child: busWidget,
             ),
           );
         }
         return SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: (availW - maxBusW) / 2,
+            vertical: 12,
+          ),
           child: busWidget,
         );
       },
@@ -405,9 +422,7 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
-  //  LANDSCAPE — bus horizontal: viaja de derecha → izquierda
-  //  La cabina queda a la DERECHA (frente del bus).
-  //  El scroll es HORIZONTAL si el bus no cabe.
+  //  LANDSCAPE — bus horizontal; escala al alto real disponible
   // ══════════════════════════════════════════════════════════════════════════════
   Widget _scrollableBusLandscape() {
     return LayoutBuilder(
@@ -416,8 +431,9 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
         final availH = bc.maxHeight;
         final refW = _lRefW();
 
-        // Escala para que el alto del bus quepa en el alto disponible
-        final scale = (availH - 32) / _lRefH;
+        // Limitar la altura del bus al 88% del alto disponible
+        final maxBusH = (availH * 0.88).clamp(160.0, 320.0);
+        final scale = maxBusH / _lRefH;
         final scaledW = refW * scale;
 
         final busWidget = FadeTransition(
@@ -438,20 +454,24 @@ class _SeatSelectionScreenState extends State<SeatSelectionScreen>
         );
 
         if (scaledW + 24 <= availW) {
-          // Cabe sin scroll
           return Center(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: (availH - maxBusH) / 2,
+              ),
               child: busWidget,
             ),
           );
         }
 
-        // No cabe → scroll horizontal con rebote
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: (availH - maxBusH) / 2,
+          ),
           child: busWidget,
         );
       },

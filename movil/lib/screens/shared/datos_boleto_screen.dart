@@ -78,6 +78,9 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
   static const textoPrincipal = Color(0xFF1C2D3A);
   static const textoSecundario = Color(0xFF6B8FA8);
 
+  Color get colorPrimario =>
+      widget.tipoUsuario == 'taquillero' ? naranja : azul;
+
   final _formKey = GlobalKey<FormState>();
   late List<Map<String, dynamic>> pasajerosList;
   bool _verificando = false;
@@ -312,8 +315,8 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: azul,
+            colorScheme: ColorScheme.light(
+              primary: colorPrimario,
               onPrimary: Colors.white,
               surface: Colors.white,
               onSurface: textoPrincipal,
@@ -577,8 +580,11 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Scaffold(
       backgroundColor: fondo,
+      // resizeToAvoidBottomInset:true (default) — el ListView recibe el espacio
+      // correcto y el campo activo siempre queda visible sobre el teclado.
       body: SafeArea(
         child: Column(
           children: [
@@ -587,7 +593,8 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
               child: Form(
                 key: _formKey,
                 child: ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  // padding inferior dinámico: cede espacio al teclado
+                  padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + bottomInset),
                   itemCount: pasajerosList.length + 2,
                   itemBuilder: (context, index) {
                     if (index == 0) return _buildResumen();
@@ -615,10 +622,10 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: azul,
+        color: colorPrimario,
         boxShadow: [
           BoxShadow(
-            color: azul.withOpacity(0.3),
+            color: colorPrimario.withOpacity(0.3),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -681,7 +688,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.trip_origin_rounded, color: azul, size: 16),
+          Icon(Icons.trip_origin_rounded, color: colorPrimario, size: 16),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
@@ -714,15 +721,15 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: azul.withOpacity(0.1),
+              color: colorPrimario.withOpacity(0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
               widget.horaSalida,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: azul,
+                color: colorPrimario,
               ),
             ),
           ),
@@ -788,7 +795,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
               spacing: 8,
               runSpacing: 6,
               children: [
-                _badge('Pasajero ${index + 1}', azul),
+                _badge('Pasajero ${index + 1}', colorPrimario),
                 _badge(tipo, _colorTipo(tipo)),
                 if (esContacto) _badge('Contacto', naranja),
                 if (descuento > 0)
@@ -815,7 +822,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                 texto:
                     'Datos autorrellenados con tu cuenta. '
                     'Puedes modificarlos si lo deseas.',
-                color: azul,
+                color: colorPrimario,
               ),
 
             // ── Precio con descuento ─────────────────────────
@@ -1009,7 +1016,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                         ? Colors.grey.shade200
                         : tieneError
                         ? Colors.red.shade300
-                        : azul.withOpacity(0.5),
+                        : colorPrimario.withOpacity(0.5),
                     width: field.hasError ? 1.5 : 1,
                   ),
                 ),
@@ -1018,7 +1025,9 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                     Icon(
                       Icons.cake_outlined,
                       size: 18,
-                      color: field.hasError ? Colors.red.shade400 : azul,
+                      color: field.hasError
+                          ? Colors.red.shade400
+                          : colorPrimario,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -1058,15 +1067,15 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: azul.withOpacity(0.08),
+                          color: colorPrimario.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           '$edad años',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
-                            color: azul,
+                            color: colorPrimario,
                           ),
                         ),
                       ),
@@ -1074,7 +1083,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
                     Icon(
                       Icons.calendar_month_rounded,
                       size: 18,
-                      color: fn != null ? azul : Colors.grey.shade400,
+                      color: fn != null ? colorPrimario : Colors.grey.shade400,
                     ),
                   ],
                 ),
@@ -1147,7 +1156,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     return InputDecoration(
       labelText: label,
       labelStyle: const TextStyle(fontSize: 13, color: textoSecundario),
-      prefixIcon: Icon(icono, size: 18, color: azul),
+      prefixIcon: Icon(icono, size: 18, color: colorPrimario),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
       enabledBorder: OutlineInputBorder(
@@ -1156,7 +1165,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: azul, width: 1.5),
+        borderSide: BorderSide(color: colorPrimario, width: 1.5),
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -1201,13 +1210,13 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: azul.withOpacity(0.04),
+        color: colorPrimario.withOpacity(0.04),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: azul.withOpacity(0.2)),
+        border: Border.all(color: colorPrimario.withOpacity(0.2)),
       ),
       child: Row(
         children: [
-          Icon(Icons.email_outlined, size: 18, color: azul),
+          Icon(Icons.email_outlined, size: 18, color: colorPrimario),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1301,7 +1310,7 @@ class _DatosBoletoScreenState extends State<DatosBoletoScreen> {
       case 'Discapacidad':
         return Colors.orange.shade600;
       default:
-        return azul;
+        return colorPrimario;
     }
   }
 }

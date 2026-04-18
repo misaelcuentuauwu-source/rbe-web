@@ -145,7 +145,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: false,
+      // resizeToAvoidBottomInset: true (default) — permite que el teclado
+      // empuje el contenido hacia arriba sin tapar campos de texto.
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isLandscape = constraints.maxWidth > constraints.maxHeight;
@@ -194,43 +195,51 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   // ── Portrait ──────────────────────────────────────────────────────────────
 
   Widget _buildPortrait(BuildContext context, bool isTablet) {
-    final screenHeight = MediaQuery.of(context).size.height;
-
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: screenHeight * 0.65,
-          child: CustomPaint(
-            painter: _WavePainter(color: const Color(0xFF2C7FB1)),
-            child: const SizedBox.expand(),
-          ),
-        ),
-        Positioned(
-          bottom: 70,
-          left: 32,
-          right: 32,
-          child: _buildButtons(context, isLandscape: false),
-        ),
-        Positioned(
-          top: screenHeight * 0.42,
-          left: 32,
-          right: 32,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return SafeArea(
+      // bottom:false para que la ola de fondo llegue hasta el borde inferior
+      bottom: false,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final screenHeight = constraints.maxHeight +
+              MediaQuery.of(context).padding.bottom;
+          return Stack(
+            fit: StackFit.expand,
             children: [
-              const _LogoIcon(),
-              const SizedBox(height: 20),
-              _buildTitle(isLandscape: false),
-              const SizedBox(height: 20),
-              const _AnimatedBusRoute(),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                height: screenHeight * 0.65,
+                child: CustomPaint(
+                  painter: _WavePainter(color: const Color(0xFF2C7FB1)),
+                  child: const SizedBox.expand(),
+                ),
+              ),
+              Positioned(
+                bottom: 70 + MediaQuery.of(context).padding.bottom,
+                left: 32,
+                right: 32,
+                child: _buildButtons(context, isLandscape: false),
+              ),
+              Positioned(
+                top: screenHeight * 0.36,
+                left: 32,
+                right: 32,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _LogoIcon(),
+                    const SizedBox(height: 20),
+                    _buildTitle(isLandscape: false),
+                    const SizedBox(height: 20),
+                    const _AnimatedBusRoute(),
+                  ],
+                ),
+              ),
             ],
-          ),
-        ),
-      ],
+          );
+        },
+      ),
     );
   }
 

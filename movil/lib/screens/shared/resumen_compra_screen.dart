@@ -49,6 +49,9 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
   static const textoPrincipal = Color(0xFF1C2D3A);
   static const textoSecundario = Color(0xFF6B8FA8);
 
+  Color get colorPrimario =>
+      widget.tipoUsuario == 'taquillero' ? naranja : azul;
+
   static const Map<String, int> _descuentos = {
     'Adulto': 0,
     'Estudiante': 25,
@@ -108,7 +111,12 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
             _buildHeader(),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  24 + MediaQuery.of(context).viewInsets.bottom,
+                ),
                 child: Column(
                   children: [
                     _buildExito(),
@@ -136,7 +144,7 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
       decoration: BoxDecoration(
-        color: azul,
+        color: colorPrimario,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.08),
@@ -237,20 +245,24 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: azul.withOpacity(0.07),
+                color: colorPrimario.withOpacity(0.07),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.mark_email_read_rounded, color: azul, size: 18),
+                  Icon(
+                    Icons.mark_email_read_rounded,
+                    color: colorPrimario,
+                    size: 18,
+                  ),
                   const SizedBox(width: 8),
                   Flexible(
                     child: Text(
                       'Boleto enviado a $correo',
                       style: TextStyle(
                         fontSize: 12,
-                        color: azul,
+                        color: colorPrimario,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -287,7 +299,7 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                 width: 4,
                 height: 18,
                 decoration: BoxDecoration(
-                  color: azul,
+                  color: colorPrimario,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -310,8 +322,8 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                   Container(
                     width: 10,
                     height: 10,
-                    decoration: const BoxDecoration(
-                      color: azul,
+                    decoration: BoxDecoration(
+                      color: colorPrimario,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -353,10 +365,10 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
               ),
               Text(
                 widget.horaSalida,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.bold,
                   fontSize: 15,
-                  color: azul,
+                  color: colorPrimario,
                 ),
               ),
             ],
@@ -389,7 +401,7 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                 width: 4,
                 height: 18,
                 decoration: BoxDecoration(
-                  color: azul,
+                  color: colorPrimario,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -433,15 +445,15 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: azul.withOpacity(0.1),
+                      color: colorPrimario.withOpacity(0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Center(
                       child: Text(
                         '${index + 1}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: azul,
+                          color: colorPrimario,
                           fontSize: 14,
                         ),
                       ),
@@ -603,7 +615,7 @@ class _ResumenCompraScreenState extends State<ResumenCompraScreen> {
                 widget.metodoPago == 2
                     ? Icons.credit_card_rounded
                     : Icons.payments_rounded,
-                color: azul,
+                color: colorPrimario,
                 size: 20,
               ),
               const SizedBox(width: 8),

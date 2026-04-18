@@ -61,6 +61,8 @@ class _HomeInvitadoScreenState extends State<HomeInvitadoScreen>
 
   @override
   Widget build(BuildContext context) {
+    // padding.bottom = altura del indicador de inicio (iPhone) o barra de navegación (Android)
+    final bottomPad = MediaQuery.of(context).padding.bottom;
     return Scaffold(
       backgroundColor: fondo,
       body: Stack(
@@ -75,7 +77,12 @@ class _HomeInvitadoScreenState extends State<HomeInvitadoScreen>
         }),
       ),
       bottomNavigationBar: Padding(
-        padding: const EdgeInsets.only(bottom: 24, left: 16, right: 16),
+        padding: EdgeInsets.only(
+          bottom: bottomPad > 0 ? bottomPad : 16,
+          left: 16,
+          right: 16,
+          top: 8,
+        ),
         child: Container(
           decoration: BoxDecoration(
             color: Colors.white,

@@ -194,6 +194,7 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
   @override
   Widget build(BuildContext context) {
     if (widget.tipoUsuario == 'invitado') return _buildInvitado();
+    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return Scaffold(
       backgroundColor: fondo,
       body: SafeArea(
@@ -206,7 +207,12 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
               child: _buildBuscador(),
             ),
             const SizedBox(height: 12),
-            Expanded(child: _buildContenido()),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: bottomInset),
+                child: _buildContenido(),
+              ),
+            ),
           ],
         ),
       ),

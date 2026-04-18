@@ -332,7 +332,10 @@ class _PerfilClienteScreenState extends State<PerfilClienteScreen> {
 
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.fromLTRB(
+                  16, 16, 16,
+                  24 + MediaQuery.of(context).viewInsets.bottom,
+                ),
                 child: Column(
                   children: [
                     const SizedBox(height: 20),
