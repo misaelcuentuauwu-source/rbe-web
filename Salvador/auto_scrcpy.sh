@@ -2,12 +2,20 @@
 
 echo "🔄 Esperando dispositivos Android..."
 
+# Función para limpiar procesos al salir
+cleanup() {
+    echo "🛑 Deteniendo scrcpy..."
+    pkill scrcpy
+    exit 0
+}
+
+# Captura Ctrl+C
+trap cleanup SIGINT
+
 while true; do
-    # Obtener dispositivos conectados
     DEVICES=$(adb devices | grep -w "device" | cut -f1)
 
     for DEVICE in $DEVICES; do
-        # Verifica si ya hay un scrcpy corriendo para ese dispositivo
         if ! pgrep -f "scrcpy -s $DEVICE" > /dev/null; then
             echo "📱 Conectando $DEVICE..."
             scrcpy -s $DEVICE &
