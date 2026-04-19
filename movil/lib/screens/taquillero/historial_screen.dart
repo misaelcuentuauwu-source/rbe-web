@@ -1,18 +1,16 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:printing/printing.dart';
 import '../../config.dart';
 import '../../utils/pdf_boleto.dart';
 
 // ─────────────────────────────────────────────────────────
-//  HISTORIAL SCREEN  –  RBE v4
-//  BUG FIX: crash _dependents.isEmpty resuelto.
-//  Causa: _iniciarAnimacionCards() disponía los AnimationController
-//  mientras sus CurvedAnimation hijos seguían vivos en el árbol.
-//  Solución: guardar los CurvedAnimation en listas propias y
-//  disponerlos ANTES de disponer el controller padre.
+//  HISTORIAL SCREEN  –  RBE v5
+//  CAMBIO: origen y destino usan checkboxes de ciudades
+//  cargadas desde terminales, igual que en home_screen.dart.
+//  Los filtros y la responsividad (portrait/landscape)
+//  funcionan igual que antes.
 // ─────────────────────────────────────────────────────────
 
 class HistorialScreen extends StatefulWidget {
@@ -42,13 +40,16 @@ class _HistorialScreenState extends State<HistorialScreen>
   String _filtroVendedor = 'todas';
   DateTime? fechaDesde;
   DateTime? fechaHasta;
-  String? origenFiltro;
-  String? destinoFiltro;
   String? estadoFiltro;
   String _tipoFiltroFecha = 'viaje';
 
-  final _origenCtrl = TextEditingController();
-  final _destinoCtrl = TextEditingController();
+  // ── Ciudades seleccionadas (combobox) ─────────────────
+  String? _origenSeleccionado;
+  String? _destinoSeleccionado;
+
+  // Ciudades disponibles del catalogo de terminales
+  List<String> _ciudadesOrigen = [];
+  List<String> _ciudadesDestino = [];
 
   Set<int> _reimprimiendoFolios = {};
 
@@ -56,11 +57,9 @@ class _HistorialScreenState extends State<HistorialScreen>
   late AnimationController _filterPanelCtrl;
   late Animation<double> _filterPanelAnim;
 
-  // BUG FIX: guardamos TANTO el controller COMO los CurvedAnimation
-  // para poder disponer los hijos antes que el padre.
   final List<AnimationController> _cardCtrls = [];
-  final List<CurvedAnimation> _cardFadeCurves = []; // ← nuevo
-  final List<CurvedAnimation> _cardSlideCurves = []; // ← nuevo
+  final List<CurvedAnimation> _cardFadeCurves = [];
+  final List<CurvedAnimation> _cardSlideCurves = [];
   final List<Animation<double>> _cardFadeAnims = [];
   final List<Animation<Offset>> _cardSlideAnims = [];
 
@@ -105,48 +104,35 @@ class _HistorialScreenState extends State<HistorialScreen>
       parent: _filterPanelCtrl,
       curve: Curves.easeInOutCubic,
     );
+    cargarCiudades();
     cargarHistorial();
   }
 
   @override
   void dispose() {
     _filterPanelCtrl.dispose();
-    _origenCtrl.dispose();
-    _destinoCtrl.dispose();
-    _limpiarAnimacionCards(); // usa el método seguro
+    _limpiarAnimacionCards();
     super.dispose();
   }
 
-  // ── BUG FIX: disponer hijos ANTES que padres ──────────
   void _limpiarAnimacionCards() {
-    // 1. Disponer CurvedAnimations (hijos) primero
-    for (final c in _cardFadeCurves) {
-      c.dispose();
-    }
-    for (final c in _cardSlideCurves) {
-      c.dispose();
-    }
+    for (final c in _cardFadeCurves) c.dispose();
+    for (final c in _cardSlideCurves) c.dispose();
     _cardFadeCurves.clear();
     _cardSlideCurves.clear();
     _cardFadeAnims.clear();
     _cardSlideAnims.clear();
-
-    // 2. Ahora sí disponer los controllers (padres)
-    for (final c in _cardCtrls) {
-      c.dispose();
-    }
+    for (final c in _cardCtrls) c.dispose();
     _cardCtrls.clear();
   }
 
   void _iniciarAnimacionCards(int count) {
-    _limpiarAnimacionCards(); // limpieza segura antes de crear nuevos
-
+    _limpiarAnimacionCards();
     for (int i = 0; i < count; i++) {
       final ctrl = AnimationController(
         vsync: this,
         duration: const Duration(milliseconds: 420),
       );
-
       final fadeCurve = CurvedAnimation(parent: ctrl, curve: Curves.easeOut);
       final slideCurve = CurvedAnimation(
         parent: ctrl,
@@ -158,14 +144,74 @@ class _HistorialScreenState extends State<HistorialScreen>
       ).animate(slideCurve);
 
       _cardCtrls.add(ctrl);
-      _cardFadeCurves.add(fadeCurve); // guardamos referencia al hijo
-      _cardSlideCurves.add(slideCurve); // guardamos referencia al hijo
+      _cardFadeCurves.add(fadeCurve);
+      _cardSlideCurves.add(slideCurve);
       _cardFadeAnims.add(fadeCurve);
       _cardSlideAnims.add(slideAnim);
 
       Future.delayed(Duration(milliseconds: 60 * i), () {
         if (mounted) ctrl.forward();
       });
+    }
+  }
+
+  void _setCiudadesDisponibles(Iterable<String> ciudades) {
+    final lista =
+        ciudades
+            .map((c) => c.trim())
+            .where((c) => c.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+
+    if (!mounted) return;
+    setState(() {
+      _ciudadesOrigen = List<String>.from(lista);
+      _ciudadesDestino = List<String>.from(lista);
+      if (_origenSeleccionado != null && !lista.contains(_origenSeleccionado)) {
+        _origenSeleccionado = null;
+      }
+      if (_destinoSeleccionado != null &&
+          !lista.contains(_destinoSeleccionado)) {
+        _destinoSeleccionado = null;
+      }
+    });
+  }
+
+  // Fallback si no se pudo cargar el catálogo de terminales.
+  void _cargarCiudadesDesdeHistorial() {
+    final ciudades = <String>{};
+    for (final item in historial) {
+      final origen = item['origen']?.toString().trim() ?? '';
+      final destino = item['destino']?.toString().trim() ?? '';
+      if (origen.isNotEmpty) ciudades.add(origen);
+      if (destino.isNotEmpty) ciudades.add(destino);
+    }
+    _setCiudadesDisponibles(ciudades);
+  }
+
+  Future<void> cargarCiudades() async {
+    try {
+      final response = await http
+          .get(Uri.parse('${Config.baseUrl}/api/terminales/'))
+          .timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        _cargarCiudadesDesdeHistorial();
+        return;
+      }
+
+      final data = jsonDecode(response.body) as List;
+      final ciudades = data
+          .map((t) => Map<String, dynamic>.from(t))
+          .map(
+            (t) => t['ciudad'] is Map ? t['ciudad']['nombre']?.toString() : '',
+          )
+          .whereType<String>();
+
+      _setCiudadesDisponibles(ciudades);
+    } catch (_) {
+      _cargarCiudadesDesdeHistorial();
     }
   }
 
@@ -184,6 +230,9 @@ class _HistorialScreenState extends State<HistorialScreen>
             historial = decoded;
             cargando = false;
           });
+          if (_ciudadesOrigen.isEmpty && _ciudadesDestino.isEmpty) {
+            _cargarCiudadesDesdeHistorial();
+          }
           aplicarFiltros();
         } else {
           debugPrint('Respuesta inesperada del backend: $decoded');
@@ -215,7 +264,6 @@ class _HistorialScreenState extends State<HistorialScreen>
       }
 
       final data = jsonDecode(res.body) as Map<String, dynamic>;
-
       final pasajeros = (data['pasajeros'] as List).map((p) {
         return {
           'nombre': p['nombre'],
@@ -253,16 +301,16 @@ class _HistorialScreenState extends State<HistorialScreen>
   void aplicarFiltros() {
     setState(() {
       historialFiltrado = historial.where((item) {
+        // Filtro vendedor
         if (_filtroVendedor == 'mias') {
-          if (item['vendedor_id']?.toString() != widget.vendedorId.toString()) {
+          if (item['vendedor_id']?.toString() != widget.vendedorId.toString())
             return false;
-          }
         }
 
+        // Filtro fechas
         final campo = _tipoFiltroFecha == 'viaje'
             ? item['hora_salida']
             : item['fecha'];
-
         if (fechaDesde != null) {
           final dt = DateTime.tryParse(campo.toString());
           if (dt == null || dt.isBefore(fechaDesde!)) return false;
@@ -279,21 +327,24 @@ class _HistorialScreenState extends State<HistorialScreen>
           );
           if (dt == null || dt.isAfter(fin)) return false;
         }
-        if (origenFiltro?.isNotEmpty == true) {
-          if (!item['origen'].toString().toLowerCase().contains(
-            origenFiltro!.toLowerCase(),
-          ))
-            return false;
+
+        // Filtro origen (combobox) — null = todas
+        if (_origenSeleccionado != null) {
+          final origen = item['origen']?.toString().trim() ?? '';
+          if (origen != _origenSeleccionado) return false;
         }
-        if (destinoFiltro?.isNotEmpty == true) {
-          if (!item['destino'].toString().toLowerCase().contains(
-            destinoFiltro!.toLowerCase(),
-          ))
-            return false;
+
+        // Filtro destino (combobox) — null = todas
+        if (_destinoSeleccionado != null) {
+          final destino = item['destino']?.toString().trim() ?? '';
+          if (destino != _destinoSeleccionado) return false;
         }
+
+        // Filtro estado
         if (estadoFiltro?.isNotEmpty == true) {
           if (item['estado'].toString() != estadoFiltro) return false;
         }
+
         return true;
       }).toList();
     });
@@ -302,11 +353,10 @@ class _HistorialScreenState extends State<HistorialScreen>
 
   void limpiarFiltros() {
     setState(() {
-      fechaDesde = fechaHasta = origenFiltro = destinoFiltro = estadoFiltro =
-          null;
+      fechaDesde = fechaHasta = estadoFiltro = null;
       _filtroVendedor = 'todas';
-      _origenCtrl.clear();
-      _destinoCtrl.clear();
+      _origenSeleccionado = null;
+      _destinoSeleccionado = null;
     });
     aplicarFiltros();
   }
@@ -314,8 +364,8 @@ class _HistorialScreenState extends State<HistorialScreen>
   bool get hayFiltros =>
       fechaDesde != null ||
       fechaHasta != null ||
-      (origenFiltro?.isNotEmpty == true) ||
-      (destinoFiltro?.isNotEmpty == true) ||
+      _origenSeleccionado != null ||
+      _destinoSeleccionado != null ||
       (estadoFiltro?.isNotEmpty == true) ||
       _filtroVendedor == 'mias';
 
@@ -387,27 +437,39 @@ class _HistorialScreenState extends State<HistorialScreen>
   // ── BUILD ─────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    final keyboardH = MediaQuery.of(context).viewInsets.bottom;
+
     return Scaffold(
       backgroundColor: fondo,
       resizeToAvoidBottomInset: false,
-      body: ClipRect(
-        child: SafeArea(
-          child: Column(
-            children: [
-              _buildHeader(),
-              SizeTransition(
-                sizeFactor: _filterPanelAnim,
-                axisAlignment: -1,
-                child: SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  child: _buildPanelFiltros(),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final availableH = constraints.maxHeight - keyboardH;
+            final panelMaxH = (availableH * 0.55).clamp(0.0, availableH);
+
+            return Column(
+              children: [
+                _buildHeader(),
+                SizeTransition(
+                  sizeFactor: _filterPanelAnim,
+                  axisAlignment: -1,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: panelMaxH),
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      child: _buildPanelFiltros(),
+                    ),
+                  ),
                 ),
-              ),
-              if (hayFiltros) _buildBarraResultados(),
-              const SizedBox(height: 8),
-              Expanded(child: _buildContenido()),
-            ],
-          ),
+                if (hayFiltros) _buildBarraResultados(),
+                const SizedBox(height: 8),
+                Expanded(child: _buildContenido()),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -529,6 +591,7 @@ class _HistorialScreenState extends State<HistorialScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // ── Ventas a mostrar ──────────────────────────
           _SectionLabel('Ventas a mostrar'),
           const SizedBox(height: 8),
           Row(
@@ -560,6 +623,7 @@ class _HistorialScreenState extends State<HistorialScreen>
           ),
           const SizedBox(height: 14),
 
+          // ── Filtrar fechas por ────────────────────────
           _SectionLabel('Filtrar fechas por'),
           const SizedBox(height: 8),
           Row(
@@ -624,43 +688,51 @@ class _HistorialScreenState extends State<HistorialScreen>
               ),
             ],
           ),
+          const SizedBox(height: 14),
+
+          // ── Ciudad de origen — combobox ───────────────
+          _CiudadComboBox(
+            titulo: 'Ciudad de origen',
+            icono: Icons.trip_origin_rounded,
+            colorIcono: naranja,
+            ciudades: _ciudadesOrigen,
+            valorSeleccionado: _origenSeleccionado,
+            ciudadBloqueada: _destinoSeleccionado,
+            onChanged: (ciudad) {
+              setState(() => _origenSeleccionado = ciudad);
+              aplicarFiltros();
+            },
+            onLimpiar: _origenSeleccionado != null
+                ? () {
+                    setState(() => _origenSeleccionado = null);
+                    aplicarFiltros();
+                  }
+                : null,
+          ),
           const SizedBox(height: 10),
 
-          _FilterField(
-            controller: _origenCtrl,
-            hint: 'Ciudad de origen',
-            icon: Icons.trip_origin_rounded,
-            iconColor: naranja,
-            value: origenFiltro,
-            onChanged: (v) {
-              setState(() => origenFiltro = v);
+          // ── Ciudad de destino — combobox ──────────────
+          _CiudadComboBox(
+            titulo: 'Ciudad de destino',
+            icono: Icons.location_on_rounded,
+            colorIcono: azul,
+            ciudades: _ciudadesDestino,
+            valorSeleccionado: _destinoSeleccionado,
+            ciudadBloqueada: _origenSeleccionado,
+            onChanged: (ciudad) {
+              setState(() => _destinoSeleccionado = ciudad);
               aplicarFiltros();
             },
-            onClear: () {
-              _origenCtrl.clear();
-              setState(() => origenFiltro = null);
-              aplicarFiltros();
-            },
+            onLimpiar: _destinoSeleccionado != null
+                ? () {
+                    setState(() => _destinoSeleccionado = null);
+                    aplicarFiltros();
+                  }
+                : null,
           ),
-          const SizedBox(height: 8),
-          _FilterField(
-            controller: _destinoCtrl,
-            hint: 'Ciudad de destino',
-            icon: Icons.location_on_rounded,
-            iconColor: azul,
-            value: destinoFiltro,
-            onChanged: (v) {
-              setState(() => destinoFiltro = v);
-              aplicarFiltros();
-            },
-            onClear: () {
-              _destinoCtrl.clear();
-              setState(() => destinoFiltro = null);
-              aplicarFiltros();
-            },
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
 
+          // ── Estado del viaje ──────────────────────────
           _SectionLabel('Estado del viaje'),
           const SizedBox(height: 8),
           Wrap(
@@ -672,8 +744,6 @@ class _HistorialScreenState extends State<HistorialScreen>
               _buildChipEstado('Finalizado', 'Finalizado'),
             ],
           ),
-
-          // "Limpiar filtros" removido del panel — usar "Limpiar todo" en la barra de resultados
         ],
       ),
     );
@@ -721,6 +791,9 @@ class _HistorialScreenState extends State<HistorialScreen>
   }
 
   Widget _buildBarraResultados() {
+    final origenLabel = _origenSeleccionado;
+    final destinoLabel = _destinoSeleccionado;
+
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
@@ -741,35 +814,23 @@ class _HistorialScreenState extends State<HistorialScreen>
               ),
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-            decoration: BoxDecoration(
-              color: azul.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(20),
+          const SizedBox(width: 6),
+          if (origenLabel != null) ...[
+            _FilterPill(
+              icon: Icons.trip_origin_rounded,
+              label: origenLabel,
+              color: naranja,
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  _filtroVendedor == 'mias'
-                      ? Icons.person_rounded
-                      : Icons.store_rounded,
-                  size: 12,
-                  color: azul,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  _filtroVendedor == 'mias' ? 'Mis ventas' : 'Todas',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: azul,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+            const SizedBox(width: 6),
+          ],
+          if (destinoLabel != null) ...[
+            _FilterPill(
+              icon: Icons.location_on_rounded,
+              label: destinoLabel,
+              color: azul,
             ),
-          ),
+            const SizedBox(width: 6),
+          ],
           const Spacer(),
           GestureDetector(
             onTap: limpiarFiltros,
@@ -839,59 +900,62 @@ class _HistorialScreenState extends State<HistorialScreen>
     required String subtitulo,
     bool showClear = false,
   }) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                shape: BoxShape.circle,
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: Colors.grey.shade300, size: 48),
               ),
-              child: Icon(icon, color: Colors.grey.shade300, size: 48),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              titulo,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: dark,
+              const SizedBox(height: 16),
+              Text(
+                titulo,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: dark,
+                ),
+                textAlign: TextAlign.center,
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              subtitulo,
-              style: const TextStyle(fontSize: 13, color: muted),
-              textAlign: TextAlign.center,
-            ),
-            if (showClear) ...[
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: limpiarFiltros,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: naranja,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 8),
+              Text(
+                subtitulo,
+                style: const TextStyle(fontSize: 13, color: muted),
+                textAlign: TextAlign.center,
+              ),
+              if (showClear) ...[
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: limpiarFiltros,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: naranja,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
+                  child: const Text(
+                    'Limpiar filtros',
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
-                child: const Text(
-                  'Limpiar filtros',
-                  style: TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -968,13 +1032,9 @@ class _HistorialScreenState extends State<HistorialScreen>
                 ),
               ],
             ),
-
             const SizedBox(height: 14),
-
             _RutaRow(origen: venta['origen'], destino: venta['destino']),
-
             const SizedBox(height: 10),
-
             _DateRow(
               icon: Icons.receipt_outlined,
               label: 'Venta',
@@ -986,9 +1046,7 @@ class _HistorialScreenState extends State<HistorialScreen>
               label: 'Viaje',
               value: _fmtFechaStr(venta['hora_salida'].toString()),
             ),
-
             const SizedBox(height: 12),
-
             Row(
               children: [
                 Container(
@@ -1012,9 +1070,7 @@ class _HistorialScreenState extends State<HistorialScreen>
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
-
             Row(
               children: [
                 _MiniChip(
@@ -1053,9 +1109,7 @@ class _HistorialScreenState extends State<HistorialScreen>
                 ),
               ],
             ),
-
             const SizedBox(height: 12),
-
             _ReimprimirBtn(
               cargando: _reimprimiendoFolios.contains(folio),
               onTap: () => _reimprimir(context, folio),
@@ -1068,7 +1122,214 @@ class _HistorialScreenState extends State<HistorialScreen>
 }
 
 // ═══════════════════════════════════════════════════════════
-//  WIDGETS AUXILIARES
+//  NUEVO: _CiudadCheckboxGroup
+// ═══════════════════════════════════════════════════════════
+
+class _CiudadComboBox extends StatelessWidget {
+  final String titulo;
+  final IconData icono;
+  final Color colorIcono;
+  final List<String> ciudades;
+  final String? valorSeleccionado;
+  final String? ciudadBloqueada;
+  final ValueChanged<String?> onChanged;
+  final VoidCallback? onLimpiar;
+
+  const _CiudadComboBox({
+    required this.titulo,
+    required this.icono,
+    required this.colorIcono,
+    required this.ciudades,
+    required this.valorSeleccionado,
+    this.ciudadBloqueada,
+    required this.onChanged,
+    this.onLimpiar,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F3F8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: valorSeleccionado != null
+              ? colorIcono.withOpacity(0.4)
+              : Colors.transparent,
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Encabezado ──────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                Icon(icono, size: 15, color: colorIcono),
+                const SizedBox(width: 7),
+                Text(
+                  titulo,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: colorIcono,
+                  ),
+                ),
+                if (valorSeleccionado != null) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colorIcono.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '1',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: colorIcono,
+                      ),
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                if (onLimpiar != null)
+                  GestureDetector(
+                    onTap: onLimpiar,
+                    child: Text(
+                      'Limpiar',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: colorIcono,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+
+          Divider(
+            height: 1,
+            color: Colors.grey.shade200,
+            indent: 12,
+            endIndent: 12,
+          ),
+
+          // ── ComboBox ──────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            child: ciudades.isEmpty
+                ? Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        size: 13,
+                        color: Colors.grey.shade400,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Sin ciudades disponibles aún',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
+                    ],
+                  )
+                : DropdownButtonFormField<String>(
+                    value: valorSeleccionado,
+                    isExpanded: true,
+                    decoration: InputDecoration(
+                      hintText: 'Selecciona una ciudad',
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 12,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.grey.shade300),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: colorIcono, width: 1.5),
+                      ),
+                    ),
+                    items: [
+                      const DropdownMenuItem<String>(
+                        value: null,
+                        child: Text('Todas las ciudades'),
+                      ),
+                      ...ciudades
+                          .where((c) => c != ciudadBloqueada)
+                          .map(
+                            (c) => DropdownMenuItem<String>(
+                              value: c,
+                              child: Text(c),
+                            ),
+                          ),
+                    ],
+                    onChanged: onChanged,
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FilterPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  const _FilterPill({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.09),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+//  WIDGETS AUXILIARES (sin cambios respecto a v4)
 // ═══════════════════════════════════════════════════════════
 
 class _EstadoMeta {
@@ -1651,52 +1912,6 @@ class _DateBtn extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _FilterField extends StatelessWidget {
-  final TextEditingController controller;
-  final String hint;
-  final IconData icon;
-  final Color iconColor;
-  final String? value;
-  final void Function(String) onChanged;
-  final VoidCallback onClear;
-  const _FilterField({
-    required this.controller,
-    required this.hint,
-    required this.icon,
-    required this.iconColor,
-    required this.value,
-    required this.onChanged,
-    required this.onClear,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
-        prefixIcon: Icon(icon, color: iconColor, size: 18),
-        suffixIcon: (value?.isNotEmpty == true)
-            ? IconButton(
-                icon: const Icon(Icons.close, size: 15),
-                onPressed: onClear,
-              )
-            : null,
-        filled: true,
-        fillColor: const Color(0xFFF0F3F8),
-        contentPadding: const EdgeInsets.symmetric(vertical: 11),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(11),
-          borderSide: BorderSide.none,
-        ),
-      ),
-      style: const TextStyle(fontSize: 13),
-      onChanged: onChanged,
     );
   }
 }

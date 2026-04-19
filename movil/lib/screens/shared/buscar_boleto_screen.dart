@@ -195,26 +195,187 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
   Widget build(BuildContext context) {
     if (widget.tipoUsuario == 'invitado') return _buildInvitado();
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
     return Scaffold(
       backgroundColor: fondo,
       body: SafeArea(
+        child: isLandscape
+            ? _buildLandscapeLayout(bottomInset)
+            : _buildPortraitLayout(bottomInset),
+      ),
+    );
+  }
+
+  // Layout vertical (portrait) — comportamiento original
+  Widget _buildPortraitLayout(double bottomInset) {
+    return Column(
+      children: [
+        _buildHeader(),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _buildBuscador(),
+        ),
+        const SizedBox(height: 12),
+        Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(bottom: bottomInset),
+            child: _buildContenido(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Layout horizontal (landscape) — header compacto + scroll completo
+  Widget _buildLandscapeLayout(double bottomInset) {
+    return Column(
+      children: [
+        _buildHeaderCompact(),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.only(
+              left: 16,
+              right: 16,
+              top: 12,
+              bottom: bottomInset + 12,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildBuscador(),
+                const SizedBox(height: 12),
+                // En landscape mostramos el contenido directamente
+                // (sin Expanded, dentro del scroll)
+                boleto != null || error != null
+                    ? _buildContenidoLandscape()
+                    : _buildEstadoVacioCompacto(),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Header reducido para landscape
+  Widget _buildHeaderCompact() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
+      decoration: BoxDecoration(
+        color: colorPrimario,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(
+              Icons.search_rounded,
+              color: Colors.white,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              'Buscar boleto',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+          GestureDetector(
+            onTap: _abrirEscaner,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.qr_code_scanner_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Contenido del boleto/error en landscape (sin height fijo)
+  Widget _buildContenidoLandscape() {
+    if (error != null) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            _buildHeader(),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildBuscador(),
+            Icon(
+              Icons.search_off_rounded,
+              color: Colors.grey.shade300,
+              size: 48,
             ),
             const SizedBox(height: 12),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(bottom: bottomInset),
-                child: _buildContenido(),
+            Text(
+              error!,
+              style: const TextStyle(
+                color: textoPrincipal,
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
               ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Verifica el número de folio',
+              style: TextStyle(color: textoSecundario, fontSize: 13),
             ),
           ],
         ),
+      );
+    }
+    if (boleto != null) {
+      return _buildTarjeta();
+    }
+    return const SizedBox.shrink();
+  }
+
+  // Estado vacío compacto para landscape
+  Widget _buildEstadoVacioCompacto() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.confirmation_number_outlined,
+            color: Colors.grey.shade300,
+            size: 48,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Ingresa un folio para buscar',
+            style: TextStyle(color: textoSecundario, fontSize: 13),
+          ),
+        ],
       ),
     );
   }
@@ -739,6 +900,15 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
 
   // ── Pantalla invitado ─────────────────────────────────────────
   Widget _buildInvitado() {
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+    final headerPadding = isLandscape
+        ? const EdgeInsets.fromLTRB(20, 10, 20, 10)
+        : const EdgeInsets.fromLTRB(20, 20, 20, 20);
+    final iconSize = isLandscape ? 20.0 : 26.0;
+    final iconPadding = isLandscape ? 8.0 : 10.0;
+    final iconRadius = isLandscape ? 12.0 : 14.0;
+
     return Scaffold(
       backgroundColor: fondo,
       body: SafeArea(
@@ -746,7 +916,7 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
           children: [
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+              padding: headerPadding,
               decoration: BoxDecoration(
                 color: azul,
                 boxShadow: [
@@ -760,69 +930,76 @@ class _BuscarBoletoScreenState extends State<BuscarBoletoScreen> {
               child: Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    padding: EdgeInsets.all(iconPadding),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(iconRadius),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.confirmation_number_outlined,
                       color: Colors.white,
-                      size: 26,
+                      size: iconSize,
                     ),
                   ),
                   const SizedBox(width: 14),
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'Mis boletos',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 20,
+                          fontSize: isLandscape ? 17 : 20,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      SizedBox(height: 2),
-                      Text(
-                        'Modo invitado',
-                        style: TextStyle(color: Colors.white70, fontSize: 13),
-                      ),
+                      if (!isLandscape) ...[
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Modo invitado',
+                          style: TextStyle(color: Colors.white70, fontSize: 13),
+                        ),
+                      ],
                     ],
                   ),
                 ],
               ),
             ),
             Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: azul.withOpacity(0.08),
-                          shape: BoxShape.circle,
+              child: SingleChildScrollView(
+                child: Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: isLandscape ? 16 : 40,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: EdgeInsets.all(isLandscape ? 16 : 24),
+                          decoration: BoxDecoration(
+                            color: azul.withOpacity(0.08),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.badge_outlined,
+                            color: azul,
+                            size: isLandscape ? 40 : 56,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.badge_outlined,
-                          color: azul,
-                          size: 56,
+                        SizedBox(height: isLandscape ? 16 : 24),
+                        const Text(
+                          'Crea una cuenta para ver tus boletos',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: textoPrincipal,
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Crea una cuenta para ver tus boletos',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: textoPrincipal,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -867,107 +1044,131 @@ class _QrScannerPageState extends State<_QrScannerPage> {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final isLandscape = size.width > size.height;
+    final scanSize = isLandscape ? 180.0 : 250.0;
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: Stack(
-          children: [
-            // Cámara
-            MobileScanner(controller: _ctrl, onDetect: _onDetect),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final bottomMessageBottom = isLandscape ? 16.0 : 40.0;
+            final bottomMessageMaxWidth = isLandscape ? 320.0 : 420.0;
 
-            // Overlay con marco
-            CustomPaint(
-              painter: _ScannerOverlayPainter(),
-              child: const SizedBox.expand(),
-            ),
+            return Stack(
+              children: [
+                // Cámara
+                MobileScanner(controller: _ctrl, onDetect: _onDetect),
 
-            // Header
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Colors.black.withOpacity(0.7), Colors.transparent],
-                  ),
+                // Overlay con marco
+                CustomPaint(
+                  painter: _ScannerOverlayPainter(scanSize: scanSize),
+                  child: const SizedBox.expand(),
                 ),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Escanear boleto',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const Spacer(),
-                    // Linterna
-                    GestureDetector(
-                      onTap: () => _ctrl.toggleTorch(),
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.flashlight_on_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
 
-            // Instrucción inferior
-            Positioned(
-              bottom: 40,
-              left: 0,
-              right: 0,
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 12,
-                    ),
+                // Header
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.6),
-                      borderRadius: BorderRadius.circular(30),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withOpacity(0.7),
+                          Colors.transparent,
+                        ],
+                      ),
                     ),
-                    child: const Text(
-                      'Apunta al QR del boleto impreso',
-                      style: TextStyle(color: Colors.white, fontSize: 14),
+                    child: Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.arrow_back_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Escanear boleto',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () => _ctrl.toggleTorch(),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: const Icon(
+                              Icons.flashlight_on_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          ],
+                ),
+
+                // Instrucción inferior adaptable
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: bottomMessageBottom,
+                  child: Align(
+                    alignment: Alignment.bottomCenter,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: bottomMessageMaxWidth,
+                        maxHeight: isLandscape
+                            ? constraints.maxHeight * 0.22
+                            : 72,
+                      ),
+                      child: SingleChildScrollView(
+                        physics: const BouncingScrollPhysics(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.6),
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          child: const Text(
+                            'Apunta al QR del boleto impreso',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white, fontSize: 14),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -976,9 +1177,12 @@ class _QrScannerPageState extends State<_QrScannerPage> {
 
 // ── Overlay del escáner ───────────────────────────────────────────
 class _ScannerOverlayPainter extends CustomPainter {
+  final double scanSize;
+
+  const _ScannerOverlayPainter({this.scanSize = 250.0});
+
   @override
   void paint(Canvas canvas, Size size) {
-    const scanSize = 250.0;
     final cx = size.width / 2;
     final cy = size.height / 2;
     final rect = Rect.fromCenter(
