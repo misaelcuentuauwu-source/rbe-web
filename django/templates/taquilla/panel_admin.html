@@ -553,8 +553,10 @@
     .rv-tabla tbody tr:last-child td { border-bottom: none; }
     .rv-tabla tbody tr:hover { background: rgba(17,129,195,.04); }
     .rv-monto { font-weight: 800; color: #22c55e; }
+    .rv-monto-total { color: #1181c3 !important; }
     .rv-folio { font-size: 11px; font-weight: 700; color: var(--azul,#1181c3); background: rgba(17,129,195,.08); padding: 2px 7px; border-radius: 20px; }
     .rv-duracion { font-size: 11px; font-weight: 600; color: var(--muted, #888); opacity: .85; }
+    .rv-estado { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px; background: rgba(100,116,139,.12); color: #475569; }
 </style>
 </head>
 <body>
@@ -1220,6 +1222,24 @@
           </table>
         </div>
 
+        <!-- Desglose por viaje -->
+        <div class="eco-section-header">
+          <span class="eco-section-icon">🚌</span>
+          <span class="eco-section-label">Desglose por Viaje</span>
+          <div class="eco-section-line"></div>
+        </div>
+        <div class="tbl-wrap">
+          <table class="rv-tabla" id="rv-tabla-viaje">
+            <thead>
+              <tr>
+                <th>Viaje</th><th>Ruta</th><th>Conductor</th><th>Estado</th>
+                <th>Boletos</th><th>Efectivo</th><th>Tarjeta</th><th>Ingresos</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
         <!-- Detalle completo -->
         <div class="eco-section-header">
           <span class="eco-section-icon">📋</span>
@@ -1247,6 +1267,20 @@
 </div><!-- /main -->
 
 <!-- ════ MODALES ════ -->
+<!-- ════ MODAL REPORTE POR VIAJE ════ -->
+<div class="modal-overlay" id="modal-reporte-viaje" style="z-index:1100;">
+  <div class="modal-box" style="max-width:820px;width:95%;max-height:90vh;display:flex;flex-direction:column;">
+    <div class="modal-title azul" id="mrv-title">📊 Reporte del Viaje</div>
+    <div id="mrv-body" style="overflow-y:auto;flex:1;padding:4px 2px;">
+      <div style="text-align:center;padding:30px"><span class="spinner"></span></div>
+    </div>
+    <div class="modal-actions" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+      <button class="btn btn-primary btn-sm" id="mrv-btn-csv" onclick="exportarReporteViajeCsv()" style="display:none">⬇ Exportar CSV</button>
+      <button class="btn btn-gray" onclick="cerrarModal('modal-reporte-viaje')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-autobus">
   <div class="modal-box">
     <div class="modal-title azul" id="modal-autobus-title">Información del Autobús</div>
@@ -1384,7 +1418,7 @@
       ciudad:   '{{ taquillero.terminal.ciudad.nombre }}',
     };
   </script>
-  <script src="{% static 'dashboard/panel_admin.js' %}?v=30"></script>
+  <script src="{% static 'dashboard/panel_admin.js' %}?v=31"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="{% static 'dashboard/mapa.js' %}?v=29"></script>
 </body>

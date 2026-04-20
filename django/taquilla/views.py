@@ -1655,6 +1655,37 @@ def reporte_ventas(request):
         """
         detalle = qall(detalle_sql, params_base)
 
+        # ── Desglose por viaje ────────────────────────────────────────────────
+        viaje_sql = f"""
+            SELECT
+                v.numero                                                        AS viaje_id,
+                CONCAT('#',v.numero,' · ',DATE(v.fecHoraSalida),
+                       ' ',TIME_FORMAT(v.fecHoraSalida,'%%H:%%i'))              AS desc_viaje,
+                CONCAT(corig.nombre,' \u2192 ',cdest.nombre)                    AS ruta,
+                CONCAT(c.conNombre,' ',c.conPrimerApell)                        AS conductor,
+                e.nombre                                                         AS estado,
+                COUNT(t.codigo)                                                  AS boletos,
+                COALESCE(SUM(t.precio), 0)                                       AS ingresos,
+                COALESCE(SUM(CASE WHEN p.tipo=1 THEN t.precio ELSE 0 END), 0)   AS efectivo,
+                COALESCE(SUM(CASE WHEN p.tipo=2 THEN t.precio ELSE 0 END), 0)   AS tarjeta
+            FROM ticket t
+            JOIN pago       p     ON p.numero    = t.pago
+            JOIN viaje      v     ON v.numero    = t.viaje
+            JOIN ruta       r     ON r.codigo    = v.ruta
+            JOIN terminal   tor   ON tor.numero  = r.origen
+            JOIN terminal   tdes  ON tdes.numero = r.destino
+            JOIN ciudad     corig ON corig.clave = tor.ciudad
+            JOIN ciudad     cdest ON cdest.clave = tdes.ciudad
+            JOIN conductor  c     ON c.registro  = v.conductor
+            JOIN edo_viaje  e     ON e.numero    = v.estado
+            {where}
+            GROUP BY v.numero, v.fecHoraSalida, corig.nombre, cdest.nombre,
+                     c.conNombre, c.conPrimerApell, e.nombre
+            ORDER BY ingresos DESC
+            LIMIT 500
+        """
+        por_viaje = qall(viaje_sql, params_base)
+
         # ── Opciones de filtros para los selects ──────────────────────────────
         with connection.cursor() as cur:
             cur.execute("""
@@ -1679,6 +1710,7 @@ def reporte_ventas(request):
             'por_ruta':              por_ruta,
             'por_taquillero':        por_taquillero,
             'por_tipo':              por_tipo,
+            'por_viaje':             por_viaje,
             'detalle':               detalle,
             'opciones_rutas':        opciones_rutas,
             'opciones_taquilleros':  opciones_taquilleros,
@@ -1690,6 +1722,102 @@ def reporte_ventas(request):
             {'error': str(e), 'trace': traceback.format_exc()},
             status=500
         )
+
+
+@admin_requerido
+def reporte_por_viaje(request, viaje_id):
+    """
+    Devuelve el reporte de ventas de un viaje específico (solo finalizados/en ruta/retrasados).
+    Incluye: resumen, lista de boletos con pasajero, asiento, tipo y método de pago.
+    """
+    try:
+        from django.db import connection
+
+        def qall(sql, params=[]):
+            with connection.cursor() as cur:
+                cur.execute(sql, params)
+                cols = [d[0] for d in cur.description]
+                rows = []
+                for r in cur.fetchall():
+                    row = dict(zip(cols, r))
+                    for k, v in row.items():
+                        if hasattr(v, 'isoformat'):
+                            row[k] = v.isoformat()
+                        elif hasattr(v, '__float__'):
+                            row[k] = float(v)
+                    rows.append(row)
+                return rows
+
+        # Verificar que el viaje existe y no está en estado Disponible (1)
+        info = qall("""
+            SELECT v.numero, v.fecHoraSalida, v.fecHoraEntrada,
+                   CONCAT(corig.nombre,' → ',cdest.nombre)          AS ruta,
+                   CONCAT(c.conNombre,' ',c.conPrimerApell)         AS conductor,
+                   e.nombre                                          AS estado,
+                   e.numero                                          AS estado_id,
+                   CONCAT('#',a.numero,' · ',ma.nombre,' ',mo.nombre) AS autobus,
+                   COUNT(t.codigo)                                   AS total_boletos,
+                   COALESCE(SUM(t.precio),0)                        AS ingresos_totales,
+                   COALESCE(SUM(CASE WHEN p.tipo=1 THEN t.precio ELSE 0 END),0) AS total_efectivo,
+                   COALESCE(SUM(CASE WHEN p.tipo=2 THEN t.precio ELSE 0 END),0) AS total_tarjeta
+            FROM viaje v
+            JOIN ruta      r     ON r.codigo    = v.ruta
+            JOIN terminal  tor   ON tor.numero  = r.origen
+            JOIN terminal  tdes  ON tdes.numero = r.destino
+            JOIN ciudad    corig ON corig.clave = tor.ciudad
+            JOIN ciudad    cdest ON cdest.clave = tdes.ciudad
+            JOIN conductor c     ON c.registro  = v.conductor
+            JOIN edo_viaje e     ON e.numero    = v.estado
+            JOIN autobus   a     ON a.numero    = v.autobus
+            JOIN modelo    mo    ON mo.numero   = a.modelo
+            JOIN marca     ma    ON ma.numero   = mo.marca
+            LEFT JOIN ticket t   ON t.viaje     = v.numero
+            LEFT JOIN pago   p   ON p.numero    = t.pago
+            WHERE v.numero = %s
+            GROUP BY v.numero, v.fecHoraSalida, v.fecHoraEntrada,
+                     corig.nombre, cdest.nombre,
+                     c.conNombre, c.conPrimerApell,
+                     e.nombre, e.numero,
+                     a.numero, ma.nombre, mo.nombre
+        """, [viaje_id])
+
+        if not info:
+            return JsonResponse({'error': 'Viaje no encontrado'}, status=404)
+
+        viaje_info = info[0]
+        if viaje_info['estado_id'] == 1:  # Disponible = aún no ha ocurrido
+            return JsonResponse({'error': 'Este viaje aún no ha sido realizado'}, status=400)
+
+        # Boletos detallados
+        boletos = qall("""
+            SELECT
+                p.numero                                                        AS folio,
+                CONCAT(pa.paNombre,' ',pa.paPrimerApell,
+                       COALESCE(CONCAT(' ',pa.paSegundoApell),''))              AS pasajero,
+                tp.descripcion                                                  AS tipo_pasajero,
+                COALESCE(t.etiqueta_asiento, CAST(a.numero AS CHAR))            AS asiento,
+                tpago.nombre                                                    AS metodo_pago,
+                COALESCE(CONCAT(taq.taqNombre,' ',taq.taqPrimerApell),'App')   AS taquillero,
+                t.precio                                                        AS monto
+            FROM ticket t
+            JOIN pago          p    ON p.numero    = t.pago
+            JOIN pasajero      pa   ON pa.num      = t.pasajero
+            JOIN tipo_pasajero tp   ON tp.num      = t.tipopasajero
+            JOIN asiento       a    ON a.numero    = t.asiento
+            JOIN tipo_pago     tpago ON tpago.numero = p.tipo
+            LEFT JOIN taquillero taq ON taq.registro = p.vendedor
+            WHERE t.viaje = %s
+            ORDER BY p.numero, t.codigo
+        """, [viaje_id])
+
+        return JsonResponse({
+            'viaje':   viaje_info,
+            'boletos': boletos,
+        })
+
+    except Exception as e:
+        import traceback
+        return JsonResponse({'error': str(e), 'trace': traceback.format_exc()}, status=500)
 
 
 @api_view(['GET'])

@@ -1543,6 +1543,7 @@ function renderHistorialTabla(rows) {
       <div class="ht-btn-wrap">
         <button class="btn btn-naranja" onclick="verAutobus(${r.numero},${r.autobus_num??'null'})">Autobús</button>
         <button class="btn btn-primary"  onclick="verPasajeros(${r.numero})">Pasajeros</button>
+        ${!(r.estado||'').toLowerCase().includes('dispon') ? `<button class="btn btn-sm" onclick="verReporteViaje(${r.numero})" style="background:#6366f1;border-color:#6366f1;color:#fff">📊 Reporte</button>` : ''}
       </div>
     </td>
   </tr>`).join('');
@@ -1604,9 +1605,149 @@ function renderHistorialCards(rows) {
         <div class="viaje-card-actions">
           <button class="btn btn-naranja" onclick="verAutobus(${r.numero},${r.autobus_num??'null'})">Autobús</button>
           <button class="btn btn-primary"  onclick="verPasajeros(${r.numero})">Pasajeros</button>
+          ${!(r.estado||'').toLowerCase().includes('dispon') ? `<button class="btn btn-success btn-sm" onclick="verReporteViaje(${r.numero})" style="background:#6366f1;border-color:#6366f1">📊 Reporte</button>` : ''}
         </div>
       </div>
     </div>`).join('');
+}
+
+// ════ REPORTE POR VIAJE ════════════════════════════════════════
+
+let _rvData = null; // datos del último reporte de viaje cargado
+
+async function verReporteViaje(viajeId) {
+  _rvData = null;
+  document.getElementById('mrv-title').textContent = `📊 Reporte del Viaje #${viajeId}`;
+  document.getElementById('mrv-body').innerHTML = '<div style="text-align:center;padding:30px"><span class="spinner"></span></div>';
+  document.getElementById('mrv-btn-csv').style.display = 'none';
+  abrirModal('modal-reporte-viaje');
+
+  try {
+    const d = await fetch(`/api/reporte/viaje/${viajeId}/`).then(r => r.json());
+    if (d.error) {
+      document.getElementById('mrv-body').innerHTML = `<p style="color:var(--danger);padding:16px">${d.error}</p>`;
+      return;
+    }
+    _rvData = d;
+    const v = d.viaje;
+    const pctEfec = (v.ingresos_totales > 0) ? Math.round(v.total_efectivo / v.ingresos_totales * 100) : 0;
+    const pctTarj = 100 - pctEfec;
+
+    const estadoColor = v.estado.toLowerCase().includes('finaliz') ? '#22c55e'
+      : v.estado.toLowerCase().includes('cancel') ? '#ef4444'
+      : v.estado.toLowerCase().includes('ruta')   ? '#3b82f6'
+      : '#f59e0b';
+
+    let html = `
+      <!-- Encabezado del viaje -->
+      <div style="background:linear-gradient(135deg,#1d4ed8,#2563eb);color:#fff;border-radius:12px;padding:16px 20px;margin-bottom:16px;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <span style="font-size:20px;font-weight:800">#${v.numero}</span>
+          <span style="opacity:.7;font-size:18px">—</span>
+          <span style="font-size:16px;font-weight:600">${v.ruta}</span>
+          <span style="margin-left:auto;background:${estadoColor};border-radius:20px;padding:3px 12px;font-size:12px;font-weight:700">${v.estado}</span>
+        </div>
+        <div style="margin-top:8px;font-size:13px;opacity:.85;display:flex;gap:16px;flex-wrap:wrap;">
+          <span>🕐 Salida: <b>${v.fecHoraSalida ? v.fecHoraSalida.replace('T',' ').slice(0,16) : '—'}</b></span>
+          <span>🏁 Llegada: <b>${v.fecHoraEntrada ? v.fecHoraEntrada.replace('T',' ').slice(0,16) : '—'}</b></span>
+          <span>👤 Conductor: <b>${v.conductor}</b></span>
+          <span>🚌 Autobús: <b>${v.autobus}</b></span>
+        </div>
+      </div>
+
+      <!-- Cards resumen -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;">
+        <div style="background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:11px;font-weight:600;color:#16a34a;text-transform:uppercase;letter-spacing:.5px">Ingresos totales</div>
+          <div style="font-size:22px;font-weight:800;color:#15803d">${rvFmt(v.ingresos_totales)}</div>
+        </div>
+        <div style="background:#eff6ff;border:1.5px solid #93c5fd;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:11px;font-weight:600;color:#2563eb;text-transform:uppercase;letter-spacing:.5px">Boletos vendidos</div>
+          <div style="font-size:22px;font-weight:800;color:#1d4ed8">${v.total_boletos}</div>
+        </div>
+        <div style="background:#fefce8;border:1.5px solid #fde047;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:11px;font-weight:600;color:#ca8a04;text-transform:uppercase;letter-spacing:.5px">Efectivo</div>
+          <div style="font-size:18px;font-weight:800;color:#a16207">${rvFmt(v.total_efectivo)}</div>
+          <div style="font-size:11px;color:#a16207">${pctEfec}% del total</div>
+        </div>
+        <div style="background:#fdf4ff;border:1.5px solid #d8b4fe;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:11px;font-weight:600;color:#7c3aed;text-transform:uppercase;letter-spacing:.5px">Tarjeta</div>
+          <div style="font-size:18px;font-weight:800;color:#6d28d9">${rvFmt(v.total_tarjeta)}</div>
+          <div style="font-size:11px;color:#6d28d9">${pctTarj}% del total</div>
+        </div>
+      </div>
+
+      <!-- Tabla de boletos -->
+      <div style="font-size:13px;font-weight:700;color:var(--text,#1e293b);margin-bottom:8px;">🎫 Boletos del viaje</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <thead>
+            <tr style="background:#1d4ed8;color:#fff;">
+              <th style="padding:8px 10px;text-align:left;border-radius:6px 0 0 0">Folio</th>
+              <th style="padding:8px 10px;text-align:left">Pasajero</th>
+              <th style="padding:8px 10px;text-align:left">Tipo</th>
+              <th style="padding:8px 10px;text-align:center">Asiento</th>
+              <th style="padding:8px 10px;text-align:left">Método Pago</th>
+              <th style="padding:8px 10px;text-align:left">Taquillero</th>
+              <th style="padding:8px 10px;text-align:right;border-radius:0 6px 0 0">Monto</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+    if (!d.boletos || d.boletos.length === 0) {
+      html += `<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--muted,#888)">Sin boletos registrados para este viaje</td></tr>`;
+    } else {
+      d.boletos.forEach((b, i) => {
+        const bg = i % 2 === 0 ? '#fff' : '#f8fafc';
+        html += `<tr style="background:${bg};border-bottom:1px solid #e2e8f0;">
+          <td style="padding:7px 10px"><span style="font-size:11px;font-weight:700;color:#2563eb;background:#eff6ff;padding:2px 7px;border-radius:20px">#${b.folio}</span></td>
+          <td style="padding:7px 10px;font-weight:500">${b.pasajero}</td>
+          <td style="padding:7px 10px;color:var(--muted,#64748b)">${b.tipo_pasajero}</td>
+          <td style="padding:7px 10px;text-align:center;font-weight:700">${b.asiento}</td>
+          <td style="padding:7px 10px">${b.metodo_pago}</td>
+          <td style="padding:7px 10px;color:var(--muted,#64748b);font-size:12px">${b.taquillero}</td>
+          <td style="padding:7px 10px;text-align:right;font-weight:800;color:#16a34a">${rvFmt(b.monto)}</td>
+        </tr>`;
+      });
+    }
+    html += `</tbody></table></div>`;
+
+    document.getElementById('mrv-body').innerHTML = html;
+    document.getElementById('mrv-btn-csv').style.display = '';
+  } catch (e) {
+    document.getElementById('mrv-body').innerHTML = `<p style="color:var(--danger);padding:16px">Error al cargar el reporte: ${e.message}</p>`;
+  }
+}
+
+function exportarReporteViajeCsv() {
+  if (!_rvData) return;
+  const v = _rvData.viaje;
+  const esc = val => `"${(val ?? '').toString().replace(/"/g, '""')}"`;
+
+  let csv = `REPORTE DEL VIAJE #${v.numero}\n`;
+  csv += `Ruta:,${esc(v.ruta)}\n`;
+  csv += `Conductor:,${esc(v.conductor)}\n`;
+  csv += `Autobús:,${esc(v.autobus)}\n`;
+  csv += `Estado:,${esc(v.estado)}\n`;
+  csv += `Salida:,${esc(v.fecHoraSalida)}\n`;
+  csv += `Llegada:,${esc(v.fecHoraEntrada)}\n\n`;
+  csv += `RESUMEN\n`;
+  csv += `Boletos vendidos,${v.total_boletos}\n`;
+  csv += `Ingresos totales,"${rvFmt(v.ingresos_totales)}"\n`;
+  csv += `Total efectivo,"${rvFmt(v.total_efectivo)}"\n`;
+  csv += `Total tarjeta,"${rvFmt(v.total_tarjeta)}"\n\n`;
+  csv += `BOLETOS\n`;
+  csv += `Folio,Pasajero,Tipo Pasajero,Asiento,Método Pago,Taquillero,Monto\n`;
+  (_rvData.boletos || []).forEach(b => {
+    csv += [b.folio, b.pasajero, b.tipo_pasajero, b.asiento, b.metodo_pago, b.taquillero, b.monto]
+      .map(esc).join(',') + '\n';
+  });
+
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = `reporte_viaje_${v.numero}.csv`;
+  a.click();
+  toast(`CSV exportado — Viaje #${v.numero}`, 'ok');
 }
 
 // ════ MODALES HISTORIAL ════════════════
@@ -2957,6 +3098,7 @@ function generarReporteVentas() {
         ['Tipo', 'Descuento %', 'Boletos', 'Ingresos'],
         { ingresos: true }
       );
+      rvRenderTablaViaje(data.por_viaje);
       rvRenderDetalle(data.detalle);
 
       document.getElementById('rv-loading').style.display   = 'none';
@@ -3044,6 +3186,26 @@ function rvRenderTablaSimple(tableId, rows, keys, headers, moneyKeys, htmlKeys) 
   ).join('');
 }
 
+function rvRenderTablaViaje(rows) {
+  const tbody = document.querySelector('#rv-tabla-viaje tbody');
+  if (!rows || rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:16px;">Sin datos</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><span class="rv-folio">${r.desc_viaje || '—'}</span></td>
+      <td>${r.ruta || '—'}</td>
+      <td>${r.conductor || '—'}</td>
+      <td><span class="rv-estado">${r.estado || '—'}</span></td>
+      <td style="text-align:center">${r.boletos || 0}</td>
+      <td class="rv-monto">${rvFmt(r.efectivo)}</td>
+      <td class="rv-monto">${rvFmt(r.tarjeta)}</td>
+      <td class="rv-monto rv-monto-total">${rvFmt(r.ingresos)}</td>
+    </tr>
+  `).join('');
+}
+
 function rvRenderDetalle(rows) {
   const tbody = document.querySelector('#rv-tabla-detalle tbody');
   if (!rows || rows.length === 0) {
@@ -3119,7 +3281,15 @@ function exportarReporteCSV() {
   });
   csv += '\n';
 
-  // ── Hoja 5: Detalle por boleto individual ────────────────────
+  // ── Hoja 5: Por viaje ─────────────────────────────────────────
+  csv += 'DESGLOSE POR VIAJE\n';
+  csv += 'Viaje,Ruta,Conductor,Estado,Boletos,Efectivo,Tarjeta,Ingresos\n';
+  (rvDatos.por_viaje || []).forEach(row => {
+    csv += `"${row.desc_viaje}","${row.ruta}","${row.conductor}","${row.estado}",${row.boletos},"${rvFmt(row.efectivo)}","${rvFmt(row.tarjeta)}","${rvFmt(row.ingresos)}"\n`;
+  });
+  csv += '\n';
+
+  // ── Hoja 6: Detalle por boleto individual ────────────────────
   csv += 'DETALLE DE BOLETOS\n';
   csv += 'Folio,Fecha,Viaje,Ruta,Taquillero,Pasajero,Tipo Pasajero,Asiento,Metodo Pago,Monto\n';
   (rvDatos.detalle || []).forEach(row => {

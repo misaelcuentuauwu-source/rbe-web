@@ -1,5 +1,5 @@
 """
-elipse_views.py - Asistente Elipse para RBE  v2.0
+elipse_views.py - Asistente Elipse para RBE  v2.1
 SQL limpio compatible con MySQL 8 / MariaDB
 
 MEJORAS v2 (según documento de pruebas de la administradora):
@@ -503,7 +503,48 @@ def _intent(q_orig):
         return 'autobuses_marca'
 
     if has('autobus', 'flota', 'camion'):                return 'autobuses_lista'
+    # Historial de viajes de un pasajero por nombre libre
+    # "dime en qué viajes ha ido paulin", "qué viajes ha tomado maria", "viajes de paulin"
+    if re.search(
+        r'(viajes.*(?:ha\s+(?:ido|tomado|hecho|realizado)|de\s+[a-z]+)|'
+        r'(?:ha\s+(?:ido|viajado|tomado)).*[a-z]{3,}|'
+        r'en\s+qu[eé]\s+viaje|cuantos\s+viajes.*[a-z]{3,})',
+        q, re.IGNORECASE
+    ) and not has('conductor', 'chofer', 'autobus') and not _extraer_numero_viaje(q_orig):
+        return 'historial_pasajero_nombre'
+
+    # Pasajero + viaje específico: "paulin fue en el viaje 402" → buscar pasajero en ese viaje
+    if re.search(r'[a-z]{3,}\s+(?:fue|estuvo|viajo|iba|va)\s+en\s+(?:el\s+)?viaje', q) \
+            and _extraer_numero_viaje(q_orig) is not None:
+        return 'pasajeros_de_viaje'
+
+    # Búsqueda de taquillero por nombre
+    # "existe el taquillero za", "busca al taquillero pedro", "hay un taquillero llamado ana"
+    if re.search(
+        r'(taquillero.*llamad[oa]|existe.*taquillero|hay.*taquillero|'
+        r'busca.*taquillero|taquillero\s+[a-záéíóúñ]{2,}|'
+        r'llamad[oa].*taquillero)',
+        q, re.IGNORECASE
+    ):
+        return 'buscar_taquillero'
+
+    # Búsqueda de pasajero por nombre — cualquier forma de preguntar por una persona
+    # ej: "existe una pasajera llamada paulin", "venta de una tal paulin", "busca a maria"
+    if re.search(
+        r'(llamad[oa]|existe.*pasajera?|existe.*cliente|tal\s+\w+|busca.*\w+|'
+        r'pasajera?\s+\w+|cliente\s+\w+|nombre\s+\w+|hay.*pasajera?|'
+        r'vendido.*\ba\b|boleto.*\ba\b|\ba\s+[A-Za-záéíóúñ]{3,})',
+        q, re.IGNORECASE
+    ) and not has('viaje', 'ruta', 'conductor', 'autobus'):
+        return 'buscar_nombre_pasajero'
+
     if has('pasajero', 'cliente'):                       return 'pasajeros_lista'
+
+    # Detectar búsqueda por nombre de persona aunque no diga 'pasajero'
+    # ej: "venta de una tal paulin", "compro una tal maria"
+    if (has('venta', 'boleto', 'compra', 'vendio', 'vendida', 'vendido')
+            and re.search(r'\btal\b|\bde\s+[a-záéíóúñ]+\b', q)):
+        return 'buscar_nombre_pasajero'
 
     for mes, num in [('enero','01'),('febrero','02'),('marzo','03'),('abril','04'),
                      ('mayo','05'),('junio','06'),('julio','07'),('agosto','08'),
@@ -1105,7 +1146,13 @@ def _resolve(intent, pregunta):
             [num]
         )
         if not rows:
-            return '<p>No se encontro el viaje <strong>#%d</strong> en la base de datos.</p>' % num
+            # IMPORTANTE: el boarding pass móvil muestra "NUMERO DE VIAJE #X"
+            # donde X es el folio (pago.numero), NO el viaje.numero.
+            # Si no se encuentra como viaje, buscar automáticamente como folio de compra.
+            _, check_folio = _q('SELECT numero FROM pago WHERE numero = %s', [num])
+            if check_folio:
+                return _resolve('folio_boleto', 'folio %d' % num)
+            return '<p>No se encontro el viaje o folio <strong>#%d</strong>. El numero del boarding pass es el folio de compra — intenta con: <em>"folio %d"</em></p>' % (num, num)
         return '<p><strong>Detalle del Viaje #%d:</strong></p>%s' % (num, _tabla(cols, rows, est=['Estado']))
 
     # ── New #08: PASAJEROS DE UN VIAJE ESPECÍFICO ────────────────────────────────
@@ -1114,7 +1161,15 @@ def _resolve(intent, pregunta):
         # Verificar que el viaje existe
         _, check = _q("SELECT numero FROM viaje WHERE numero=%s", [num])
         if not check:
-            return '<p>No existe el viaje <strong>#%d</strong>.</p>' % num
+            # Intentar resolver num como folio de pago → obtener viaje real
+            _, vxf = _q(
+                "SELECT DISTINCT tk.viaje AS n FROM ticket tk WHERE tk.pago = %s LIMIT 1",
+                [num]
+            )
+            if vxf:
+                num = vxf[0]['n']
+            else:
+                return '<p>No existe el viaje o folio <strong>#%d</strong>.</p>' % num
         cols, rows = _q(
             "SELECT p.num AS Num_Pasajero,"
             " CONCAT(p.paNombre,' ',p.paPrimerApell) AS Nombre,"
@@ -1138,6 +1193,15 @@ def _resolve(intent, pregunta):
     # ── New #12: CONDUCTOR DE UN VIAJE ESPECÍFICO ────────────────────────────────
     if intent == 'conductor_de_viaje':
         num = _extraer_numero_viaje(pregunta.lower())
+        # Si num no existe como viaje, intentar como folio de pago
+        _, _vc = _q("SELECT numero FROM viaje WHERE numero=%s", [num])
+        if not _vc:
+            _, _vxf = _q(
+                "SELECT DISTINCT tk.viaje AS n FROM ticket tk WHERE tk.pago = %s LIMIT 1",
+                [num]
+            )
+            if _vxf:
+                num = _vxf[0]['n']
         cols, rows = _q(
             "SELECT c.registro AS Registro,"
             " CONCAT(c.conNombre,' ',c.conPrimerApell,' ',c.conSegundoApell) AS Nombre_Completo,"
@@ -1796,6 +1860,215 @@ def _resolve(intent, pregunta):
         _, tots = _q("SELECT COALESCE(SUM(monto),0) AS n FROM pago WHERE DATE(fechapago) >= %s", [ini])
         cards = _cards([{'label':'Ingresos semana','val':_pesos(tots[0]['n']),'sub':'desde el lunes'}])
         return '<p><strong>Ingresos esta semana:</strong></p>%s%s' % (cards, _tabla(cols, rows, pesos=['Total']))
+
+    # ── historial_pasajero_nombre: viajes de un pasajero por nombre ─────────────
+    if intent == 'historial_pasajero_nombre':
+        # Extraer nombre del pasajero de frases como "viajes de paulin", "ha ido paulin"
+        nombre = None
+        patrones = [
+            r'viajes\s+(?:de|que\s+ha\s+tomado)\s+([a-záéíóúñ][a-záéíóúñ]+(?:\s+[a-záéíóúñ]+)*)',
+            r'(?:ha\s+(?:ido|viajado|tomado)|ido)\s+([a-záéíóúñ][a-záéíóúñ]{2,}(?:\s+[a-záéíóúñ]+)*)',
+            r'(?:de|por|para)\s+([a-záéíóúñ][a-záéíóúñ]{2,}(?:\s+[a-záéíóúñ]+)?)\s*\?',
+            r'(?:paulin|[a-záéíóúñ]{3,})\s+(?:ha|fue|estuvo)',
+        ]
+        stop = {'viaje','viajes','ruta','autobus','conductor','taquillero',
+                'pasajero','cliente','venta','boleto','ido','sido','hecho'}
+        for pat in patrones:
+            m = re.search(pat, pregunta.lower(), re.IGNORECASE)
+            if m:
+                cand = m.group(1).strip() if m.lastindex else ''
+                if cand and cand.split()[0] not in stop:
+                    nombre = cand
+                    break
+        # Fallback: buscar cualquier palabra que no sea verbo/preposición
+        if not nombre:
+            excl = {'dime','cuales','cuantos','que','en','ha','ido','tomado',
+                    'hecho','viajes','viaje','paulin','este','este','una','uno',
+                    'los','las','sus','por','para','como'}
+            # Intentar extraer la última palabra significativa
+            palabras = [p for p in re.findall(r'[a-záéíóúñ]{3,}', pregunta.lower())
+                        if p not in excl]
+            # Preferir la que esté después de "ido", "viajado", "de"
+            m2 = re.search(r'(?:ido|viajado|tomado|de|por)\s+([a-záéíóúñ]{3,})', pregunta.lower())
+            if m2 and m2.group(1) not in excl:
+                nombre = m2.group(1)
+            elif palabras:
+                nombre = palabras[-1]
+
+        if not nombre:
+            return '<p>No pude identificar el nombre del pasajero.</p>'
+
+        cols, rows = _q(
+            "SELECT v.numero AS Viaje,"
+            " DATE(v.fecHoraSalida) AS Fecha,"
+            " TIME(v.fecHoraSalida) AS Hora,"
+            " CONCAT(co.nombre,' a ',cd.nombre) AS Ruta,"
+            " ev.nombre AS Estado,"
+            " tk.precio AS Precio,"
+            " tp.nombre AS MetodoPago"
+            " FROM ticket tk"
+            " JOIN pasajero pa ON pa.num = tk.pasajero"
+            " JOIN viaje v ON v.numero = tk.viaje"
+            " JOIN ruta r ON v.ruta = r.codigo"
+            " JOIN terminal tor ON r.origen = tor.numero"
+            " JOIN terminal tdes ON r.destino = tdes.numero"
+            " JOIN ciudad co ON tor.ciudad = co.clave"
+            " JOIN ciudad cd ON tdes.ciudad = cd.clave"
+            " JOIN edo_viaje ev ON v.estado = ev.numero"
+            " LEFT JOIN pago p ON p.numero = tk.pago"
+            " LEFT JOIN tipo_pago tp ON tp.numero = p.tipo"
+            " WHERE LOWER(CONCAT(pa.paNombre,' ',pa.paPrimerApell,"
+            "       ' ',COALESCE(pa.paSegundoApell,''))) LIKE LOWER(%s)"
+            " ORDER BY v.fecHoraSalida DESC LIMIT 30",
+            ['%' + nombre + '%']
+        )
+        if not rows:
+            return '<p>No encontré viajes para el pasajero <strong>%s</strong>.</p>' % nombre
+        _, gasto = _q(
+            "SELECT COALESCE(SUM(tk.precio),0) AS total FROM ticket tk"
+            " JOIN pasajero pa ON pa.num = tk.pasajero"
+            " WHERE LOWER(CONCAT(pa.paNombre,' ',pa.paPrimerApell,"
+            "       ' ',COALESCE(pa.paSegundoApell,''))) LIKE LOWER(%s)",
+            ['%' + nombre + '%']
+        )
+        cards = _cards([
+            {'label': 'Viajes tomados', 'val': len(rows),                 'sub': nombre},
+            {'label': 'Gasto total',    'val': _pesos(gasto[0]['total']), 'sub': 'acumulado'},
+        ])
+        return '<p><strong>Viajes de %s:</strong></p>%s%s' % (
+            nombre, cards, _tabla(cols, rows, est=['Estado'], pesos=['Precio']))
+
+    # ── buscar_taquillero: buscar taquillero por nombre ──────────────────────────
+    if intent == 'buscar_taquillero':
+        nombre = None
+        patrones_taq = [
+            r'taquillero\s+(?:llamad[oa]\s+)?([a-záéíóúñ][a-záéíóúñ]+(?:\s+[a-záéíóúñ]+)*)',
+            r'llamad[oa]\s+([a-záéíóúñ][a-záéíóúñ]+(?:\s+[a-záéíóúñ]+)*)\s*(?:taquillero)?',
+            r'(?:existe|hay|busca).*?taquillero\s+([a-záéíóúñ][a-záéíóúñ]+(?:\s+[a-záéíóúñ]+)*)',
+            r'(?:existe|hay)\s+(?:el|la|un|una)\s+taquillero\s+([a-záéíóúñ][a-záéíóúñ]+)',
+        ]
+        stop_taq = {'el','la','un','una','existe','hay','busca','taquillero','taquillera'}
+        for pat in patrones_taq:
+            m = re.search(pat, pregunta.lower(), re.IGNORECASE)
+            if m:
+                cand = m.group(1).strip()
+                if cand and cand not in stop_taq:
+                    nombre = cand
+                    break
+        # Fallback: última palabra significativa después de "taquillero"
+        if not nombre:
+            m2 = re.search(r'taquillero\s+([a-záéíóúñ]{2,})', pregunta.lower())
+            if m2:
+                nombre = m2.group(1)
+        if not nombre:
+            # Listar todos si no hay nombre
+            cols, rows = _q(
+                "SELECT CONCAT(tq.taqnombre,' ',tq.taqprimerapell) AS Nombre,"
+                " tq.usuario AS Usuario, term.nombre AS Terminal, ci.nombre AS Ciudad"
+                " FROM taquillero tq"
+                " JOIN terminal term ON tq.terminal = term.numero"
+                " JOIN ciudad ci ON term.ciudad = ci.clave"
+                " ORDER BY ci.nombre, tq.taqprimerapell"
+            )
+            return '<p><strong>Taquilleros registrados:</strong></p>%s' % _tabla(cols, rows)
+
+        cols, rows = _q(
+            "SELECT tq.registro AS ID,"
+            " CONCAT(tq.taqnombre,' ',tq.taqprimerapell,' ',"
+            "        COALESCE(tq.taqsegundoapell,'')) AS Nombre,"
+            " tq.usuario AS Usuario,"
+            " term.nombre AS Terminal,"
+            " ci.nombre AS Ciudad,"
+            " CASE WHEN tq.supervisa=1 THEN 'Sí' ELSE 'No' END AS EsSupervisor"
+            " FROM taquillero tq"
+            " JOIN terminal term ON tq.terminal = term.numero"
+            " JOIN ciudad ci ON term.ciudad = ci.clave"
+            " WHERE LOWER(CONCAT(tq.taqnombre,' ',tq.taqprimerapell,"
+            "       ' ',COALESCE(tq.taqsegundoapell,''))) LIKE LOWER(%s)"
+            " ORDER BY tq.taqprimerapell",
+            ['%' + nombre + '%']
+        )
+        if not rows:
+            return '<p>No se encontró ningún taquillero con el nombre <strong>%s</strong>.</p>' % nombre
+        if len(rows) == 1:
+            row = rows[0]
+            cards = _cards([
+                {'label': 'Taquillero',  'val': row.get('Nombre', ''),   'sub': row.get('Terminal', '')},
+                {'label': 'Usuario',     'val': row.get('Usuario', ''),   'sub': 'sistema'},
+                {'label': 'Supervisor',  'val': row.get('EsSupervisor', ''), 'sub': row.get('Ciudad', '')},
+            ])
+            return '<p><strong>Taquillero encontrado:</strong></p>%s' % cards
+        return '<p><strong>%d resultado(s) para "%s":</strong></p>%s' % (
+            len(rows), nombre, _tabla(cols, rows))
+
+    # ── buscar_nombre_pasajero: nombre libre sin palabra 'pasajero' ─────────────
+    if intent == 'buscar_nombre_pasajero':
+        # Extraer nombre del pasajero con múltiples patrones
+        nombre = None
+        patrones_nombre = [
+            r'llamad[oa]\s+([a-záéíóúñA-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]+(?:\s+[a-záéíóúñA-ZÁÉÍÓÚÑ]+)*)',
+            r'una?\s+tal\s+([a-záéíóúñA-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]+)',
+            r'al?\s+pasajera?\s+([a-záéíóúñA-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]+(?:\s+[a-záéíóúñA-ZÁÉÍÓÚÑ]+)*)',
+            r'pasajera?\s+([a-záéíóúñA-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]+(?:\s+[a-záéíóúñA-ZÁÉÍÓÚÑ]+)*)',
+            r'cliente\s+([a-záéíóúñA-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]+(?:\s+[a-záéíóúñA-ZÁÉÍÓÚÑ]+)*)',
+            r'nombre\s+([a-záéíóúñA-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]+)',
+            r'boleto.*?\ba\s+([a-záéíóúñA-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]{2,})',
+            r'vendid[oa].*?\ba\s+([a-záéíóúñA-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]{2,})',
+            r'de\s+(?:una?\s+)?([a-záéíóúñA-ZÁÉÍÓÚÑ][a-záéíóúñA-ZÁÉÍÓÚÑ]{2,})',
+        ]
+        for pat in patrones_nombre:
+            m = re.search(pat, pregunta, re.IGNORECASE)
+            if m:
+                nombre = m.group(1).strip()
+                # Filtrar palabras comunes que no son nombres
+                stop = {'venta','boleto','compra','vendio','una','hubo','hay',
+                        'pasajera','pasajero','cliente','llamada','llamado',
+                        'existe','existir','busca','buscar','tal'}
+                if nombre.lower() not in stop:
+                    break
+                nombre = None
+        if not nombre:
+            # Fallback: última palabra sustantiva de más de 3 letras
+            stop_words = {'venta','boleto','compra','vendio','existe','pasajera',
+                          'pasajero','cliente','llamada','llamado','hubo','hay',
+                          'una','tal','busca','buscar','sobre','alguien'}
+            palabras = [p for p in re.findall(r'[a-záéíóúñ]{4,}', pregunta.lower())
+                        if p not in stop_words]
+            nombre = palabras[-1] if palabras else None
+        if not nombre:
+            return '<p>No pude identificar el nombre. Ejemplo: <em>"existe una pasajera llamada Ana"</em></p>'
+
+        cols_p, rows_p = _q(
+            "SELECT CONCAT(pa.paNombre,' ',pa.paPrimerApell,"
+            "        COALESCE(CONCAT(' ',pa.paSegundoApell),'')) AS Pasajero,"
+            " COUNT(tk.codigo) AS Boletos,"
+            " COALESCE(SUM(tk.precio),0) AS GastoTotal,"
+            " MAX(p.fechapago) AS UltimaCompra,"
+            " tp.nombre AS UltimoMetodoPago"
+            " FROM pasajero pa"
+            " JOIN ticket tk ON tk.pasajero = pa.num"
+            " JOIN pago p ON p.numero = tk.pago"
+            " LEFT JOIN tipo_pago tp ON tp.numero = p.tipo"
+            " WHERE LOWER(CONCAT(pa.paNombre,' ',COALESCE(pa.paPrimerApell,''),"
+            "       ' ',COALESCE(pa.paSegundoApell,''))) LIKE LOWER(%s)"
+            " GROUP BY pa.num ORDER BY UltimaCompra DESC LIMIT 10",
+            ['%' + nombre + '%']
+        )
+        if not rows_p:
+            return (
+                '<p>No encontré ningún pasajero con el nombre <strong>%s</strong> '
+                'en el historial de ventas.</p>' % nombre
+            )
+        if len(rows_p) == 1:
+            row = rows_p[0]
+            cards = _cards([
+                {'label': 'Pasajero',    'val': row.get('Pasajero', ''),        'sub': 'encontrado'},
+                {'label': 'Boletos',     'val': row.get('Boletos', 0),          'sub': 'comprados'},
+                {'label': 'Gasto total', 'val': _pesos(row.get('GastoTotal')),  'sub': 'acumulado'},
+            ])
+            return '<p><strong>Resultado para "%s":</strong></p>%s' % (nombre, cards)
+        return '<p><strong>%d resultados para "%s":</strong></p>%s' % (
+            len(rows_p), nombre, _tabla(cols_p, rows_p, pesos=['GastoTotal']))
 
     return None  # → AI con SQL dinámico
 
