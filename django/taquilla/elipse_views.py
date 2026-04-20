@@ -2102,3 +2102,4 @@ def elipse_chat(request):
         })
     except Exception as e:
         return JsonResponse({'error': 'Error interno: %s' % str(e)}, status=500)
+    #avr
